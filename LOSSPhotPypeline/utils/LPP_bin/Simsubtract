@@ -1,0 +1,53 @@
+#!/bin/sh
+if [ $# -lt 2 ]
+then
+        echo "Usage:$0 templatename filename [outsub outconv]"
+        echo "$1 $2 $3 $4"
+        exit 0
+fi
+
+if [ ! -e $1 ]
+then
+        echo "File $1 not exit!"
+        exit 0
+fi
+
+if [ ! -e $2 ]
+then
+        echo "File $2 not exit!"
+        exit 0
+fi
+
+if [ ! -e "default_config" ]
+then
+	echo "default_config not found, copy $ISISPATH/default_config to here"
+	cp $ISISPATH/default_config .
+fi
+
+##for old iraf style
+#HEAD=`echo $2 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
+#mrj_phot $1 $2
+#mv conv0.fit ${HEAD}_istpt.fit
+#mv conv.fit ${HEAD}_issub.fit
+
+#for new idl style
+HEAD=`echo $2 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/_cfwp\.fit//' |  sed 's/_c\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
+outsub=$3
+outconv=$4
+if [ "$outsub" = "" ]
+then
+  outsub=${HEAD}_cfsb.fit
+fi
+if [ "$outconv" = "" ]
+then
+  outconv=${HEAD}_cfcv.fit
+fi
+
+$ISISPATH/bin/mrj_phot $1 $2
+mv conv0.fit $outconv
+mv conv.fit $outsub
+#echo $outconv $outsub
+
+#delete kc_ and kt_ file
+rm -f kc_0*_c.fit
+rm -f kt_*_c.fit
