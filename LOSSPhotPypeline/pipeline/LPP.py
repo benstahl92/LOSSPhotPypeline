@@ -337,13 +337,18 @@ class LPP(object):
         if image_list is None:
             image_list = self.image_list
 
+        if self.photsub and (self.template_images is None):
+            self.get_template_images(late_time_begin = 30) # for testing purposes
+
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
         first_obs = None
         for fl in image_list:
             try:
                 c = Phot(fl, self.radecfile)
-                c.do_photometry(method = self.photmethod)
+                if self.photsub:
+                    c.galaxy_subtract()
+                c.do_photometry(method = self.photmethod, photsub = self.photsub)
                 if (first_obs is None) or (c.mjd < first_obs):
                     first_obs = c.mjd
             except KeyError:

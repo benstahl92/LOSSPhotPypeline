@@ -11,20 +11,19 @@ from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
 class Phot(FitsInfo,FileNames):
 
-    def __init__(self, name, radecfile = None, quiet_idl = True, template_images = None):
+    def __init__(self, name, radecfile = None, quiet_idl = True):
 
         FitsInfo.__init__(self, name)
         FileNames.__init__(self, name)
 
         self.radecfile = radecfile
-        self.template_images = template_images
 
         self.idl = pidly.IDL()
         if quiet_idl:
             self.idl('!quiet = 1')
             self.idl('!except = 0')
 
-    def do_photometry(self, method = 'psf'):
+    def do_photometry(self, method = 'psf', photsub = False):
         '''
         performs aperture/psf photometry by running shell scripts to generate needed files then wrapping an IDL procedure
 
@@ -52,23 +51,21 @@ class Phot(FitsInfo,FileNames):
             cmd = 'lpp_phot_apt'
 
         # run idl photometry routine
-        self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True)
+        if not photsub:
+            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True)
+        else:
+            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True, photsub = True)
 
-    def galaxy_subtract(self):
-
-        if self.template_images is None:
-            print('Missing dictionary of template images.')
-            return
+    def galaxy_subtract(self, template_images):
 
         if self.telescope.lower() == 'kait':
-            cmd = 'lpp_kait_galaxy_subtract'
+            cmd = 'lpp_kait_photsub'
         else:
             print('Telescope ({}) not implemented. Exiting.'.format(self.telescope))
             return
 
         # execute idl commmand
-        self.idl(cmd, self.cimg, self.template_images[self.filter])
+        self.idl(cmd, self.cimg, template_images[self.filter])
 
         # might want to add interactivity here to check the subtraction
 
-        # incomplete!!!
