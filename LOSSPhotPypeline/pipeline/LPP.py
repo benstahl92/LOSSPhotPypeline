@@ -1,0 +1,743 @@
+# standard imports
+import os
+import pidly
+import pickle as pkl
+import pandas as pd
+import numpy as np
+import warnings
+from astropy.io import fits
+from astropy.wcs import WCS
+from astropy.utils.exceptions import AstropyWarning
+warnings.simplefilter('ignore', category=AstropyWarning)
+
+# try for packages that may not be available
+try:
+    from pyzaphotdb import zaphot_search_by_radec
+    haveDB = True
+except ModuleNotFoundError:
+    haveDB = False
+
+# internal imports
+import LOSSPhotPypeline.utils as LPPu
+from LOSSPhotPypeline.image import Phot, FitsInfo, FileNames
+
+class LPP(object):
+    '''
+    look into speedups from blocking all printing
+    '''
+
+    def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20):
+
+        # basics from instantiation
+        self.targetname = targetname.lower().replace(' ', '')
+        self.config_file = targetname + '.conf'
+        self.interactive = interactive
+        self.cal_diff_tol = cal_diff_tol
+
+        # setup idl
+        self.idl = pidly.IDL()
+        if quiet_idl:
+            self.idl('!quiet = 1')
+            self.idl('!except = 0')
+
+        # welcome message
+        if self.interactive:
+            print('\n' + '-*-'*25 + '\n')
+            print('Welcome to the LOSS Photometry Pypeline (LPP)')
+            print('\n' + '-*-'*25 + '\n')
+
+        # to be sourced from configuration file
+        self.targetra = None
+        self.targetdec = None
+        self.photsub = False
+        self.photmethod = 'psf'
+        self.refname=''
+        self.photlistfile=''
+
+        # check if config file exists -- if not then generate template
+        if not os.path.isfile(self.config_file):
+            print('No configuration file detected, generating template: {}'.format(self.config_file + '_template'))
+            LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '_template')
+
+        # load configuration file
+        loaded = False
+        while not loaded:
+            try:
+                self.loadconf()
+                if self.interactive:
+                    print('Configuration file successfully loaded')
+                loaded = True
+            except FileNotFoundError:
+                LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '_template')
+                print('Configuration could not be loaded. Template generated: {}'.format(self.config_file + '_template'))
+                response = input('Specify configuration file (*****.conf) or q to quit > ')
+                if 'q' == response.lower():
+                    return
+                else:
+                    self.config_file = response
+
+        # general variables
+        self.filter_set = None
+        self.first_obs = None
+        self.image_list = []
+
+        # calibration variables
+        self.calibration_dir = 'calibration'
+        if not os.path.isdir(self.calibration_dir):
+            os.makedirs(self.calibration_dir)
+        self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
+        self.cal_source=''
+        self.calfile=''
+        self.calfile_use=''
+        self.cal_nat_fit=''
+        self.color_term = None
+
+        # lightcurve variables
+        self.lc_dir = 'lightcurve'
+        self.lc_base = None
+        self.lc_raw = None
+        self.lc_bin = None
+        self.lc_group = None
+        self.lc = None
+
+        # galaxy subtraction variables
+        self.template_images = None
+        self.templates_dir = 'templates' # could put into another python file with dictionary of global params
+
+        # steps in standard reduction procedure
+        self.current_step = 0
+        self.steps = [self.get_image_list,
+                      self.find_ref_stars,
+                      self.do_photometry_all_image,
+                      self.do_calibration,
+                      self.generate_lc]
+
+        # save file
+        self.savefile = self.targetname.lower().replace(' ', '') + '.sav'
+        if os.path.exists(self.savefile):
+            if self.interactive:
+                load = input('Load saved state from {}? ([y]/n) > '.format(self.savefile))
+            else:
+                load = 'y'
+            if 'n' not in load.lower():
+                self.load()
+
+        # currently unused
+        #self.psfstarfile=''
+        #self.template_candidates = None
+        #self.photuncalfile = ''
+        #self.photcalfile = ''
+        #self.photallcalfile = ''
+
+    ###################################################################################################
+    #          Configuration File Methods
+    ###################################################################################################
+
+    def loadconf(self):
+        '''
+        reads config file and sets class attributes accordingly
+        the most accurate accounting of system state is stored in the binary savefile
+        '''
+
+        # load config file and try to standardize keys
+        conf = pd.read_csv(self.config_file, header = None, delim_whitespace = True, comment = '#',
+                           index_col = 0, squeeze = True).replace(np.nan, '')
+        conf.index = conf.index.str.lower()
+
+        # read and set values (including the type)
+        self.targetra = float(conf['targetra'])
+        self.targetdec = float(conf['targetdec'])
+        if conf['photsub'].lower() == 'yes': # defaults to False in all other cases
+            self.photsub = True 
+        if conf['photmethod'].lower() == 'apt':
+            self.photmethod = 'apt'
+        self.refname = conf['refname']
+        self.photlistfile = conf['photlistfile']
+
+        # unused options
+        #self.targetname = conf['targetname'].lower().replace(' ', '')
+        #self.savefile = conf['savefile']
+        #self.photuncalfile = conf['photuncalfile']
+        #self.photcalfile = conf['photcalfile']
+        #self.photallcalfile = conf['photallcalfile']
+        #self.calfile = conf['calfile']
+        #self.radecfile = conf['radecfile']
+        #self.psfstarfile = conf['psfstarfile']
+
+    ###################################################################################################
+    #          UI / Automation Methods
+    ###################################################################################################
+
+    def __iter__(self):
+        return self
+
+    def next(self, *args, **kwargs):
+        if self.current_step < len(self.steps):
+            self.steps[self.current_step](*args, **kwargs)
+            self.current_step += 1
+            self.save()
+            self.summary()
+        else:
+            raise StopIteration
+
+    def skip(self):
+        self.go_to(self.current_step + 1)
+        self.summary()
+
+    def go_to(self, step = None):
+        if type(step) == int:
+            self.current_step = step
+            self.summary()
+        else:
+            self.summary()
+            print('\nChoose an option:\n')
+            print('primary reduction steps:')
+            for i, step in enumerate(self.steps):
+                if i == self.current_step:
+                    print('{} --- {} (current step)'.format(i, step.__name__))
+                else:
+                    print('{} --- {}'.format(i, step.__name__))
+            print('\nadditional options:')
+            print('n --- add new images')
+            print('g --- perform galaxy subtraction')
+            print('q --- quit\n')
+            resp = input('selection > ')
+            if 'n' in resp.lower():
+                new_image_file = input('enter name of new image file > ')
+                self.process_new_images(new_image_file)
+            elif 'g' in resp.lower():
+                print('placeholder for galaxy subtraction')
+            else:
+                try:
+                    self.current_step = int(resp)
+                except ValueError:
+                    return
+            self.summary()
+
+    def save(self):
+        vs = vars(self).copy()
+        vs.pop('steps')
+        vs.pop('idl')
+        with open(self.savefile, 'wb') as f:
+            pkl.dump(vs, f)
+
+    def load(self, savefile = None):
+        if savefile is None:
+            savefile = self.savefile
+        with open(savefile, 'rb') as f:
+            vs = pkl.load(f)
+        for v in vs.keys():
+            s = 'self.{} = vs["{}"]'.format(v, v)
+            exec(s)
+        self.summary()
+
+    def summary(self):
+        print('\n' + '-*-'*25 + '\n')
+        print('Reduction status for {}'.format(self.targetname))
+        print('Interactive: {}'.format(self.interactive))
+        print('\n' + '-*-'*25 + '\n')
+        if self.current_step == 0:
+            print('Beginning of reduction pipeline.\n')
+        else:
+            print('Previous step: {}'.format(self.steps[self.current_step - 1].__name__))
+            print(self.steps[self.current_step - 1].__doc__)
+        try:
+            print('--> Next step: {}'.format(self.steps[self.current_step].__name__))
+            print(self.steps[self.current_step].__doc__)
+        except IndexError:
+            print('End of reduction pipeline.')
+            self.save()
+            return
+        try:
+            print('----> Subsequent step: {}'.format(self.steps[self.current_step + 1].__name__))
+            print(self.steps[self.current_step + 1].__doc__)
+        except IndexError:
+            print('End of reduction pipeline.')
+
+    def run(self, skips = []):
+        while True:
+            if self.current_step in skips:
+                self.skip()
+            else:
+                try:
+                    self.next()
+                except StopIteration:
+                    break
+
+    ###################################################################################################
+    #          Reduction Pipeline Methods
+    ###################################################################################################
+
+    def get_image_list(self):
+        '''
+        reads and optionally prints image list
+        '''
+        self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
+                                      comment = '#', squeeze = True)
+
+        if self.interactive:
+            print('\nSelected image files')
+            print('-*-'*25 + '\n')
+            print(self.image_list)
+            print('\n')
+
+    def find_ref_stars(self):
+        '''
+        identifies all suitable stars in reference image
+        computes ra & dec positions
+        writes radecfile
+        '''
+
+        # if radecfile already exist, no need to do it
+        if os.path.isfile(self.radecfile):
+            if self.interactive:
+                print('\nradecfile {} already exists, doing nothing'.format(self.radecfile))
+            return
+        if self.refname == '' :
+            print('Error: refname has not been assigned, please do it first!')
+            return
+
+        # use sextractor to extract all stars to be used as refstars
+        os.system("LPP-Ssex-kait {0}".format(self.refname))
+
+        # check if output sobj file exists or not
+        nametmp=FileNames(self.refname)
+        if not os.path.isfile(nametmp.sobj) :
+            print('String, LPP-Ssex-kait command failed, no sobj file generated, check!')
+            return
+
+        # read sobj file of X_IMAGE and Y_IMAGE columns, as well as MAG_APER for sort
+        hdul = fits.open(nametmp.sobj)
+        data=hdul[1].data
+        # sort according to magnitude, from small/bright to hight/faint
+        data.sort(order='MAG_APER')
+        imagex=data.X_IMAGE
+        imagey=data.Y_IMAGE
+
+        # transform to RA and DEC using ref image header information
+        ref = fits.open(self.refname)
+        cs = WCS(header=ref[0].header)
+        imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
+
+        # write radec file
+        with open(self.radecfile, 'w') as f:
+            f.write('TARGET\n')
+            f.write('          RA          DEC\n')
+            f.write('   {:.7f}  {:.7f}\n'.format(self.targetra, self.targetdec))
+            f.write('\nREFSTARS\n')
+            f.write('          RA          DEC\n')
+            for i in range(len(imagera)):
+                f.write('   {:.7f}  {:.7f}\n'.format(imagera[i], imagedec[i]))
+
+    def do_photometry_all_image(self, image_list = None):
+        '''
+        performs photometry on all selected image files
+        '''
+
+        if image_list is None:
+            image_list = self.image_list
+
+        # iterate through image list and perform photometry on each
+        # also determine date of first observation since already touching each file
+        first_obs = None
+        for fl in image_list:
+            try:
+                c = Phot(fl, self.radecfile)
+                c.do_photometry(method = self.photmethod)
+                if (first_obs is None) or (c.mjd < first_obs):
+                    first_obs = c.mjd
+            except KeyError:
+                print('Warning: photometry failed on image: {}'.format(fl))
+                self.image_list.pop(self.image_list.index(fl))
+        if self.first_obs is None:
+            self.first_obs = first_obs
+
+    def calibrate(self, second_pass = False, image_list = None):
+        '''
+        performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image
+
+        B. Stahl - June 25, 2018; July 23, 2018
+        '''
+
+        if image_list is None:
+            image_list = self.image_list
+
+        # check for calibration data and download if it doesn't exist yet
+        if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
+            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+            catalog.get_cal()
+            catalog.to_natural()
+            self.calfile = catalog.cal_filename
+            self.cal_source = catalog.cal_source
+
+        # otherwise if in second pass mode, perform second calibration using edited calibration list
+        elif second_pass is True:
+            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+            catalog.cal_filename = self.calfile_use
+            catalog.cal_source = self.cal_source
+            catalog.to_natural()
+
+        # iterate through image list and execute calibration script on each
+        for fl in image_list:
+
+            # instantiate file object
+            fl_obj = FitsInfo(fl)
+
+            # select color term based on telescope and date
+            if fl_obj.telescope == 'kait':
+                tel = 'kait'
+                if fl_obj.mjd < 51229.0: # mjd of 1999-02-20
+                    tel += '1'
+                elif fl_obj.mjd < 52163.0: # mjd of 2001-09-11
+                    tel += '2'
+                elif fl_obj.mjd < 54232.0: # mjd of 2007-05-12
+                    tel += '3'
+                else:
+                    tel += '4'
+            elif fl_obj.telescope == 'Nickel':
+                tel = 'nickel'
+                if fl_obj.mjd < 54845.0: # mjd of 2009-01-14
+                    tel += 1
+                else:
+                    tel += 2
+            else:
+                print('Warning: telescope "{}" not recognized for image: {}'.format(fl_obj.telescope, fl))
+
+            # enforce only handling one color term per run
+            if self.color_term is not None:
+                assert self.color_term == tel
+            self.color_term = tel
+
+            base = self.calfile.split('.')[0]
+            self.cal_nat_fit = base + '_{}_natural.fit'.format(self.color_term)
+
+            # execute idl calibration procedure
+            if self.photmethod == 'psf':
+                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True)
+            else:
+                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit))
+
+    def process_calibration(self):
+        '''
+        combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made
+        '''
+
+        # underlying data structure for handling this will be dictionary keyed by filter
+        # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
+        results = {}
+
+        self.calfile_use = self.calfile.replace('.dat', '_use.dat')
+
+        # generate ordered calibration file
+        self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile))
+        self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use))
+
+        # read ordered calibration file, using index offset to match
+        cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
+        IDs = cal['starID'] + 2
+
+        # iterate through files and store photometry into data structure
+        for fl in self.image_list:
+
+            fl_obj = Phot(fl)
+            filt = fl_obj.filter
+
+            # add second level dictionary if needed
+            if filt not in results.keys():
+                results[filt] = {}
+
+            # read file (using hard-coded columns for 3.5 pix aperture in apt mode or psf in psf mode)
+            if self.photmethod == 'psf':
+                d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,17), squeeze = True).dropna()
+            else:
+                d = pd.read_csv(fl_obj.aptdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,3), squeeze = True).dropna()
+
+            # populate results dict from file
+            for idx, val in d.iteritems():
+                if (idx in IDs.values):
+                    if idx not in results[filt].keys():
+                        results[filt][idx] = [d[idx]]
+                    else:
+                        results[filt][idx].append(d[idx])
+
+        self.filter_set = list(results.keys())
+
+        # compute summary results, thereby allowing for cuts to be made
+        # also include calibration magnitudes and differences
+
+        # open proper calibration file
+        im = fits.open(os.path.join(self.calibration_dir, self.cal_nat_fit.replace('_{}_'.format(self.cal_source), '_{}_use_'.format(self.cal_source))))
+
+        accept_tol = False
+        while not accept_tol:
+            summary_results = {}
+            cut_list = [] # store IDs that will be cut
+            for filt in results.keys():
+                if filt not in summary_results.keys():
+                    summary_results[filt] = {}
+                for ID in results[filt].keys():
+                    if len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0:
+                        obs = np.median(results[filt][ID])
+                        std = np.std(results[filt][ID])
+                        ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
+                        diff = np.abs(obs - ref)
+                        summary_results[filt][ID] = [obs, ref, diff]
+                        if diff > self.cal_diff_tol:
+                            cut_list.append(ID - 2)
+
+            cut_list = list(set(cut_list))
+            if not self.interactive:
+                accept_tol = True
+            else:
+                for filt in summary_results.keys():
+                    print('\nFilter: {}'.format(filt))
+                    print('-*-'*25 + '\n')
+                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']))
+
+                print('\nIDs that will be cut:')
+                print('-*-'*25 + '\n')
+                print([i + 2 for i in cut_list])
+                response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))
+                if (response == '') or ('y' in response.lower()):
+                    accept_tol = True
+                else:
+                    self.cal_diff_tol = float(response)
+
+        # write new calibration file
+        os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
+        with open('tmp.tmp', 'r') as infile:
+            with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
+                for idx, line in enumerate(infile):
+                    if idx == 0:
+                        outfile.write(line)
+                    else:
+                        ID = int(line.split(' ')[0])
+                        if ID not in cut_list:
+                            outfile.write(line)
+        os.system('rm tmp.tmp')
+
+    def do_calibration(self):
+        '''
+        executes full calibration routine
+        '''
+
+        self.calibrate()
+        self.process_calibration()
+        self.calibrate(second_pass = True)
+
+    def generate_raw_lc(self):
+        '''
+        builds raw light curve file from calibrated results
+        '''
+
+        columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
+        lc = {name: [] for name in columns}
+
+        # iterate through files and extract LC information
+        for fl in self.image_list:
+
+            fl_obj = Phot(fl)
+            lc[';; MJD'].append(round(fl_obj.mjd, 6))
+            lc['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
+            lc['filter'].append(fl_obj.filter)
+            lc['imagename'].append(fl)
+
+            # read info and calculate limiting magnitude 
+            with open(fl_obj.sky, 'r') as f:
+                sky = float(f.read())
+            with open(fl_obj.zero, 'r') as f:
+                zero = float(f.read())
+            lc['limmag'].append(round(-2.5*np.log10(3*sky) + zero, 5))
+
+            # read photometry results
+            if self.photmethod == 'psf':
+                d = pd.read_csv(fl_obj.psfdat, delim_whitespace = True, comment = ';', usecols=(0,17,18), names = ('ID','mag','err')).dropna()
+            else:
+                d = pd.read_csv(fl_obj.aptdat, delim_whitespace = True, comment = ';', usecols=(0,3,4), names = ('ID','mag','err')).dropna()
+            mag = d[d['ID'] == 1]['mag'].item()
+            err = d[d['ID'] == 1]['err'].item()
+
+            # add results to dataframe
+            lc['mag'].append(round(mag,5))
+            lc['-emag'].append(round(mag - err,5))
+            lc['+emag'].append(round(mag + err,5))
+
+        pd.DataFrame(lc).to_csv(self.lc_raw, sep = '\t', columns = columns, index = False)
+
+    def generate_bin_lc(self, lc_file = None):
+        '''
+        wraps IDL lightcurve binning routine
+        '''
+
+        if lc_file is None:
+            lc_file = self.lc_raw
+
+        self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin)
+
+    def generate_group_lc(self, lc_file = None):
+        '''
+        wraps IDL lightcurve grouping routine
+        '''
+
+        if lc_file is None:
+            lc_file = self.lc_bin
+
+        self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
+
+    def generate_final_lc(self, lc_table = None):
+        '''
+        wraps IDL routine to convert to natural system
+        '''
+
+        if lc_table is None:
+            lc_table = self.lc_group
+
+        self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc)
+
+    def generate_lc(self):
+        '''
+        performs all functions to transform image photometry into calibrated light curve of target
+        '''
+
+        # set up file system
+        if not os.path.isdir(self.lc_dir):
+            os.makedirs(self.lc_dir)
+        self.lc_base = self.lc_dir + '/lightcurve_' + self.photmethod + '_' + self.targetname
+        self.lc_raw = self.lc_base + '_natural_raw.dat'
+        self.lc_bin = self.lc_base + '_natural_bin.dat'
+        self.lc_group = self.lc_base + '_natural_group.dat'
+        self.lc = self.lc_base + '_standard.dat'
+
+        # run through all routines
+        self.generate_raw_lc()
+        self.generate_bin_lc()
+        self.generate_group_lc()
+        self.generate_final_lc()
+
+    def process_new_images(self, new_image_file):
+        '''
+        processes images obtained after initial processing
+        '''
+
+        # read in new images to list
+        new_image_list = pd.read_csv(new_image_file, header = None, delim_whitespace = True,
+                                      comment = '#', squeeze = True)
+
+        # remove any images from new list that have already been processed
+        new_image_list = new_image_list[~new_image_list.isin(self.image_list)]
+
+        # update image list to include everything
+        self.image_list = self.image_list.append(new_image_list, ignore_index = True)
+
+        # perform photometry on new images
+        self.do_photometry_all_image(image_list = new_image_list)
+
+        # perform calibration
+        full_cal = False
+        if self.interactive:
+            resp = input('\nperform full re-calibration? (y/[n])')
+            if 'y' in resp.lower():
+                full_cal = True
+        if full_cal:
+            self.current_step = 3
+        else:
+            self.calibrate(second_pass = False, image_list = new_image_list)
+            self.current_step = 4
+
+        # run program after calibration has been completed
+        self.run()
+
+        # add to original image file and remove new file
+        ow = True
+        if self.interactive:
+            resp = input('\nadd {} to {} and then remove {}? (y/[n]) > '.format(new_image_file, self.photlistfile, new_image_file))
+            if 'y' not in resp.lower():
+                ow = False
+        if ow:
+            os.system('cat {} >> {}'.format(new_image_file, self.photlistfile))
+            os.system('rm {}'.format(new_image_file))
+
+    def get_template_images(self, late_time_begin = 365, base_dir = '/media/FilData2/Data/imagedatabase/'):
+        '''
+        searches database to identify template images for galaxy subtraction
+        '''
+
+        if not haveDB:
+            print('Database unavailable')
+            return
+
+        if self.first_obs is None:
+            self.first_obs = LPPu.get_first_obs_date(self)
+
+        self.template_images = {filt: None for filt in self.filter_set}
+
+        # is this a good choice for the radius?
+        cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
+
+        # select only candidates that are before the first observation or at least one year later
+        cand = cand[(cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin))]
+
+        if len(cand) == 0:
+            print('\nNo suitable candidates in any passband. Schedule observations:')
+            print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+            return
+
+        # iterate through filters to determine the best template for each
+        for idx, filt in cand['filter'].drop_duplicates().iteritems():
+            tmp = cand[cand['filter'] == filt]
+            if len(tmp) == 0:
+                print('\nNo suitable candidates in the {} band. Schedule an observation'.format(filt))
+                print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+            elif len(tmp) == 1:
+                print('\nOnly one candidate found in the {} band'.format(filt))
+                if tmp.iloc[0]['telescope'].lower() != 'nickel':
+                    print('Not a Nickel image. May want to schedule an observation, but using image in the meantime.')
+                    print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+                self.template_images[filt] = base_dir + tmp.iloc[0]['savepath'] + tmp.iloc[0]['uniformname']
+            else:
+                tmp = tmp.sort_values('limitmag', ascending=False)
+                # compare the best two images
+                if (tmp['fwhm'].iloc[0] - tmp['fwhm'].iloc[1] > 0.3) and (tmp['limitmag'].iloc[0] - tmp['limitmag'].iloc[1] < 3):
+                    index_to_use = 1
+                else:
+                    index_to_use = 0
+                if tmp.iloc[index_to_use]['telescope'].lower() != 'nickel':
+                    print('\nBest image is not from Nickel. May want to schedule an observation, but using image in the meantime.')
+                    print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+                self.template_images[filt] = os.path.join(base_dir, tmp.iloc[index_to_use]['savepath'], tmp.iloc[index_to_use]['uniformname'])
+
+        if not os.path.isdir(self.templates_dir):
+            os.makedirs(self.templates_dir)
+
+        # simple check for file existence and copy to templates dir
+        for filt in self.template_images.keys():
+            decomp = False
+            if os.path.exists(self.template_images[filt]):
+                pass
+            elif os.path.exists(self.template_images[filt] + '.gz'):
+                self.template_images[filt] += '.gz'
+                decomp = True
+            else:
+                print('file format not recognized')
+                return
+            os.system('cp {} {}'.format(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])))
+            self.template_images[filt] = os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])
+            if decomp:
+                os.system('gzip -d {}'.format(self.template_images[filt]))
+                self.template_images[filt] = self.template_images[filt][:-3]
+
+        # rebin if needed
+        for filt in self.template_images.keys():
+            fl_obj = FitsInfo(self.template_images[filt])
+            if (fl_obj.telescope.lower() == 'nickel') and ('kait' in self.color_term):
+                self.idl.pro('kait_rebin_from_nickel', self.template_images[filt], savefile = self.template_images[filt])
+
+        # optionally show template images
+        if self.interactive:
+            resp = input('\ndisplay template images? (y/[n]) > ')
+            if 'y' in resp.lower():
+                os.system('ds9 -zscale {} &'.format(' '.join([self.template_images[filt] for filt in self.template_images.keys()])))
+
+
+    def MLCS_fit(self):
+        return
