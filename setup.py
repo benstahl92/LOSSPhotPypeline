@@ -7,6 +7,7 @@ It should be run once from the code's root directory and then the .bashrc file s
 import os
 import shutil
 import sys
+from pexpect.exceptions import ExceptionPexpect
 
 try:
 	import pidly
@@ -28,6 +29,10 @@ for ex in required_execs:
 	s = shutil.which(ex)
 	if s == '':
 		sys.exit('{} not found!'.format(ex))
+
+# check that ISIS is installed
+if not 'ISISPATH' in os.environ:
+	sys.exit('ISISPATH not set or ISIS is not installed. Cannot proceed.')
 
 # write scripts with sextractor config path and make them executable
 
@@ -51,10 +56,10 @@ with open('{}'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_b
 st = os.stat(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'))
 os.chmod(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'), st.st_mode | 0o111)
 
+print('\nEnsure that the following IDL packages are installed:')
+print('\tAstrolib')
+
 print('\nAdd the following to your .bashrc file (and then source it!):\n')
 print('export PATH="{}:$PATH"'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin')))
 print('export IDL_PATH=+{}:$IDL_PATH'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_idl')))
 print('export PYTHONPATH={}:$PYTHONPATH'.format(root_dir))
-
-print('\nEnsure that the following IDL packages are installed:')
-
