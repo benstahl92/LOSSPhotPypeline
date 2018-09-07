@@ -82,7 +82,7 @@ Yimage1=sxpar(head1,'NAXIS2')
 ;try to use random generated coordinates
 fakeximage1=RandomU(seed, 50) * Ximage1
 fakeyimage1=RandomU(seed, 50) * Yimage1
-help,fakeximage1,fakeyimage1
+;;help,fakeximage1,fakeyimage1
 
 ;;transform fake x,y to ra dec
 xy2ad,fakeximage1,fakeyimage1,astr1,fakera1,fakedec1
@@ -101,7 +101,7 @@ fakeyimage2=fakeyimage2[indtemp]
 
 ;;match
 close_match_radec,fakera1,fakedec1, $
-  fakera2,fakedec2,m1,m2,pixscale*4.0,1.0,miss1
+  fakera2,fakedec2,m1,m2,pixscale*4.0,1.0,miss1,/silent
 nobj = n_elements(m1)
 
 
