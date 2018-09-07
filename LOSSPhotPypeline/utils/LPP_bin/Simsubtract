@@ -43,7 +43,7 @@ then
   outconv=${HEAD}_cfcv.fit
 fi
 
-$ISISPATH/bin/mrj_phot $1 $2
+$ISISPATH/bin/mrj_phot $1 $2 > /dev/null 2>&1
 mv conv0.fit $outconv
 mv conv.fit $outsub
 #echo $outconv $outsub
