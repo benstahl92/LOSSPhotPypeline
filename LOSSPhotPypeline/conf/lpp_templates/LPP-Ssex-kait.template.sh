@@ -1,3 +1,5 @@
+#!/bin/bash
+SEXCONFPATH=
 
 if [ $# -le 0 ]
 then

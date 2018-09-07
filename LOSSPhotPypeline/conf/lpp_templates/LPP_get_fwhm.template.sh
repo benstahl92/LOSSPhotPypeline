@@ -1,3 +1,5 @@
+#!/bin/bash
+sexconfpath=
 workdir=./
 
 #this file is for configuration file fwhm.sex
