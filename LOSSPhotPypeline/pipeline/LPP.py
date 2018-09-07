@@ -235,6 +235,7 @@ class LPP(object):
         print('\n' + '-*-'*25 + '\n')
         print('Reduction status for {}'.format(self.targetname))
         print('Interactive: {}'.format(self.interactive))
+        print('Photsub Mode: {}'.format(self.photsub))
         print('\n' + '-*-'*25 + '\n')
         if self.current_step == 0:
             print('Beginning of reduction pipeline.\n')

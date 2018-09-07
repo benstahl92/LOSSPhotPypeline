@@ -65,7 +65,7 @@ class Phot(FitsInfo,FileNames):
             return
 
         # execute idl commmand
-        self.idl(cmd, self.cimg, template_images[self.filter])
+        self.idl.pro(cmd, self.cimg, template_images[self.filter])
 
         # might want to add interactivity here to check the subtraction
 
