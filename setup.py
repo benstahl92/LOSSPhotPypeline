@@ -36,9 +36,9 @@ if not 'ISISPATH' in os.environ:
 
 # write scripts with sextractor config path and make them executable
 
-with open('{}'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.template.sh')), 'r') as f:
+with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'lpp_templates', 'LPP-Ssex-kait.template.sh'), 'r') as f:
 	s = f.readlines()
-with open('{}'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.sh')), 'w') as f:
+with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.sh'), 'w') as f:
 	f.write('#!/bin/bash\n')
 	f.write('SEXCONFPATH={}/\n'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'sextractor_config')))
 	for line in s:
@@ -46,15 +46,27 @@ with open('{}'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_b
 st = os.stat(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.sh'))
 os.chmod(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.sh'), st.st_mode | 0o111)
 
-with open('{}'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.template.sh')), 'r') as f:
+with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'lpp_templates', 'LPP_get_fwhm.template.sh'), 'r') as f:
 	s = f.readlines()
-with open('{}'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh')), 'w') as f:
+with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'), 'w') as f:
 	f.write('#!/bin/bash\n')
 	f.write('sexconfpath={}/\n'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'sextractor_config')))
 	for line in s:
 		f.write(line)
 st = os.stat(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'))
 os.chmod(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'), st.st_mode | 0o111)
+
+# write so path into get_local_sky procedure
+with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'lpp_templates', 'get_local_sky.template.pro'), 'r') as f:
+	s = f.readlines()
+with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_idl', 'get_local_sky.pro'), 'w') as f:
+	for idx, line in enumerate(s):
+		if idx != 44:
+			f.write(line)
+		else:
+			f.write('sopath={}/\n'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_c')))
+
+print('\nNB: local_sky_sub.so is compiled from local_sky_sub.c --- you will likely need to recompile on your machine.')
 
 print('\nEnsure that the following IDL packages are installed:')
 print('\tAstrolib')
