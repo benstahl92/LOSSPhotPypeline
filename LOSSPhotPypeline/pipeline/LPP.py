@@ -77,7 +77,7 @@ class LPP(object):
                     self.config_file = response
 
         # general variables
-        self.filter_set = None
+        self.filter_set = ['B', 'V', 'R', 'I', 'clear']
         self.first_obs = None
         self.image_list = []
 
@@ -347,7 +347,7 @@ class LPP(object):
             try:
                 c = Phot(fl, self.radecfile)
                 if self.photsub:
-                    c.galaxy_subtract()
+                    c.galaxy_subtract(self.template_images)
                 c.do_photometry(method = self.photmethod, photsub = self.photsub)
                 if (first_obs is None) or (c.mjd < first_obs):
                     first_obs = c.mjd
