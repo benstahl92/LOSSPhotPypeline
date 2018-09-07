@@ -4,6 +4,7 @@ import pidly
 import pickle as pkl
 import pandas as pd
 import numpy as np
+import logging
 import warnings
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -122,6 +123,10 @@ class LPP(object):
             if 'n' not in load.lower():
                 self.load()
 
+        # log file
+        self.logfile = self.targetname.lower().replace(' ', '') + '.log'
+        self.build_log()
+
         # currently unused
         #self.psfstarfile=''
         #self.template_candidates = None
@@ -163,6 +168,25 @@ class LPP(object):
         #self.calfile = conf['calfile']
         #self.radecfile = conf['radecfile']
         #self.psfstarfile = conf['psfstarfile']
+
+    ###################################################################################################
+    #          Logging
+    ###################################################################################################
+
+    def build_log(self):
+        '''
+        starts up the log
+        '''
+
+        self.log = logging.getLogger('LOSSPhotPypeline')
+        self.log.setLevel(logging.INFO)
+        fh = logging.FileHandler(self.logfile)
+        fh.setFormatter(logging.Formatter('%(asctime)s ::: %(message)s'))
+        self.log.addHandler(fh)
+        sh = logging.StreamHandler()
+        sh.setFormatter(logging.Formatter('*'*40+'\n%(levelname)s - %(message)s\n'+'*'*40))
+        self.log.addHandler(sh)
+        self.log.info('LPP Started.')
 
     ###################################################################################################
     #          UI / Automation Methods
@@ -218,6 +242,7 @@ class LPP(object):
         vs = vars(self).copy()
         vs.pop('steps')
         vs.pop('idl')
+        vs.pop('log')
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
 
