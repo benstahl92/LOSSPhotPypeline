@@ -42,7 +42,7 @@ function get_local_sky,image,x,y,radius1,radius2,annulus=annulus,rejected=reject
 ;-
 
 ;; ##### Set true path to .so file here! #####
-sopath='/products/idl_usr.lib/'
+sopath=
 
 if keyword_set(noreject) then doreject=0 else doreject=1
 
