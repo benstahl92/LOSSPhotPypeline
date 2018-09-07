@@ -54,7 +54,7 @@ os.chmod(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get
 with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'lpp_templates', 'get_local_sky.template.pro'), 'r') as f:
 	s = f.read()
 with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_idl', 'get_local_sky.pro'), 'w') as f:
-	f.write(s.replace('sopath=', 'sopath={}/'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_c'))))
+	f.write(s.replace('sopath=', 'sopath="{}/"'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_c'))))
 
 print('\nNB: local_sky_sub.so is compiled from local_sky_sub.c --- you will likely need to recompile on your machine.')
 
