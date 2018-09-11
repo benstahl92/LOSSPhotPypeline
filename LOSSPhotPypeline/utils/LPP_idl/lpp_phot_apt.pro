@@ -1,4 +1,4 @@
-pro lpp_phot_apt,image,fwhm=fwhm,exposures=exposures,savesky=savesky,output=output
+pro lpp_phot_apt,image,fwhm=fwhm,exposures=exposures,savesky=savesky,photsub=photsub,output=output
 
 if n_params() eq 0 then begin
   print,'syntax - LPP_phot_apt,image,fwhm=fwhm,exposures=exposures,savesky=savesky'
@@ -51,7 +51,7 @@ print,objx,objy
 
 ;; first, find the image size
 ;imhdr=headfits(image)
-imagedata=mrdfits(image,0,imhdr)
+imagedata=mrdfits(image,0,imhdr,/silent)
 maxX=float(sxpar(imhdr,'NAXIS1'))
 maxY=float(sxpar(imhdr,'NAXIS2'))
 ;print,maxX,maxY
@@ -109,8 +109,62 @@ endfor
 
 ;print,magall,magerrall
 
+;;great, all done, unless with keyword photsub, even fail, still need to do apt sub
+if keyword_set(photsub) then begin
+  ;;check the sub image exist or not
+  fs=findfile(imagest.cfsb)
+  if fs[0] eq '' then begin
+    print,'subimage file : ',imagest.cfsb,' not found, quit!'
+    return
+  endif
+  if keyword_set(output) then begin
+    print,'Doing sub image photometry now'
+  endif
+  subfluxall=fltarr(nphot)
+  subfluxerrall=fltarr(nphot)
+  subskynoise=fltarr(nphot)
+  subskys=fltarr(nphot)
+  submagall=fltarr(nphot)
+  submagerrall=fltarr(nphot)
+  submagall[*]=!values.d_nan
+  submagerrall[*]=!values.d_nan
+  ;;readin subimage data
+  subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
+  ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
+  xs=objx[0]
+  ys=objy[0]
+  ;; recentroid objects
+  gcntrd,subimagedata,xs,ys,xcen,ycen,fwhm ;;;,maxgood=ims.satcounts
+  xs=xcen
+  ys=ycen
+  for i=0,nphot-2 do begin
+    lpp_get_aper_counts,subimagedata,fwhm,xs,ys,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
+    ;print,flux,eflux
+    subfluxall[i]=flux
+    subfluxerrall[i]=eflux
+    subskynoise[i]=skynoisetmp
+    subskys[i]=skytmp
+  end
+  ;;transform count to mag, use zero point of 25.0
+  ;;this is improtatn, because later we also need this information to calculat the sky noise
+  ;;and then limiting magnitude.
+  for i=0,n_elements(subfluxall)-1 do begin
+    if fluxall[i] gt 0 then begin
+      submagall[i]=-2.5*alog10(subfluxall[i]/exposures)+25.0
+      if finite(subfluxerrall[i]) eq 1 then begin
+        subemagptmp=-2.5*alog10((subfluxall[i]-subfluxerrall[i])/exposures)+25.0
+        subemagmtmp=-2.5*alog10((subfluxall[i]+subfluxerrall[i])/exposures)+25.0
+        submagerrall[i]=(subemagptmp-subemagmtmp)/2.0
+      endif else begin
+        submagerrall[i]=9.99
+      endelse
+    endif
+  endfor
+endif
+
 ;;write the out put to the text file
-openw,lun,imagest.apt,/get_lun
+outfile=imagest.apt
+openw,lun,outfile,/get_lun
 printf,lun,';;id   ximage   yimage    3.5p   err    5.0p   err    7.0p   err    9.0p   err   1.0fh   err   1.5fh   err   2.0fh   err'
 ;;note x,y need plus 1.0
 for i=0,nobj-1 do begin
@@ -118,6 +172,19 @@ for i=0,nobj-1 do begin
 endfor
 close,lun
 free_lun,lun
+if keyword_set(photsub) then begin
+  outfile=imagest.aptsub
+  magall[0,*]=submagall[*]
+  magerrall[0,*]=submagerrall[*]
+  openw,lun,outfile,/get_lun
+  printf,lun,';;id   ximage   yimage    3.5p   err    5.0p   err    7.0p   err    9.0p   err   1.0fh   err   1.5fh   err   2.0fh   err'
+  ;;note x,y need plus 1.0
+  for i=0,nobj-1 do begin
+    printf,lun,i+1,objx[i]+1.0,objy[i]+1.0,magall[i,0],magerrall[i,0],magall[i,1],magerrall[i,1],magall[i,2],magerrall[i,2],magall[i,3],magerrall[i,3],magall[i,4],magerrall[i,4],magall[i,5],magerrall[i,5],magall[i,6],magerrall[i,6],format='(i4,f9.2,f9.2,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3)'
+  endfor
+  close,lun
+  free_lun,lun
+endif
 
 ;;write the sky if savesky keyword is set
 if keyword_set(savesky) then begin

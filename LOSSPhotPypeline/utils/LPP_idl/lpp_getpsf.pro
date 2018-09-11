@@ -1,5 +1,5 @@
 pro lpp_getpsf,image,xc,yc,apmag,sky,ronois,phpadu, gauss,psf,idpsf,psfrad, $
-                 fitrad,psfname, DEBUG = debug,psfmag=psfmag,quiet=quiet
+                 fitrad,psfname, DEBUG = debug,psfmag=psfmag,quiet=quiet,fail=fail
 ;+
 ; NAME:
 ;	GETPSF
@@ -98,6 +98,7 @@ pro lpp_getpsf,image,xc,yc,apmag,sky,ronois,phpadu, gauss,psf,idpsf,psfrad, $
          'psfname, /DEBUG]'
    return
  endif
+ fail=0b
 
  s = size(image)    		;Get number of rows and columns in image
  ncol = s[1] & nrow = s[2]
@@ -163,9 +164,12 @@ GOT_ID:
 GETSTAR: 
 
  nstrps = nstrps + 1       
- if nstrps GE numpsf then $
-     message,'ERROR - No valid PSF stars were supplied'
-
+ if nstrps GE numpsf then begin
+     fail=1b
+     print,'ERROR - No valid PSF stars were supplied'
+     return
+ endif
+ 
  istar = idpsf[nstrps]       ;ID number of first PSF star
  ixcen = fix(xc[istar])      
  iycen = fix(yc[istar])
