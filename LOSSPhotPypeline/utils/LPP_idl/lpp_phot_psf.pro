@@ -55,7 +55,7 @@ objy=objy-1.0
 
 ;; first, find the image size
 ;imhdr=headfits(image)
-imagedata=mrdfits(image,0,imhdr,/silent)
+imagedata=mrdfits(image,0,imhdr)
 maxX=float(sxpar(imhdr,'NAXIS1'))
 maxY=float(sxpar(imhdr,'NAXIS2'))
 ;print,maxX,maxY
@@ -215,9 +215,9 @@ psfrad=1.5*fwhm
 fitrad=1.0*fwhm
 radtol=0.95*fitrad
 ;;need to readin image data array
-imagedata=mrdfits(image,0,/silent)
+imagedata=mrdfits(image,0)
 lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
-  ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet
+  ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag
 
 ;; nstar does the actual psf fitting
 ;;here mags and magerr input are from above apr result, and will be modified after
@@ -242,10 +242,10 @@ inds=lindgen(n_elements(xs))
 ;; group the stars together
 group,xs,ys,psfrad+fitrad,ngroup
 lpp_nstar,imagedata,inds,xs,ys,magpsf,skyspsf,ngroup,ccdgain,ccdronoise,'',magpsferr $
-  ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,/silent
+  ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad
 
 ;;findout the targets corresponding to xs,ys
-close_match,objx,objy,xs,ys,m1,m2,radtol,1,missed1,/silent
+close_match,objx,objy,xs,ys,m1,m2,radtol,1,missed1
 ;print,'start matching 5'
 if m1[0] eq -1 then begin
     print,'*********************************'
@@ -294,7 +294,7 @@ if keyword_set(photsub) then begin
   submagall[*]=!values.d_nan
   submagerrall[*]=!values.d_nan
   ;;readin subimage data
-  subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
+  subimagedata=mrdfits(imagest.cfsb,0,imhdr)
   ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
   xs=objx[0]
   ys=objy[0]
@@ -336,10 +336,10 @@ if keyword_set(photsub) then begin
   subskyspsf=subskys[0]
 
   lpp_nstar,subimagedata,[0],xs,ys,magpsf,skyspsf,ngroup,ccdgain,ccdronoise,'',magpsferr $
-    ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,/silent
+    ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad
 
   ;;findout the targets corresponding to xs,ys
-  close_match,objx[0],objy[0],xs,ys,m1,m2,radtol,1,missed1,/silent
+  close_match,objx[0],objy[0],xs,ys,m1,m2,radtol,1,missed1
   ;print,'start matching 5'
   if m1[0] eq -1 then begin
       print,'*********************************'

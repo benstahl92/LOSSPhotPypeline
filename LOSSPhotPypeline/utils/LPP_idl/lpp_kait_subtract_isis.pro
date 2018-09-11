@@ -27,8 +27,8 @@ endif
 cmd='Simsubtract '+cfcvref+' '+image+' '+imagest.CFSB+' '+imagest.CFCV
 spawn,cmd
 
-im_sfsb=mrdfits(imagest.CFSB,0,head1,/fscale,/silent)
-im_sfcv=mrdfits(imagest.CFCV,0,head2,/fscale,/silent)
+im_sfsb=mrdfits(imagest.CFSB,0,head1,/fscale)
+im_sfcv=mrdfits(imagest.CFCV,0,head2,/fscale)
 
 if n_elements(subreg) eq 1 then begin
   naxis1=sxpar(head1,'NAXIS1')
@@ -48,8 +48,8 @@ if keyword_set(output) then begin
   print,minx,maxx,miny,maxy
 endif 
 
-tmp_img=mrdfits(image,0,headtmp1,/fscale,/silent)
-tmp_img_ref=mrdfits(cfcvref,0,headtmp2,/fscale,/silent)
+tmp_img=mrdfits(image,0,headtmp1,/fscale)
+tmp_img_ref=mrdfits(cfcvref,0,headtmp2,/fscale)
 bzero=sxpar(headtmp1,'BZERO')
 if bzero ne 0.0 then sxaddpar,headtmp1,'BZERO',0.0
 writefits,'tmp_img_isis_sub_c.fit',tmp_img[minx:maxx,miny:maxy],headtmp1
@@ -58,8 +58,8 @@ if bzero ne 0.0 then sxaddpar,headtmp2,'BZERO',0.0
 writefits,'tmp_img_isis_sub_ref_c.fit',tmp_img_ref[minx:maxx,miny:maxy],headtmp2
 cmd='Simsubtract '+'tmp_img_isis_sub_ref_c.fit'+' '+'tmp_img_isis_sub_c.fit'+' '+imagest.CFSB+' '+imagest.CFCV
 spawn,cmd
-im_sfsb[minx:maxx,miny:maxy]=mrdfits(imagest.CFSB,/fscale,/silent)
-im_sfcv[minx:maxx,miny:maxy]=mrdfits(imagest.CFCV,/fscale,/silent)
+im_sfsb[minx:maxx,miny:maxy]=mrdfits(imagest.CFSB,/fscale)
+im_sfcv[minx:maxx,miny:maxy]=mrdfits(imagest.CFCV,/fscale)
 bzero=sxpar(head1,'BZERO')
 if bzero ne 0.0 then sxaddpar,head1,'BZERO',0.0
 writefits,imagest.CFSB,im_sfsb,head1

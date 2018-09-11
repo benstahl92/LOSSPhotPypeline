@@ -51,7 +51,7 @@ print,objx,objy
 
 ;; first, find the image size
 ;imhdr=headfits(image)
-imagedata=mrdfits(image,0,imhdr,/silent)
+imagedata=mrdfits(image,0,imhdr)
 maxX=float(sxpar(imhdr,'NAXIS1'))
 maxY=float(sxpar(imhdr,'NAXIS2'))
 ;print,maxX,maxY

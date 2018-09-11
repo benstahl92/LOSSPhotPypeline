@@ -50,10 +50,10 @@ lpp_image_name_trans,refcobj,refnamest
 ;;;The following part has been updated, not using cobj file anymore
 ;;;but use wcs in the _c.fit image header, see below
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;cobj1=mrdfits(refnamest.cobj,1,head1,/silent)
-;;cobj2=mrdfits(imnamest.cobj,1,head2,/silent)
-;;image1=mrdfits(refnamest.cimg,0,/fscale,/silent)
-;;image2=mrdfits(imnamest.cimg,0,/fscale,/silent)
+;;cobj1=mrdfits(refnamest.cobj,1,head1)
+;;cobj2=mrdfits(imnamest.cobj,1,head2)
+;;image1=mrdfits(refnamest.cimg,0,/fscale)
+;;image2=mrdfits(imnamest.cimg,0,/fscale)
 ;;
 ;;;gdref=where(cobj1.flags le 2,ngdref)
 ;;;gdnew=where(cobj2.flags le 2,ngdnew)
@@ -67,8 +67,8 @@ lpp_image_name_trans,refcobj,refnamest
 
 ;;;OK, now here we use the new method
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-image1=mrdfits(refnamest.cimg,0,head1,/fscale,/silent)
-image2=mrdfits(imnamest.cimg,0,head2,/fscale,/silent)
+image1=mrdfits(refnamest.cimg,0,head1,/fscale)
+image2=mrdfits(imnamest.cimg,0,head2,/fscale)
 extast,head1,astr1
 extast,head2,astr2
 Ximage1=sxpar(head1,'NAXIS1')
@@ -101,7 +101,7 @@ fakeyimage2=fakeyimage2[indtemp]
 
 ;;match
 close_match_radec,fakera1,fakedec1, $
-  fakera2,fakedec2,m1,m2,pixscale*4.0,1.0,miss1,/silent
+  fakera2,fakedec2,m1,m2,pixscale*4.0,1.0,miss1
 nobj = n_elements(m1)
 
 

@@ -25,7 +25,7 @@ lpp_readcolst,calfile,calst
 
 ;;do the match
 ;;match the two radec; match to 5 arcsec
-close_match_radec,goodrefra,goodrefdec,calst.ra,calst.dec,indtmp1,indtmp2,5.0/3600.0,1.0,missed,/SILENT
+close_match_radec,goodrefra,goodrefdec,calst.ra,calst.dec,indtmp1,indtmp2,5.0/3600.0,1.0,missed
 nmatch=n_elements(indtmp1)
 if nmatch le 0 then begin
   print,'no stars matches with catalog, doing nothing, exiting ...'

@@ -7,7 +7,7 @@ endif
 
 sttmp={time:0d0, etime:0d0, mag:0.0, emag:0.0, emag_plus:0.0, emag_minus:0.0, mag_limit:0.0, filter:'', imname:'',fd:0d0, fderr:0d0}
 
-readcol,datafile,time,etime,mag,mag_minus,mag_plus,mag_limit,filter,imname,format='(a,a,a,a,a,a,a,a)',comment=';',/silent
+readcol,datafile,time,etime,mag,mag_minus,mag_plus,mag_limit,filter,imname,format='(a,a,a,a,a,a,a,a)',comment=';'
 tnb=n_elements(time)
 photst=replicate(sttmp,tnb)
 
@@ -35,7 +35,7 @@ for i=0,tnb-1 do begin
     photst[i].emag_minus=float(mag_minus[i]) - photst[i].mag
     photst[i].emag=(photst[i].emag_plus-photst[i].emag_minus)/2.0
   endelse
-  mag2fd,photst[i].mag,photst[i].filter,err=photst[i].emag,outflux=outflux,/silent
+  mag2fd,photst[i].mag,photst[i].filter,err=photst[i].emag,outflux=outflux
   photst[i].fd=outflux.FLUX
   photst[i].fderr=outflux.FLUXERR
   ;print,photst[i].(0),photst[i].(1),photst[i].(2),photst[i].(3),photst[i].(4),photst[i].(5),photst[i].(6),photst[i].(7),photst[i].(8)

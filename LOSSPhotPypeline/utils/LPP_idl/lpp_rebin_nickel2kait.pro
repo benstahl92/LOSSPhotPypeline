@@ -10,7 +10,7 @@ endif
 
 scale=0.3700/0.7965
 
-nim=mrdfits(nickelimname,0,head,/dscale,/silent)
+nim=mrdfits(nickelimname,0,head,/dscale)
 
 naxis1=sxpar(head,'NAXIS1')
 naxis2=sxpar(head,'NAXIS2')

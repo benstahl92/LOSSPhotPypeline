@@ -9,7 +9,7 @@ endif
 extend=strmid(calfile,strlen(calfile)-4,4)
 ;print,extend
 if extend eq '.fit' or extend eq 'fits' then begin
-  st=mrdfits(calfile,1,/SILENT)
+  st=mrdfits(calfile,1)
 endif else begin
   lpp_readcolst,calfile,st
 endelse

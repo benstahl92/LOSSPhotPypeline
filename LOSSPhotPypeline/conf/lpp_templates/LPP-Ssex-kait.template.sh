@@ -20,7 +20,7 @@ do
   Sobjfile=${HEAD}_sobj.fit
   Skyfile=${HEAD}_sky.fit
   
-  sex_args=" -c $SEXCONFPATH/kait.sex -PARAMETERS_NAME $SEXCONFPATH/kait.par -FILTER_NAME $SEXCONFPATH/gauss_2.0_5x5.conv -STARNNW_NAME $SEXCONFPATH/default.nnw -VERBOSE_TYPE QUIET"
+  sex_args=" -c $SEXCONFPATH/kait.sex -PARAMETERS_NAME $SEXCONFPATH/kait.par -FILTER_NAME $SEXCONFPATH/gauss_2.0_5x5.conv -STARNNW_NAME $SEXCONFPATH/default.nnw"
   
   cmd="sextractor $file $sex_args -CATALOG_NAME $Sobjfile -CHECKIMAGE_NAME $Skyfile"
   $cmd
