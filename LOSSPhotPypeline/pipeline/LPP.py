@@ -5,6 +5,7 @@ import pickle as pkl
 import pandas as pd
 import numpy as np
 import logging
+from contextlib import redirect_stdout
 import warnings
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -173,17 +174,22 @@ class LPP(object):
         '''
 
         self.log = logging.getLogger('LOSSPhotPypeline')
-        self.log.setLevel(logging.INFO)
+        self.log.setLevel(logging.DEBUG)
 
+        # internal logging
         fh = logging.FileHandler(self.logfile)
         fh.setFormatter(logging.Formatter('%(asctime)s in %(funcName)s with level %(levelname)s ::: %(message)s'))
         self.log.addHandler(fh)
 
-        # if in interactive mode, print log entries on screen
+        # if in interactive mode, print log at or above INFO on screen
         if self.interactive:
              sh = logging.StreamHandler()
+             sh.setLevel(logging.INFO)
              sh.setFormatter(logging.Formatter('\n'+'*'*60+'\n%(message)s\n'+'*'*60))
              self.log.addHandler(sh)
+
+        # used by contextlib to log all idl and bash outputs, while hiding from screen
+        self.log.write = lambda msg: self.log.debug('[external] ' + msg) if msg != '\n' else None
 
         self.log.info('Welcome to the LOSS Photometry Pypeline (LPP)')
 
@@ -380,9 +386,10 @@ class LPP(object):
         for fl in image_list:
             try:
                 c = Phot(fl, self.radecfile)
-                if self.photsub:
-                    c.galaxy_subtract(self.template_images)
-                c.do_photometry(method = self.photmethod, photsub = self.photsub)
+                with redirect_stdout(self.log):
+                    if self.photsub:
+                        c.galaxy_subtract(self.template_images)
+                    c.do_photometry(method = self.photmethod, photsub = self.photsub)
                 if (first_obs is None) or (c.mjd < first_obs):
                     first_obs = c.mjd
             except KeyError:
@@ -459,10 +466,11 @@ class LPP(object):
             self.cal_nat_fit = base + '_{}_natural.fit'.format(self.color_term)
 
             # execute idl calibration procedure
-            if self.photmethod == 'psf':
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True)
-            else:
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit))
+            with redirect_stdout(self.log):
+                if self.photmethod == 'psf':
+                    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True, output = True)
+                else:
+                    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), output = True)
 
     def process_calibration(self):
         '''
@@ -478,8 +486,9 @@ class LPP(object):
         self.calfile_use = self.calfile.replace('.dat', '_use.dat')
 
         # generate ordered calibration file
-        self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile))
-        self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use))
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile), output = True)
+            self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use), output = True)
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
@@ -627,7 +636,8 @@ class LPP(object):
         if lc_file is None:
             lc_file = self.lc_raw
 
-        self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin)
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin, output = True)
 
         self.log.info('binned light curve generated')
 
@@ -651,7 +661,8 @@ class LPP(object):
         if lc_table is None:
             lc_table = self.lc_group
 
-        self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc)
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc, output = True)
 
         self.log.info('final light curve generated')
 
@@ -757,7 +768,7 @@ class LPP(object):
                 self.log.info('Only one candidate found in the {} band'.format(filt))
                 if tmp.iloc[0]['telescope'].lower() != 'nickel':
                     msg1 = 'Not a Nickel image.'
-                    msg2 = 'May want to schedule observation, but using in meantime'
+                    msg2 = 'May want to schedule observation, but using in meantime.'
                     self.log.warn('{}\n{}\{}'.format(msg1, msg2, radecmsg))
                 self.template_images[filt] = base_dir + tmp.iloc[0]['savepath'] + tmp.iloc[0]['uniformname']
             else:
@@ -768,8 +779,8 @@ class LPP(object):
                 else:
                     index_to_use = 0
                 if tmp.iloc[index_to_use]['telescope'].lower() != 'nickel':
-                    msg1 = 'Best {} image is not from Nickel'.format(filt)
-                    msg2 = 'May want to schedule observation, but using in meantime'
+                    msg1 = 'Best {} image is not from Nickel.'.format(filt)
+                    msg2 = 'May want to schedule observation, but using in meantime.'
                     self.log.warn('{}\n{}\n{}'.format(msg1, msg2, radecmsg))
                 self.template_images[filt] = os.path.join(base_dir, tmp.iloc[index_to_use]['savepath'], tmp.iloc[index_to_use]['uniformname'])
 
@@ -797,7 +808,7 @@ class LPP(object):
         for filt in self.template_images.keys():
             fl_obj = FitsInfo(self.template_images[filt])
             if (fl_obj.telescope.lower() == 'nickel') and ('kait' in self.color_term):
-                self.idl.pro('kait_rebin_from_nickel', self.template_images[filt], savefile = self.template_images[filt])
+                self.idl.pro('lpp_rebin_nickel2kait', self.template_images[filt], savefile = self.template_images[filt])
 
         # optionally show template images
         if self.interactive:
