@@ -5,6 +5,7 @@ import pickle as pkl
 import pandas as pd
 import numpy as np
 import logging
+from contextlib import redirect_stdout
 import warnings
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -35,17 +36,15 @@ class LPP(object):
         self.interactive = interactive
         self.cal_diff_tol = cal_diff_tol
 
+        # log file
+        self.logfile = self.targetname.lower().replace(' ', '') + '.log'
+        self.build_log()
+
         # setup idl
         self.idl = pidly.IDL()
         if quiet_idl:
             self.idl('!quiet = 1')
             self.idl('!except = 0')
-
-        # welcome message
-        if self.interactive:
-            print('\n' + '-*-'*25 + '\n')
-            print('Welcome to the LOSS Photometry Pypeline (LPP)')
-            print('\n' + '-*-'*25 + '\n')
 
         # to be sourced from configuration file
         self.targetra = None
@@ -65,8 +64,6 @@ class LPP(object):
         while not loaded:
             try:
                 self.loadconf()
-                if self.interactive:
-                    print('Configuration file successfully loaded')
                 loaded = True
             except FileNotFoundError:
                 LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '_template')
@@ -123,10 +120,6 @@ class LPP(object):
             if 'n' not in load.lower():
                 self.load()
 
-        # log file
-        self.logfile = self.targetname.lower().replace(' ', '') + '.log'
-        self.build_log()
-
         # currently unused
         #self.psfstarfile=''
         #self.template_candidates = None
@@ -159,6 +152,8 @@ class LPP(object):
         self.refname = conf['refname']
         self.photlistfile = conf['photlistfile']
 
+        self.log.info('{} loaded'.format(self.config_file))
+
         # unused options
         #self.targetname = conf['targetname'].lower().replace(' ', '')
         #self.savefile = conf['savefile']
@@ -179,14 +174,24 @@ class LPP(object):
         '''
 
         self.log = logging.getLogger('LOSSPhotPypeline')
-        self.log.setLevel(logging.INFO)
+        self.log.setLevel(logging.DEBUG)
+
+        # internal logging
         fh = logging.FileHandler(self.logfile)
-        fh.setFormatter(logging.Formatter('%(asctime)s ::: %(message)s'))
+        fh.setFormatter(logging.Formatter('%(asctime)s in %(funcName)s with level %(levelname)s ::: %(message)s'))
         self.log.addHandler(fh)
-        sh = logging.StreamHandler()
-        sh.setFormatter(logging.Formatter('*'*40+'\n%(levelname)s - %(message)s\n'+'*'*40))
-        self.log.addHandler(sh)
-        self.log.info('LPP Started.')
+
+        # if in interactive mode, print log at or above INFO on screen
+        if self.interactive:
+             sh = logging.StreamHandler()
+             sh.setLevel(logging.INFO)
+             sh.setFormatter(logging.Formatter('\n'+'*'*60+'\n%(message)s\n'+'*'*60))
+             self.log.addHandler(sh)
+
+        # used by contextlib to log all idl and bash outputs, while hiding from screen
+        self.log.write = lambda msg: self.log.debug('[external] ' + msg) if msg != '\n' else None
+
+        self.log.info('Welcome to the LOSS Photometry Pypeline (LPP)')
 
     ###################################################################################################
     #          UI / Automation Methods
@@ -205,6 +210,7 @@ class LPP(object):
             raise StopIteration
 
     def skip(self):
+        self.log.info('skipping step: {}'.format(self.steps[self.current_step].__name__))
         self.go_to(self.current_step + 1)
         self.summary()
 
@@ -245,6 +251,7 @@ class LPP(object):
         vs.pop('log')
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
+        self.log.info('{} written'.format(self.savefile))
 
     def load(self, savefile = None):
         if savefile is None:
@@ -254,14 +261,15 @@ class LPP(object):
         for v in vs.keys():
             s = 'self.{} = vs["{}"]'.format(v, v)
             exec(s)
+        self.log.info('{} loaded'.format(savefile))
         self.summary()
 
     def summary(self):
-        print('\n' + '-*-'*25 + '\n')
+        print('\n' + '*'*60)
         print('Reduction status for {}'.format(self.targetname))
         print('Interactive: {}'.format(self.interactive))
         print('Photsub Mode: {}'.format(self.photsub))
-        print('\n' + '-*-'*25 + '\n')
+        print('*'*60 + '\n')
         if self.current_step == 0:
             print('Beginning of reduction pipeline.\n')
         else:
@@ -303,9 +311,11 @@ class LPP(object):
 
         if self.interactive:
             print('\nSelected image files')
-            print('-*-'*25 + '\n')
+            print('*'*60 + '\n')
             print(self.image_list)
             print('\n')
+
+        self.log.info('image list loaded from {}'.format(self.photlistfile))
 
     def find_ref_stars(self):
         '''
@@ -316,20 +326,20 @@ class LPP(object):
 
         # if radecfile already exist, no need to do it
         if os.path.isfile(self.radecfile):
-            if self.interactive:
-                print('\nradecfile {} already exists, doing nothing'.format(self.radecfile))
+            self.log.info('radecfile already exists, doing nothing')
             return
         if self.refname == '' :
-            print('Error: refname has not been assigned, please do it first!')
+            self.log.warn('refname has not been assigned, please do it first!')
             return
 
         # use sextractor to extract all stars to be used as refstars
-        os.system("LPP-Ssex-kait {0}".format(self.refname))
+        with redirect_stdout(self.log):
+            os.system("LPP-Ssex-kait.sh {}".format(self.refname))
 
         # check if output sobj file exists or not
         nametmp=FileNames(self.refname)
         if not os.path.isfile(nametmp.sobj) :
-            print('String, LPP-Ssex-kait command failed, no sobj file generated, check!')
+            self.log.warn('String, LPP-Ssex-kait command failed, no sobj file generated, check!')
             return
 
         # read sobj file of X_IMAGE and Y_IMAGE columns, as well as MAG_APER for sort
@@ -354,14 +364,19 @@ class LPP(object):
             f.write('          RA          DEC\n')
             for i in range(len(imagera)):
                 f.write('   {:.7f}  {:.7f}\n'.format(imagera[i], imagedec[i]))
+        self.log.info('{} written'.format(self.radecfile))
 
     def do_photometry_all_image(self, image_list = None):
         '''
         performs photometry on all selected image files
         '''
 
+        self.log.info('starting photometry on all images (galsub: {})'.format(self.photsub))
+
         if image_list is None:
             image_list = self.image_list
+        else:
+            self.log.info('using argument supplied image list')
 
         if self.photsub and (self.template_images is None):
             self.get_template_images(late_time_begin = 30) # for testing purposes
@@ -372,16 +387,19 @@ class LPP(object):
         for fl in image_list:
             try:
                 c = Phot(fl, self.radecfile)
-                if self.photsub:
-                    c.galaxy_subtract(self.template_images)
-                c.do_photometry(method = self.photmethod, photsub = self.photsub)
+                with redirect_stdout(self.log):
+                    if self.photsub:
+                        c.galaxy_subtract(self.template_images)
+                    c.do_photometry(method = self.photmethod, photsub = self.photsub)
                 if (first_obs is None) or (c.mjd < first_obs):
                     first_obs = c.mjd
             except KeyError:
-                print('Warning: photometry failed on image: {}'.format(fl))
+                self.log.warn('photometry failed on image: {}'.format(fl))
                 self.image_list.pop(self.image_list.index(fl))
         if self.first_obs is None:
             self.first_obs = first_obs
+
+        self.log.info('photometry done')
 
     def calibrate(self, second_pass = False, image_list = None):
         '''
@@ -390,8 +408,12 @@ class LPP(object):
         B. Stahl - June 25, 2018; July 23, 2018
         '''
 
+        self.log.info('commencing calibration (second pass: {})'.format(second_pass))
+
         if image_list is None:
             image_list = self.image_list
+        else:
+            self.log.info('using argument supplied image list')
 
         # check for calibration data and download if it doesn't exist yet
         if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
@@ -400,6 +422,7 @@ class LPP(object):
             catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
+            self.log.info('calibration data sourced')
 
         # otherwise if in second pass mode, perform second calibration using edited calibration list
         elif second_pass is True:
@@ -407,6 +430,7 @@ class LPP(object):
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
             catalog.to_natural()
+            self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
         for fl in image_list:
@@ -432,7 +456,7 @@ class LPP(object):
                 else:
                     tel += 2
             else:
-                print('Warning: telescope "{}" not recognized for image: {}'.format(fl_obj.telescope, fl))
+                self.log.warn('telescope "{}" not recognized for image: {}'.format(fl_obj.telescope, fl))
 
             # enforce only handling one color term per run
             if self.color_term is not None:
@@ -443,15 +467,18 @@ class LPP(object):
             self.cal_nat_fit = base + '_{}_natural.fit'.format(self.color_term)
 
             # execute idl calibration procedure
-            if self.photmethod == 'psf':
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True)
-            else:
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit))
+            with redirect_stdout(self.log):
+                if self.photmethod == 'psf':
+                    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True, output = True)
+                else:
+                    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), output = True)
 
     def process_calibration(self):
         '''
         combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made
         '''
+
+        self.log.info('processing calibration')
 
         # underlying data structure for handling this will be dictionary keyed by filter
         # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
@@ -460,8 +487,9 @@ class LPP(object):
         self.calfile_use = self.calfile.replace('.dat', '_use.dat')
 
         # generate ordered calibration file
-        self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile))
-        self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use))
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile), output = True)
+            self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use), output = True)
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
@@ -522,17 +550,19 @@ class LPP(object):
             else:
                 for filt in summary_results.keys():
                     print('\nFilter: {}'.format(filt))
-                    print('-*-'*25 + '\n')
+                    print('*'*60)
                     print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']))
 
                 print('\nIDs that will be cut:')
-                print('-*-'*25 + '\n')
+                print('*'*60)
                 print([i + 2 for i in cut_list])
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))
                 if (response == '') or ('y' in response.lower()):
                     accept_tol = True
                 else:
                     self.cal_diff_tol = float(response)
+
+        self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
 
         # write new calibration file
         os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
@@ -555,6 +585,8 @@ class LPP(object):
         self.calibrate()
         self.process_calibration()
         self.calibrate(second_pass = True)
+
+        self.log.info('full calibration sequence completed')
 
     def generate_raw_lc(self):
         '''
@@ -595,6 +627,8 @@ class LPP(object):
 
         pd.DataFrame(lc).to_csv(self.lc_raw, sep = '\t', columns = columns, index = False)
 
+        self.log.info('raw light curve generated')
+
     def generate_bin_lc(self, lc_file = None):
         '''
         wraps IDL lightcurve binning routine
@@ -603,7 +637,10 @@ class LPP(object):
         if lc_file is None:
             lc_file = self.lc_raw
 
-        self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin)
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin, output = True)
+
+        self.log.info('binned light curve generated')
 
     def generate_group_lc(self, lc_file = None):
         '''
@@ -615,6 +652,8 @@ class LPP(object):
 
         self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
 
+        self.log.info('grouped light curve generated')
+
     def generate_final_lc(self, lc_table = None):
         '''
         wraps IDL routine to convert to natural system
@@ -623,7 +662,10 @@ class LPP(object):
         if lc_table is None:
             lc_table = self.lc_group
 
-        self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc)
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc, output = True)
+
+        self.log.info('final light curve generated')
 
     def generate_lc(self):
         '''
@@ -688,13 +730,15 @@ class LPP(object):
             os.system('cat {} >> {}'.format(new_image_file, self.photlistfile))
             os.system('rm {}'.format(new_image_file))
 
+        self.log.info('new images processed')
+
     def get_template_images(self, late_time_begin = 365, base_dir = '/media/FilData2/Data/imagedatabase/'):
         '''
         searches database to identify template images for galaxy subtraction
         '''
 
         if not haveDB:
-            print('Database unavailable')
+            self.log.warn('Database unavailable. Exiting.')
             return
 
         if self.first_obs is None:
@@ -708,22 +752,25 @@ class LPP(object):
         # select only candidates that are before the first observation or at least one year later
         cand = cand[(cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin))]
 
+        radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
+
         if len(cand) == 0:
-            print('\nNo suitable candidates in any passband. Schedule observations:')
-            print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+            msg = 'No suitable candidates in any band. Schedule observations:\n{}'.format(radecmsg)
+            self.log.warn(msg)
             return
 
         # iterate through filters to determine the best template for each
         for idx, filt in cand['filter'].drop_duplicates().iteritems():
             tmp = cand[cand['filter'] == filt]
             if len(tmp) == 0:
-                print('\nNo suitable candidates in the {} band. Schedule an observation'.format(filt))
-                print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+                msg = 'No suitable indidates in the {} band. Schedule an observation:\n{}'.format(filt, radecmsg)
+                self.log.warn(msg)
             elif len(tmp) == 1:
-                print('\nOnly one candidate found in the {} band'.format(filt))
+                self.log.info('Only one candidate found in the {} band'.format(filt))
                 if tmp.iloc[0]['telescope'].lower() != 'nickel':
-                    print('Not a Nickel image. May want to schedule an observation, but using image in the meantime.')
-                    print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+                    msg1 = 'Not a Nickel image.'
+                    msg2 = 'May want to schedule observation, but using in meantime.'
+                    self.log.warn('{}\n{}\{}'.format(msg1, msg2, radecmsg))
                 self.template_images[filt] = base_dir + tmp.iloc[0]['savepath'] + tmp.iloc[0]['uniformname']
             else:
                 tmp = tmp.sort_values('limitmag', ascending=False)
@@ -733,8 +780,9 @@ class LPP(object):
                 else:
                     index_to_use = 0
                 if tmp.iloc[index_to_use]['telescope'].lower() != 'nickel':
-                    print('\nBest image is not from Nickel. May want to schedule an observation, but using image in the meantime.')
-                    print('RA: {} DEC: {}'.format(self.targetra, self.targetdec))
+                    msg1 = 'Best {} image is not from Nickel.'.format(filt)
+                    msg2 = 'May want to schedule observation, but using in meantime.'
+                    self.log.warn('{}\n{}\n{}'.format(msg1, msg2, radecmsg))
                 self.template_images[filt] = os.path.join(base_dir, tmp.iloc[index_to_use]['savepath'], tmp.iloc[index_to_use]['uniformname'])
 
         if not os.path.isdir(self.templates_dir):
@@ -761,7 +809,7 @@ class LPP(object):
         for filt in self.template_images.keys():
             fl_obj = FitsInfo(self.template_images[filt])
             if (fl_obj.telescope.lower() == 'nickel') and ('kait' in self.color_term):
-                self.idl.pro('kait_rebin_from_nickel', self.template_images[filt], savefile = self.template_images[filt])
+                self.idl.pro('lpp_rebin_nickel2kait', self.template_images[filt], savefile = self.template_images[filt])
 
         # optionally show template images
         if self.interactive:
@@ -769,6 +817,7 @@ class LPP(object):
             if 'y' in resp.lower():
                 os.system('ds9 -zscale {} &'.format(' '.join([self.template_images[filt] for filt in self.template_images.keys()])))
 
+        self.log.info('template images selected')
 
     def MLCS_fit(self):
         return

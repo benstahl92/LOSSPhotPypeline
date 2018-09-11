@@ -52,9 +52,9 @@ class Phot(FitsInfo,FileNames):
 
         # run idl photometry routine
         if not photsub:
-            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True)
+            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True, output = True)
         else:
-            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True, photsub = True)
+            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True, photsub = True, output = True)
 
     def galaxy_subtract(self, template_images):
 
@@ -65,7 +65,7 @@ class Phot(FitsInfo,FileNames):
             return
 
         # execute idl commmand
-        self.idl.pro(cmd, self.cimg, template_images[self.filter])
+        self.idl.pro(cmd, self.cimg, template_images[self.filter], output = True)
 
         # might want to add interactivity here to check the subtraction
 
