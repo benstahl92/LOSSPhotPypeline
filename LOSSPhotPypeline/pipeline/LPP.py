@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import logging
 from contextlib import redirect_stdout
+import subprocess
 import warnings
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -333,8 +334,8 @@ class LPP(object):
             return
 
         # use sextractor to extract all stars to be used as refstars
-        with redirect_stdout(self.log):
-            os.system("LPP-Ssex-kait.sh {}".format(self.refname))
+        p = subprocess.Popen(['LPP-Ssex-kait.sh', self.refname], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        self.log.debug(p.communicate())
 
         # check if output sobj file exists or not
         nametmp=FileNames(self.refname)
@@ -390,7 +391,7 @@ class LPP(object):
                 with redirect_stdout(self.log):
                     if self.photsub:
                         c.galaxy_subtract(self.template_images)
-                    c.do_photometry(method = self.photmethod, photsub = self.photsub)
+                    c.do_photometry(method = self.photmethod, photsub = self.photsub, log = self.log)
                 if (first_obs is None) or (c.mjd < first_obs):
                     first_obs = c.mjd
             except KeyError:

@@ -1,8 +1,8 @@
 # standard imports
-import os
 import pandas as pd
 from astropy.io import fits
 from astropy.wcs import WCS
+import subprocess
 import pidly
 
 # internal imports
@@ -23,7 +23,7 @@ class Phot(FitsInfo,FileNames):
             self.idl('!quiet = 1')
             self.idl('!except = 0')
 
-    def do_photometry(self, method = 'psf', photsub = False):
+    def do_photometry(self, method = 'psf', photsub = False, log = None):
         '''
         performs aperture/psf photometry by running shell scripts to generate needed files then wrapping an IDL procedure
 
@@ -31,7 +31,11 @@ class Phot(FitsInfo,FileNames):
         '''
 
         # generate fwhm file
-        os.system('LPP_get_fwhm.sh {}'.format(self.cimg))
+        p = subprocess.Popen(['LPP_get_fwhm.sh', self.cimg], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if log is None:
+            print(p.communicate)
+        else:
+            log.debug(p.communicate())
 
         # generate obj file
 
