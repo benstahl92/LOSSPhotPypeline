@@ -15,7 +15,7 @@ warnings.simplefilter('ignore', category=AstropyWarning)
 
 # try for packages that may not be available
 try:
-    from pyzaphotdb import zaphot_search_by_radec
+    from pyzaphotdb import zaphot_search_by_radec, storelocation
     haveDB = True
 except ModuleNotFoundError:
     haveDB = False
@@ -733,7 +733,7 @@ class LPP(object):
 
         self.log.info('new images processed')
 
-    def get_template_images(self, late_time_begin = 365, base_dir = '/media/FilData2/Data/imagedatabase/'):
+    def get_template_images(self, late_time_begin = 365):#, base_dir = '/media/FilData2/Data/imagedatabase/'):
         '''
         searches database to identify template images for galaxy subtraction
         '''
@@ -744,6 +744,8 @@ class LPP(object):
 
         if self.first_obs is None:
             self.first_obs = LPPu.get_first_obs_date(self)
+
+        base_dir = storelocation
 
         self.template_images = {filt: None for filt in self.filter_set}
 
