@@ -420,7 +420,8 @@ class LPP(object):
         if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal()
-            catalog.to_natural()
+            with redirect_stdout(self.log):
+                catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
             self.log.info('calibration data sourced')
@@ -430,7 +431,8 @@ class LPP(object):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
-            catalog.to_natural()
+            with redirect_stdout(self.log):
+                catalog.to_natural()
             self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
@@ -651,7 +653,8 @@ class LPP(object):
         if lc_file is None:
             lc_file = self.lc_bin
 
-        self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
+        with redirect_stdout(self.log):
+            self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
 
         self.log.info('grouped light curve generated')
 
