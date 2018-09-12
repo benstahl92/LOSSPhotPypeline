@@ -1,5 +1,6 @@
 # standard imports
 import os
+import shutil
 import pidly
 import pickle as pkl
 import pandas as pd
@@ -794,8 +795,6 @@ class LPP(object):
         if not os.path.isdir(self.templates_dir):
             os.makedirs(self.templates_dir)
 
-        print(self.template_images)
-
         # simple check for file existence and copy to templates dir
         for filt in self.template_images.keys():
             decomp = False
@@ -807,10 +806,12 @@ class LPP(object):
             else:
                 print('file format not recognized')
                 return
-            os.system('cp {} {}'.format(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])))
+            #os.system('cp {} {}'.format(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])))
+            shutil.copy2(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1]))
             self.template_images[filt] = os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])
             if decomp:
-                os.system('gzip -d {}'.format(self.template_images[filt]))
+                subprocess.Popen(['gzip', '-d', '-r', '-q', self.template_images[filt]])
+                #os.system('gzip -d -f {}'.format(self.template_images[filt]))
                 self.template_images[filt] = self.template_images[filt][:-3]
 
         # rebin if needed
