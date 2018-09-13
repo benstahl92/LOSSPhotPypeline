@@ -17,9 +17,9 @@ def genconf(object = None, targetname = None, config_file = None):
         f.write('{:<20}\n'.format('targetra'))
         f.write('{:<20}\n'.format('targetdec'))
         f.write('{:<20}no\n'.format('photsub'))
-        f.write('{:<20}psf\n'.format('photmethod'))
+        f.write('{:<20}all\n'.format('photmethod'))
         f.write('{:<20}\n'.format('refname'))
-        f.write('{:<20}\n'.format('photlistfile'))
+        f.write('{:<20}{}.photlist\n'.format('photlistfile', targetname))
 
 def get_first_obs_date(object):
     '''

@@ -75,8 +75,8 @@ class LPP(object):
                 self.loadconf()
                 loaded = True
             except FileNotFoundError:
-                LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '_template')
-                print('Configuration could not be loaded. Template generated: {}'.format(self.config_file + '_template'))
+                LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '.template')
+                print('Configuration could not be loaded. Template generated: {}'.format(self.config_file + '.template'))
                 response = input('Specify configuration file (*****.conf) or q to quit > ')
                 if 'q' == response.lower():
                     return
@@ -738,7 +738,7 @@ class LPP(object):
         # perform calibration
         full_cal = False
         if self.interactive:
-            resp = input('\nperform full re-calibration? (y/[n])')
+            resp = input('\nperform full re-calibration? (y/[n]) > ')
             if 'y' in resp.lower():
                 full_cal = True
         if full_cal:
