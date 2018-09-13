@@ -61,6 +61,12 @@ class LPP(object):
             print('No configuration file detected, generating template: {}'.format(self.config_file + '_template'))
             LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '_template')
 
+        # general variables
+        self.filter_set = ['B', 'V', 'R', 'I', 'clear']
+        self.first_obs = None
+        self.image_list = []
+        self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
+
         # load configuration file
         loaded = False
         while not loaded:
@@ -75,12 +81,6 @@ class LPP(object):
                     return
                 else:
                     self.config_file = response
-
-        # general variables
-        self.filter_set = ['B', 'V', 'R', 'I', 'clear']
-        self.first_obs = None
-        self.image_list = []
-        self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
 
         # calibration variables
         self.calibration_dir = 'calibration'
