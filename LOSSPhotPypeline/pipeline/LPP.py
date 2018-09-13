@@ -6,6 +6,7 @@ import pickle as pkl
 import copy
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
 import logging
 from contextlib import redirect_stdout
 import subprocess
@@ -410,7 +411,7 @@ class LPP(object):
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
         first_obs = None
-        for fl in image_list:
+        for fl in tqdm(image_list):
             try:
                 c = Phot(fl, self.radecfile)
                 with redirect_stdout(self.log):
@@ -461,7 +462,7 @@ class LPP(object):
             self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
-        for fl in image_list:
+        for fl in tqdm(image_list):
 
             # instantiate file object
             fl_obj = FitsInfo(fl)
@@ -521,7 +522,7 @@ class LPP(object):
         IDs = cal['starID'] + 2
 
         # iterate through files and store photometry into data structure
-        for fl in self.image_list:
+        for fl in tqdm(self.image_list):
 
             fl_obj = Phot(fl)
             filt = fl_obj.filter
@@ -617,12 +618,14 @@ class LPP(object):
         builds raw light curve files from calibrated results
         '''
 
+        self.log.info('generating raw lightcurve(s)')
+
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
         lc = {name: [] for name in columns}
         lcs = {m: copy.deepcopy(lc) for m in self.phot_method}
 
         # iterate through files and extract LC information
-        for fl in self.image_list:
+        for fl in tqdm(self.image_list):
 
             fl_obj = Phot(fl)
 
@@ -636,7 +639,8 @@ class LPP(object):
             cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.phot_method), ())
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.phot_method), ())
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
-
+            if 1 not in d['ID'].values:
+                continue
             for m in self.phot_method:
                 lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
                 lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
