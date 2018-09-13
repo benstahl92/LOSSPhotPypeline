@@ -527,7 +527,7 @@ class LPP(object):
             #    d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,17), squeeze = True).dropna()
             #else:
             #    d = pd.read_csv(fl_obj.aptdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,3), squeeze = True).dropna()
-            cols = (0,) + (self.phot_cols[m] for m self.phot_method)
+            cols = (0,) + (self.phot_cols[m] for m in self.phot_method)
             col_names = ('id',) + (m for m in self.phot_method)
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
 
@@ -639,7 +639,7 @@ class LPP(object):
             #    d = pd.read_csv(fl_obj.aptdat, delim_whitespace = True, comment = ';', usecols=(0,3,4), names = ('ID','mag','err')).dropna()
             #mag = d[d['ID'] == 1]['mag'].item()
             #err = d[d['ID'] == 1]['err'].item()
-            cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m self.phot_method), ())
+            cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.phot_method), ())
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.phot_method), ())
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
 
