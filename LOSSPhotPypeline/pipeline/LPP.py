@@ -52,7 +52,7 @@ class LPP(object):
         self.targetra = None
         self.targetdec = None
         self.photsub = False
-        self.photmethod = 'psf'
+        self.photmethod = ''
         self.refname=''
         self.photlistfile=''
 
@@ -80,6 +80,7 @@ class LPP(object):
         self.filter_set = ['B', 'V', 'R', 'I', 'clear']
         self.first_obs = None
         self.image_list = []
+        self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
 
         # calibration variables
         self.calibration_dir = 'calibration'
@@ -91,6 +92,7 @@ class LPP(object):
         self.calfile_use=''
         self.cal_nat_fit=''
         self.color_term = None
+        self.cal_method = 'psf'
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
@@ -102,7 +104,7 @@ class LPP(object):
 
         # galaxy subtraction variables
         self.template_images = None
-        self.templates_dir = 'templates' # could put into another python file with dictionary of global params
+        self.templates_dir = 'templates'
 
         # steps in standard reduction procedure
         self.current_step = 0
@@ -149,8 +151,17 @@ class LPP(object):
         self.targetdec = float(conf['targetdec'])
         if conf['photsub'].lower() == 'yes': # defaults to False in all other cases
             self.photsub = True 
-        if conf['photmethod'].lower() == 'apt':
-            self.photmethod = 'apt'
+        #if conf['photmethod'].lower() == 'apt':
+        #    self.photmethod = 'apt'
+        if conf['photmethod'].lower() == 'all':
+            self.photmethod = self.phot_cols.keys()
+        elif ',' not in conf['photmethod'].lower():
+            if conf['photmethod'].lower().strip() in self.phot_cols.keys():
+                self.phot_method = [conf['photmethod'].lower().strip()]
+            else:
+                print('{} is not a valid photometry method. Available options are:')
+                print(', '.join(self.phot_col.keys()))
+                self.photmethod = input('Enter selection(s) > ').strip().replace(' ', '').split(',')
         self.refname = conf['refname']
         self.photlistfile = conf['photlistfile']
 
@@ -392,7 +403,8 @@ class LPP(object):
                 with redirect_stdout(self.log):
                     if self.photsub:
                         c.galaxy_subtract(self.template_images)
-                    c.do_photometry(method = self.photmethod, photsub = self.photsub, log = self.log)
+                    #c.do_photometry(method = self.photmethod, photsub = self.photsub, log = self.log)
+                    c.do_photometry(photsub = self.photsub, log = self.log)
                 if (first_obs is None) or (c.mjd < first_obs):
                     first_obs = c.mjd
             except KeyError:
@@ -472,10 +484,11 @@ class LPP(object):
 
             # execute idl calibration procedure
             with redirect_stdout(self.log):
-                if self.photmethod == 'psf':
-                    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True, output = True)
-                else:
-                    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), output = True)
+                #if self.photmethod == 'psf':
+                #    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True, output = True)
+                #else:
+                #    self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), output = True)
+                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True, output = True)
 
     def process_calibration(self):
         '''
@@ -510,18 +523,24 @@ class LPP(object):
                 results[filt] = {}
 
             # read file (using hard-coded columns for 3.5 pix aperture in apt mode or psf in psf mode)
-            if self.photmethod == 'psf':
-                d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,17), squeeze = True).dropna()
-            else:
-                d = pd.read_csv(fl_obj.aptdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,3), squeeze = True).dropna()
+            #if self.photmethod == 'psf':
+            #    d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,17), squeeze = True).dropna()
+            #else:
+            #    d = pd.read_csv(fl_obj.aptdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,3), squeeze = True).dropna()
+            cols = (0,) + (self.phot_cols[m] for m self.phot_method)
+            col_names = ('id',) + (m for m in self.phot_method)
+            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
 
             # populate results dict from file
-            for idx, val in d.iteritems():
+            #for idx, val in d.iteritems():
+            for idx, row in d.iterrows():
                 if (idx in IDs.values):
                     if idx not in results[filt].keys():
-                        results[filt][idx] = [d[idx]]
+                        #results[filt][idx] = [d[idx]]
+                        results[filt][idx] = [row[self.cal_method]]
                     else:
-                        results[filt][idx].append(d[idx])
+                        #results[filt][idx].append(d[idx])
+                        results[filt][idx].append(row[self.cal_method])
 
         self.filter_set = list(results.keys())
 
@@ -592,22 +611,19 @@ class LPP(object):
 
         self.log.info('full calibration sequence completed')
 
-    def generate_raw_lc(self):
+    def generate_raw_lcs(self):
         '''
-        builds raw light curve file from calibrated results
+        builds raw light curve files from calibrated results
         '''
 
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
         lc = {name: [] for name in columns}
+        lcs = {m: lc for m in self.phot_method}
 
         # iterate through files and extract LC information
         for fl in self.image_list:
 
             fl_obj = Phot(fl)
-            lc[';; MJD'].append(round(fl_obj.mjd, 6))
-            lc['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
-            lc['filter'].append(fl_obj.filter)
-            lc['imagename'].append(fl)
 
             # read info and calculate limiting magnitude 
             with open(fl_obj.sky, 'r') as f:
@@ -617,21 +633,35 @@ class LPP(object):
             lc['limmag'].append(round(-2.5*np.log10(3*sky) + zero, 5))
 
             # read photometry results
-            if self.photmethod == 'psf':
-                d = pd.read_csv(fl_obj.psfdat, delim_whitespace = True, comment = ';', usecols=(0,17,18), names = ('ID','mag','err')).dropna()
-            else:
-                d = pd.read_csv(fl_obj.aptdat, delim_whitespace = True, comment = ';', usecols=(0,3,4), names = ('ID','mag','err')).dropna()
-            mag = d[d['ID'] == 1]['mag'].item()
-            err = d[d['ID'] == 1]['err'].item()
+            #if self.photmethod == 'psf':
+            #    d = pd.read_csv(fl_obj.psfdat, delim_whitespace = True, comment = ';', usecols=(0,17,18), names = ('ID','mag','err')).dropna()
+            #else:
+            #    d = pd.read_csv(fl_obj.aptdat, delim_whitespace = True, comment = ';', usecols=(0,3,4), names = ('ID','mag','err')).dropna()
+            #mag = d[d['ID'] == 1]['mag'].item()
+            #err = d[d['ID'] == 1]['err'].item()
+            cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m self.phot_method), ())
+            col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.phot_method), ())
+            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
 
             # add results to dataframe
-            lc['mag'].append(round(mag,5))
-            lc['-emag'].append(round(mag - err,5))
-            lc['+emag'].append(round(mag + err,5))
+            #lc['mag'].append(round(mag,5))
+            #lc['-emag'].append(round(mag - err,5))
+            #lc['+emag'].append(round(mag + err,5))
 
-        pd.DataFrame(lc).to_csv(self.lc_raw, sep = '\t', columns = columns, index = False)
+            for m in self.phot_method:
+                lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
+                lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
+                lcs[m]['filter'].append(fl_obj.filter)
+                lcs[m]['imagename'].append(fl)
+                mag = d[d['ID'] == 1][m + '_mag']
+                err = d[d['ID'] == 1][m + '_err']
+                lcs[m]['-emag'].append(round(mag - err,5))
+                lcs[m]['+emag'].append(round(mag + err,5))
 
-        self.log.info('raw light curve generated')
+        for m in self.phot_method:
+            pd.DataFrame(lc).to_csv(self.lc_base + m + '_natural_raw.dat', sep = '\t', columns = columns, index = False)
+
+        self.log.info('raw light curves generated')
 
     def generate_bin_lc(self, lc_file = None):
         '''
@@ -680,17 +710,18 @@ class LPP(object):
         # set up file system
         if not os.path.isdir(self.lc_dir):
             os.makedirs(self.lc_dir)
-        self.lc_base = self.lc_dir + '/lightcurve_' + self.photmethod + '_' + self.targetname
-        self.lc_raw = self.lc_base + '_natural_raw.dat'
-        self.lc_bin = self.lc_base + '_natural_bin.dat'
-        self.lc_group = self.lc_base + '_natural_group.dat'
-        self.lc = self.lc_base + '_standard.dat'
+        self.lc_base = self.lc_dir + '/lightcurve_' + self.photmethod + '_' + self.targetname + '_'
 
         # run through all routines
-        self.generate_raw_lc()
-        self.generate_bin_lc()
-        self.generate_group_lc()
-        self.generate_final_lc()
+        self.generate_raw_lcs()
+        for m in self.phot_method:
+            self.lc_raw = self.lc_base + m + '_natural_raw.dat'
+            self.lc_bin = self.lc_base + m + '_natural_bin.dat'
+            self.lc_group = self.lc_base + m + '_natural_group.dat'
+            self.lc = self.lc_base + m + '_standard.dat'
+            self.generate_bin_lc()
+            self.generate_group_lc()
+            self.generate_final_lc()
 
     def process_new_images(self, new_image_file):
         '''
@@ -806,12 +837,10 @@ class LPP(object):
             else:
                 print('file format not recognized')
                 return
-            #os.system('cp {} {}'.format(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])))
             shutil.copy2(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1]))
             self.template_images[filt] = os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])
             if decomp:
                 subprocess.Popen(['gzip', '-d', '-r', '-q', self.template_images[filt]])
-                #os.system('gzip -d -f {}'.format(self.template_images[filt]))
                 self.template_images[filt] = self.template_images[filt][:-3]
 
         # rebin if needed
