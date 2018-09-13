@@ -527,8 +527,8 @@ class LPP(object):
             #    d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,17), squeeze = True).dropna()
             #else:
             #    d = pd.read_csv(fl_obj.aptdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=(0,3), squeeze = True).dropna()
-            cols = (0,) + (self.phot_cols[m] for m in self.phot_method)
-            col_names = ('id',) + (m for m in self.phot_method)
+            cols = (0,) + tuple((self.phot_cols[m] for m in self.phot_method))
+            col_names = ('id',) + tuple((m for m in self.phot_method))
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
 
             # populate results dict from file
