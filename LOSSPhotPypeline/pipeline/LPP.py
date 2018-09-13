@@ -659,7 +659,7 @@ class LPP(object):
                 lcs[m]['+emag'].append(round(mag + err,5))
 
         for m in self.phot_method:
-            pd.DataFrame(lc).to_csv(self.lc_base + m + '_natural_raw.dat', sep = '\t', columns = columns, index = False)
+            pd.DataFrame(lcs[m]).to_csv(self.lc_base + m + '_natural_raw.dat', sep = '\t', columns = columns, index = False)
 
         self.log.info('raw light curves generated')
 
