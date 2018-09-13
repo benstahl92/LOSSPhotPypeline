@@ -249,15 +249,20 @@ class LPP(object):
                 else:
                     print('{} --- {}'.format(i, step.__name__))
             print('\nadditional options:')
-            print('n --- add new images')
-            print('g --- perform galaxy subtraction')
-            print('q --- quit\n')
-            resp = input('selection > ')
-            if 'n' in resp.lower():
+            print('n  --- add new image(s) by filename(s)')
+            print('nf --- add new images from file of names')
+            print('q  --- quit\n')
+            resp = input('selection > ').lower()
+            if 'n' == resp:
+                new_images = input('enter name(s) or new images (comma separated) > ')
+                if ',' not in new_images:
+                    new_image_list = [new_images]
+                else:
+                    new_image_list = [fl.strip() for fl in new_images.split(',')]
+                self.process_new_images(new_image_list = new_image_list)
+            elif 'nf' == resp:
                 new_image_file = input('enter name of new image file > ')
-                self.process_new_images(new_image_file)
-            elif 'g' in resp.lower():
-                print('placeholder for galaxy subtraction')
+                self.process_new_images(new_image_file = new_image_file)
             else:
                 try:
                     self.current_step = int(resp)
@@ -709,14 +714,17 @@ class LPP(object):
             self.generate_group_lc()
             self.generate_final_lc()
 
-    def process_new_images(self, new_image_file):
+    def process_new_images(self, new_image_file = None, new_image_list = []):
         '''
         processes images obtained after initial processing
         '''
 
         # read in new images to list
-        new_image_list = pd.read_csv(new_image_file, header = None, delim_whitespace = True,
-                                      comment = '#', squeeze = True)
+        if (new_image_file is not None) and (new_image_list == []):
+            new_image_list = pd.read_csv(new_image_file, header = None, delim_whitespace = True,
+                                          comment = '#', squeeze = True)
+        elif new_image_list != []:
+            new_image_list = pd.Series(new_image_list)
 
         # remove any images from new list that have already been processed
         new_image_list = new_image_list[~new_image_list.isin(self.image_list)]
@@ -743,14 +751,15 @@ class LPP(object):
         self.run()
 
         # add to original image file and remove new file
-        ow = True
-        if self.interactive:
-            resp = input('\nadd {} to {} and then remove {}? (y/[n]) > '.format(new_image_file, self.photlistfile, new_image_file))
-            if 'y' not in resp.lower():
-                ow = False
-        if ow:
-            os.system('cat {} >> {}'.format(new_image_file, self.photlistfile))
-            os.system('rm {}'.format(new_image_file))
+        if new_image_file is not None:
+            ow = True
+            if self.interactive:
+                resp = input('\nadd {} to {} and then remove {}? (y/[n]) > '.format(new_image_file, self.photlistfile, new_image_file))
+                if 'y' not in resp.lower():
+                    ow = False
+            if ow:
+                os.system('cat {} >> {}'.format(new_image_file, self.photlistfile))
+                os.system('rm {}'.format(new_image_file))
 
         self.log.info('new images processed')
 
