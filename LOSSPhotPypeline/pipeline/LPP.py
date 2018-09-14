@@ -54,7 +54,8 @@ class LPP(object):
         self.targetra = None
         self.targetdec = None
         self.photsub = False
-        self.photmethod = ''
+        self.calmethod = '3.5p'
+        self.photmethod = 'all'
         self.refname=''
         self.photlistfile=''
 
@@ -94,7 +95,6 @@ class LPP(object):
         self.calfile_use=''
         self.cal_nat_fit=''
         self.color_term = None
-        self.cal_method = 'psf'
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
@@ -153,38 +153,30 @@ class LPP(object):
         self.targetdec = float(conf['targetdec'])
         if conf['photsub'].lower() == 'yes': # defaults to False in all other cases
             self.photsub = True 
+        if conf['calmethod'].lower == 'psf': # defaults to '3.5p' in all other cases
+            self.calmethod = 'psf'
         if conf['photmethod'].lower() == 'all':
-            self.phot_method = list(self.phot_cols.keys())
+            self.photmethod = list(self.phot_cols.keys())
         elif ',' not in conf['photmethod'].lower():
             if conf['photmethod'].lower().strip() in self.phot_cols.keys():
-                self.phot_method = [conf['photmethod'].lower().strip()]
+                self.photmethod = [conf['photmethod'].lower().strip()]
             else:
                 print('{} is not a valid photometry method. Available options are:'.format(conf['photmethod'].strip()))
                 print(', '.join(self.phot_col.keys()))
-                self.phot_method = input('Enter selection(s) > ').strip().replace(' ', '').split(',')
+                self.photmethod = input('Enter selection(s) > ').strip().replace(' ', '').split(',')
         else:
             proposed = conf['photmethod'].strip().split(',')
             if set(proposed).issubset(set(self.phot_cols.keys())):
-                self.phot_method = proposed
+                self.photmethod = proposed
             else:
                 print('At least one of {} is not a valid photometry method. Available options are:'.format(conf['photmethod'].strip()))
                 print(', '.join(self.phot_cols.keys()))
-                self.phot_method = input('Enter selection(s) > ').strip().replace(' ', '').split(',')
+                self.photmethod = input('Enter selection(s) > ').strip().replace(' ', '').split(',')
 
         self.refname = conf['refname']
         self.photlistfile = conf['photlistfile']
 
         self.log.info('{} loaded'.format(self.config_file))
-
-        # unused options
-        #self.targetname = conf['targetname'].lower().replace(' ', '')
-        #self.savefile = conf['savefile']
-        #self.photuncalfile = conf['photuncalfile']
-        #self.photcalfile = conf['photcalfile']
-        #self.photallcalfile = conf['photallcalfile']
-        #self.calfile = conf['calfile']
-        #self.radecfile = conf['radecfile']
-        #self.psfstarfile = conf['psfstarfile']
 
     ###################################################################################################
     #          Logging
@@ -497,7 +489,11 @@ class LPP(object):
 
             # execute idl calibration procedure
             with redirect_stdout(self.log):
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit), usepsf = True, output = True)
+                upsf = True:
+                if self.calmethod != 'psf':
+                    upsf = False
+                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
+                              usepsf = upsf, photsub = self.photsub, output = True)
 
     def process_calibration(self):
         '''
@@ -532,17 +528,17 @@ class LPP(object):
                 results[filt] = {}
 
             # read file (using selected columns corresponding to desired photometry method(s))
-            cols = (0,) + tuple((self.phot_cols[m] for m in self.phot_method))
-            col_names = ('id',) + tuple((m for m in self.phot_method))
+            cols = (0,) + tuple((self.phot_cols[m] for m in self.photmethod))
+            col_names = ('id',) + tuple((m for m in self.photmethod))
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
 
             # populate results dict from file
             for idx, row in d.iterrows():
                 if (idx in IDs.values):
                     if idx not in results[filt].keys():
-                        results[filt][idx] = [row[self.cal_method]]
+                        results[filt][idx] = [row[self.calmethod]]
                     else:
-                        results[filt][idx].append(row[self.cal_method])
+                        results[filt][idx].append(row[self.calmethod])
 
         self.filter_set = list(results.keys())
 
@@ -622,7 +618,7 @@ class LPP(object):
 
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
         lc = {name: [] for name in columns}
-        lcs = {m: copy.deepcopy(lc) for m in self.phot_method}
+        lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
 
         # iterate through files and extract LC information
         for fl in tqdm(self.image_list):
@@ -636,12 +632,12 @@ class LPP(object):
                 zero = float(f.read())
 
             # read photometry results
-            cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.phot_method), ())
-            col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.phot_method), ())
+            cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.photmethod), ())
+            col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.photmethod), ())
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
             if 1 not in d['ID'].values:
                 continue
-            for m in self.phot_method:
+            for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
                 lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
                 lcs[m]['filter'].append(fl_obj.filter)
@@ -653,7 +649,7 @@ class LPP(object):
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
 
-        for m in self.phot_method:
+        for m in self.photmethod:
             pd.DataFrame(lcs[m]).to_csv(self.lc_base + m + '_natural_raw.dat', sep = '\t', columns = columns, index = False)
 
         self.log.info('raw light curves generated')
@@ -709,7 +705,7 @@ class LPP(object):
 
         # run through all routines
         self.generate_raw_lcs()
-        for m in self.phot_method:
+        for m in self.photmethod:
             self.lc_raw = self.lc_base + m + '_natural_raw.dat'
             self.lc_bin = self.lc_base + m + '_natural_bin.dat'
             self.lc_group = self.lc_base + m + '_natural_group.dat'
@@ -855,6 +851,3 @@ class LPP(object):
                 os.system('ds9 -zscale {} &'.format(' '.join([self.template_images[filt] for filt in self.template_images.keys()])))
 
         self.log.info('template images selected')
-
-    def MLCS_fit(self):
-        return
