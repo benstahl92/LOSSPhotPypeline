@@ -42,7 +42,7 @@ for i=0,n-1 do begin
 
     ;; get the counts
     lpp_aper,image,x[i],y[i],f,ef,sky,esky,ccdgain,radius,[skyrad1,skyrad2],[0,0] $
-        ,/flux,/exact,setskyval=setsky
+        ,/flux,/exact,setskyval=setsky,/silent
     flux[i]=f
     eflux[i]=ef
 

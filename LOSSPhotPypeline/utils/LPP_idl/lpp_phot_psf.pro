@@ -64,16 +64,16 @@ maxY=float(sxpar(imhdr,'NAXIS2'))
 w=where(objx gt fwhm and objy gt fwhm $
         and objx lt maxX-fwhm-1 and objy lt maxY-fwhm-1)
 gcntrd,imagedata,objx[w],objy[w],xcen,ycen,fwhm ;;;,maxgood=ims.satcounts
-objx[w]=xcen
-objy[w]=ycen
 ;print,objx,objy
-w=where(xcen ne -1.0 and ycen ne -1.0,nw)
+w2=where(xcen ne -1.0 and ycen ne -1.0,nw)
 if nw eq 0 then begin
     print,'*****************************'
     print,'No good objects found near target!?!?!?'
     print,'*****************************'
     return
 endif
+objx[w[w2]]=xcen[w2]
+objy[w[w2]]=ycen[w2]
 
 ;;good, to here, we have object can do aperture photometry
 apt_radius=[3.5,5.0,7.0,9.0,1.0*fwhm,1.5*fwhm,2.0*fwhm]
@@ -126,74 +126,57 @@ snr=fluxall[*,0]/fluxerrall[*,0]
 
 w=reverse(sort(snr))
 nw=n_elements(w)
+fail=0
 if nw le 1 then begin
     print,'*****************************'
     print,'No good objects found near target!?!?!?'
     print,'*****************************'
-    return
+    fail=1
 endif
 
-indtmp=where(snr gt 10,nf)
-if nf le 1 then begin
-  indtmp=where(snr gt 5,nf)
-  if nf lt 1 then begin
-    print,'No good star can be used for make PSF, quiting PSF photometry'
-    return
+;;if succeed then continue
+if fail eq 0 then begin
+  indtmp=where(snr gt 10,nf)
+  if nf le 1 then begin
+    indtmp=where(snr gt 5,nf)
+    if nf lt 1 then begin
+      print,'No good star can be used for make PSF, quiting PSF photometry'
+      fail=1
+    endif
   endif
 endif
-if keyword_set(output) then begin
-  print,'found ',nf,' bright stars with high S/N'
-endif
-w=w[0:nf-1]
-nw=n_elements(w)
 
-if nw eq 1 then begin
-  wo=w
-endif
-if nw ge 2 then begin
-  wo=w[0:nw-1]
-endif
-if nw ge 5 then begin
-  wo=w[0:3]
-endif
-if nw ge 10 then begin
-  wo=w[1:6]
-endif
-if nw ge 15 then begin
-  wo=w[2:9]
-endif
-if nw ge 20 then begin
-  wo=w[3:15]
-endif
-if nw ge 30 then begin
-  wo=w[4:22]
-endif
-wbak=w  ;;wbak is used if the first time trying psf failed
-
-w=wo
-nw=n_elements(w)
-psfstarx=objx[w]
-psfstary=objy[w]
-psfstarcounts=fluxall[w,0]
-psfstarmags=-2.5*alog10(psfstarcounts)+25
-psfstarskys=skys[w,0]
-inds=lindgen(nw)
-
-if keyword_set(output) then begin
-  print,'selected ',n_elements(w),' stars used for calculate PSF!!!'
-endif
-;; Calculate the local PSF (actually, the residuals from a gaussian)
-psfrad=1.5*fwhm
-fitrad=1.0*fwhm
-radtol=0.95*fitrad
-;;need to readin image data array
-imagedata=mrdfits(image,0,/silent)
-lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
-  ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
-if fail ne 0 then begin
-  ;;print,'psf failed'
-  if keyword_set(output) then print,'first try making PSF failed, now using all the stars'
-  w=wbak
+if fail eq 0 then begin
+  if keyword_set(output) then begin
+    print,'found ',nf,' bright stars with high S/N'
+  endif
+  w=w[0:nf-1]
+  nw=n_elements(w)
+  
+  if nw eq 1 then begin
+    wo=w
+  endif
+  if nw ge 2 then begin
+    wo=w[0:nw-1]
+  endif
+  if nw ge 5 then begin
+    wo=w[0:3]
+  endif
+  if nw ge 10 then begin
+    wo=w[1:6]
+  endif
+  if nw ge 15 then begin
+    wo=w[2:9]
+  endif
+  if nw ge 20 then begin
+    wo=w[3:15]
+  endif
+  if nw ge 30 then begin
+    wo=w[4:22]
+  endif
+  wbak=w  ;;wbak is used if the first time trying psf failed
+  
+  w=wo
   nw=n_elements(w)
   psfstarx=objx[w]
   psfstary=objy[w]
@@ -201,16 +184,40 @@ if fail ne 0 then begin
   psfstarmags=-2.5*alog10(psfstarcounts)+25
   psfstarskys=skys[w,0]
   inds=lindgen(nw)
-  fail=0
-  getpsf_rphot,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
+  
+  if keyword_set(output) then begin
+    print,'selected ',n_elements(w),' stars used for calculate PSF!!!'
+  endif
+  ;; Calculate the local PSF (actually, the residuals from a gaussian)
+  psfrad=1.5*fwhm
+  fitrad=1.0*fwhm
+  radtol=0.95*fitrad
+  ;;need to readin image data array
+  imagedata=mrdfits(image,0,/silent)
+  lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
     ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
   if fail ne 0 then begin
-    if keyword_set(output) then print,'second trying making PSF failed too, can not do PSF phot, quiting'
-    return
+    ;;print,'psf failed'
+    if keyword_set(output) then print,'first try making PSF failed, now using all the stars'
+    w=wbak
+    nw=n_elements(w)
+    psfstarx=objx[w]
+    psfstary=objy[w]
+    psfstarcounts=fluxall[w,0]
+    psfstarmags=-2.5*alog10(psfstarcounts)+25
+    psfstarskys=skys[w,0]
+    inds=lindgen(nw)
+    fail=0
+    getpsf_rphot,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
+      ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
+    if fail ne 0 then begin
+      if keyword_set(output) then print,'second trying making PSF failed too, can not do PSF phot, quiting'
+      fail=1
+    endif
+    print,'second trying making PSF succeed'
   endif
-  print,'second trying making PSF succeed'
+  if keyword_set(output) then print,'end making psf'
 endif
-if keyword_set(output) then print,'end making psf'
 
 ;;if psf is not faied, then do the following
 if fail eq 0 then begin 
@@ -244,7 +251,7 @@ if fail eq 0 then begin
   ;print,'start matching 5'
   if m1[0] eq -1 then begin
       print,'*********************************'
-      print,'Could not fit PSF to any objects on '+image+'...sorry'
+      print,'Could not fit PSF to target on '+image+'...sorry'
       print,'*********************************'
   endif else begin
       ;; psf
@@ -270,100 +277,108 @@ if fail eq 0 then begin
   ;print,magall,magerrall
 endif
 
+subphotdid=0
 ;;great, all done, unless with keyword photsub, even fail, still need to do apt sub
 if keyword_set(photsub) then begin
   ;;check the sub image exist or not
   fs=findfile(imagest.cfsb)
   if fs[0] eq '' then begin
-    print,'subimage file : ',imagest.cfsb,' not found, quit!'
-    return
-  endif
-  if keyword_set(output) then begin
-    print,'Doing sub image photometry now'
-  endif
-  subfluxall=fltarr(nphot)
-  subfluxerrall=fltarr(nphot)
-  subskynoise=fltarr(nphot)
-  subskys=fltarr(nphot)
-  submagall=fltarr(nphot)
-  submagerrall=fltarr(nphot)
-  submagall[*]=!values.d_nan
-  submagerrall[*]=!values.d_nan
-  ;;readin subimage data
-  subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
-  ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
-  xs=objx[0]
-  ys=objy[0]
-  ;; recentroid objects
-  gcntrd,subimagedata,xs,ys,xcen,ycen,fwhm ;;;,maxgood=ims.satcounts
-  xs=xcen
-  ys=ycen
-  for i=0,nphot-2 do begin
-    lpp_get_aper_counts,subimagedata,fwhm,xs,ys,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
-    ;print,flux,eflux
-    subfluxall[i]=flux
-    subfluxerrall[i]=eflux
-    subskynoise[i]=skynoisetmp
-    subskys[i]=skytmp
-  end
-  ;;transform count to mag, use zero point of 25.0
-  ;;this is improtatn, because later we also need this information to calculat the sky noise
-  ;;and then limiting magnitude.
-  for i=0,n_elements(subfluxall)-1 do begin
-    if fluxall[i] gt 0 then begin
-      submagall[i]=-2.5*alog10(subfluxall[i]/exposures)+25.0
-      if finite(subfluxerrall[i]) eq 1 then begin
-        subemagptmp=-2.5*alog10((subfluxall[i]-subfluxerrall[i])/exposures)+25.0
-        subemagmtmp=-2.5*alog10((subfluxall[i]+subfluxerrall[i])/exposures)+25.0
-        submagerrall[i]=(subemagptmp-subemagmtmp)/2.0
+    print,'subimage file : ',imagest.cfsb,' not found, skip sub phot!'
+    subphotdid=0
+  endif else begin
+    if keyword_set(output) then begin
+      print,'Doing sub image photometry now'
+    endif
+    subfluxall=fltarr(nphot)
+    subfluxerrall=fltarr(nphot)
+    subskynoise=fltarr(nphot)
+    subskys=fltarr(nphot)
+    submagall=fltarr(nphot)
+    submagerrall=fltarr(nphot)
+    submagall[*]=!values.d_nan
+    submagerrall[*]=!values.d_nan
+    ;;readin subimage data
+    subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
+    ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
+    xs=objx[0]
+    ys=objy[0]
+    ;; recentroid objects
+    gcntrd,subimagedata,xs,ys,xcen,ycen,fwhm ;;;,maxgood=ims.satcounts
+    if xcen ne -1.0 and ycen ne -1.0 then begin
+        ;;gcntrd succeed
+        xs=xcen
+        ys=ycen
+    endif
+    for i=0,nphot-2 do begin
+      lpp_get_aper_counts,subimagedata,fwhm,xs,ys,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
+      ;print,flux,eflux
+      subfluxall[i]=flux
+      subfluxerrall[i]=eflux
+      subskynoise[i]=skynoisetmp
+      subskys[i]=skytmp
+    end
+    subphotdid=1
+    ;;transform count to mag, use zero point of 25.0
+    ;;this is improtatn, because later we also need this information to calculat the sky noise
+    ;;and then limiting magnitude.
+    for i=0,n_elements(subfluxall)-1 do begin
+      if fluxall[i] gt 0 then begin
+        submagall[i]=-2.5*alog10(subfluxall[i]/exposures)+25.0
+        if finite(subfluxerrall[i]) eq 1 then begin
+          subemagptmp=-2.5*alog10((subfluxall[i]-subfluxerrall[i])/exposures)+25.0
+          subemagmtmp=-2.5*alog10((subfluxall[i]+subfluxerrall[i])/exposures)+25.0
+          submagerrall[i]=(subemagptmp-subemagmtmp)/2.0
+        endif else begin
+          submagerrall[i]=9.99
+        endelse
+      endif
+    endfor
+
+    ;;nstar doing the actual psf photometry to the subimage
+    ;;but only do it if psf is not fail
+
+    if fail eq 0 then begin
+      ;;here mags and magerr input are from above apr result, and will be modified after
+      ;;psf fitting. Also note the number may changed because stars may get grouped or dropped
+      ;;the input mag should be positive, otherwise will report error from nstar
+      submagpsf=submagall[0]
+      submagpsferr=submagerrall[0]
+      subskyspsf=subskys[0]
+
+      lpp_nstar,subimagedata,[0],xs,ys,submagpsf,subskyspsf,[0],ccdgain,ccdronoise,'',submagpsferr $
+        ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,/silent
+
+      ;;findout the targets corresponding to xs,ys
+      close_match,objx[0],objy[0],xs,ys,m1,m2,radtol,1,missed1,/silent
+      ;print,'start matching 5'
+      if m1[0] eq -1 then begin
+          print,'*********************************'
+          print,'Could not fit PSF to target on subimage of '+image+'...sorry'
+          print,'target at X,Y of: ',objx[0],objy[0]
+          print,'fitting object at X,Y of: ',xs,ys
+          print,'*********************************'
       endif else begin
-        submagerrall[i]=9.99
+          ;; psf
+          ;help,subfluxall,submagpsf,psfmag,submagpsferr
+          subfluxall[nphot-1]=10.0^(-0.4*(submagpsf-25))
+          blah=10.0^(-0.4*(submagpsf-psfmag))
+          eblah=alog(10.0)/2.5*blah*submagpsferr
+          subfluxerrall[nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
+          ;;print out to check the value
+          ;;only one object
+          ;;need to re-calculate the mag using flux value, considering the exposure time
+          submagall[nphot-1]=-2.5*alog10(subfluxall[nphot-1]/exposures)+25.0
+          if finite(subfluxerrall[nphot-1]) eq 1 then begin
+            subemagptmp=-2.5*alog10((subfluxall[nphot-1]-subfluxerrall[nphot-1])/exposures)+25.0
+            subemagmtmp=-2.5*alog10((subfluxall[nphot-1]+subfluxerrall[nphot-1])/exposures)+25.0
+            submagerrall[nphot-1]=(subemagptmp-subemagmtmp)/2.0
+          endif else begin
+            submagerrall[nphot-1]=9.99
+          endelse
+          ;print,subfluxall[nphot-1],subfluxerrall[nphot-1],submagall[nphot-1],submagerrall[nphot-1],submagall[0]
       endelse
     endif
-  endfor
-
-  ;;nstar doing the actual psf photometry to the subimage
-  ;;but only do it if psf is not fail
-
-  if fail eq 0 then begin
-    ;;here mags and magerr input are from above apr result, and will be modified after
-    ;;psf fitting. Also note the number may changed because stars may get grouped or dropped
-    ;;the input mag should be positive, otherwise will report error from nstar
-    submagpsf=submagall[0]
-    submagpsferr=submagerrall[0]
-    subskyspsf=subskys[0]
-
-    lpp_nstar,subimagedata,[0],xs,ys,magpsf,skyspsf,ngroup,ccdgain,ccdronoise,'',magpsferr $
-      ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,/silent
-
-    ;;findout the targets corresponding to xs,ys
-    close_match,objx[0],objy[0],xs,ys,m1,m2,radtol,1,missed1,/silent
-    ;print,'start matching 5'
-    if m1[0] eq -1 then begin
-        print,'*********************************'
-        print,'Could not fit PSF to any objects on '+image+'...sorry'
-        print,'*********************************'
-    endif else begin
-        ;; psf
-        ;help,subfluxall,submagpsf,psfmag,submagpsferr
-        subfluxall[nphot-1]=10.0^(-0.4*(submagpsf-25))
-        blah=10.0^(-0.4*(submagpsf-psfmag))
-        eblah=alog(10.0)/2.5*blah*submagpsferr
-        subfluxerrall[nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
-        ;;print out to check the value
-        ;;only one object
-        ;;need to re-calculate the mag using flux value, considering the exposure time
-        submagall[nphot-1]=-2.5*alog10(subfluxall[nphot-1]/exposures)+25.0
-        if finite(subfluxerrall[nphot-1]) eq 1 then begin
-          subemagptmp=-2.5*alog10((subfluxall[nphot-1]-subfluxerrall[nphot-1])/exposures)+25.0
-          subemagmtmp=-2.5*alog10((subfluxall[nphot-1]+subfluxerrall[nphot-1])/exposures)+25.0
-          submagerrall[nphot-1]=(subemagptmp-subemagmtmp)/2.0
-        endif else begin
-          submagerrall[nphot-1]=9.99
-        endelse
-        ;print,subfluxall[nphot-1],subfluxerrall[nphot-1],submagall[nphot-1],submagerrall[nphot-1],submagall[0]
-    endelse
-  endif
+  endelse
 endif
 
 ;;write the out put to the text file, if photsub, write out both
@@ -376,7 +391,7 @@ for i=0,nobj-1 do begin
 endfor
 close,lun
 free_lun,lun
-if keyword_set(photsub) then begin
+if keyword_set(photsub) and subphotdid ne 0 then begin
   outfile=imagest.psfsub
   magall[0,*]=submagall[*]
   magerrall[0,*]=submagerrall[*]

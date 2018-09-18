@@ -45,7 +45,7 @@ readcol,imagest.obj,objx,objy
 ;;;Note, in IDL, this value need -1
 objx=objx-1.0
 objy=objy-1.0
-print,objx,objy
+;print,objx,objy
 
 ;;OK, all prepared, can proceed
 
@@ -60,16 +60,16 @@ maxY=float(sxpar(imhdr,'NAXIS2'))
 w=where(objx gt fwhm and objy gt fwhm $
         and objx lt maxX-fwhm-1 and objy lt maxY-fwhm-1)
 gcntrd,imagedata,objx[w],objy[w],xcen,ycen,fwhm ;;;,maxgood=ims.satcounts
-objx[w]=xcen
-objy[w]=ycen
-print,objx,objy
-w=where(xcen ne -1.0 and ycen ne -1.0,nw)
+;print,objx,objy
+w2=where(xcen ne -1.0 and ycen ne -1.0,nw)
 if nw eq 0 then begin
     print,'*****************************'
     print,'No good objects found near target!?!?!?'
     print,'*****************************'
     return
 endif
+objx[w[w2]]=xcen[w2]
+objy[w[w2]]=ycen[w2]
 
 ;;good, to here, we have object can do aperture photometry
 apt_radius=[3.5,5.0,7.0,9.0,1.0*fwhm,1.5*fwhm,2.0*fwhm]
@@ -135,8 +135,11 @@ if keyword_set(photsub) then begin
   ys=objy[0]
   ;; recentroid objects
   gcntrd,subimagedata,xs,ys,xcen,ycen,fwhm ;;;,maxgood=ims.satcounts
-  xs=xcen
-  ys=ycen
+  if xcen ne -1.0 and ycen ne -1.0 then begin
+      ;;gcntrd succeed
+      xs=xcen
+      ys=ycen
+  endif
   for i=0,nphot-2 do begin
     lpp_get_aper_counts,subimagedata,fwhm,xs,ys,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
     ;print,flux,eflux
