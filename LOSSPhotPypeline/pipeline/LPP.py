@@ -61,14 +61,18 @@ class LPP(object):
 
         # check if config file exists -- if not then generate template
         if not os.path.isfile(self.config_file):
-            print('No configuration file detected, generating template: {}'.format(self.config_file + '_template'))
-            LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '_template')
+            self.log.warn('No configuration file detected, complete template ({}) before proceeding.'.format(self.config_file + '.template'))
+            LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '.template')
+            return
 
         # general variables
         self.filter_set = ['B', 'V', 'R', 'I', 'clear']
         self.first_obs = None
         self.image_list = []
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
+        self.image_list = []
+        self.phot_failed = []
+        self.cal_failed = []
 
         # load configuration file
         loaded = False
@@ -126,12 +130,10 @@ class LPP(object):
             if 'n' not in load.lower():
                 self.load()
 
-        # currently unused
-        #self.psfstarfile=''
-        #self.template_candidates = None
-        #self.photuncalfile = ''
-        #self.photcalfile = ''
-        #self.photallcalfile = ''
+        # make sure that the selected calmethod is one of the photmethods
+        if self.calmethod not in self.photmethod:
+            self.log.warn('Calibration method must be one of the photometry methods. Exiting.')
+            return
 
     ###################################################################################################
     #          Configuration File Methods
@@ -398,23 +400,25 @@ class LPP(object):
             self.log.info('using argument supplied image list')
 
         if self.photsub and (self.template_images is None):
-            self.get_template_images(late_time_begin = 30) # for testing purposes
+            self.get_template_images()
 
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
         first_obs = None
         for fl in tqdm(image_list):
-            try:
-                c = Phot(fl, self.radecfile)
-                with redirect_stdout(self.log):
-                    if self.photsub:
-                        c.galaxy_subtract(self.template_images)
-                    c.do_photometry(photsub = self.photsub, log = self.log)
-                if (first_obs is None) or (c.mjd < first_obs):
-                    first_obs = c.mjd
-            except KeyError:
+            c = Phot(fl, self.radecfile)
+            with redirect_stdout(self.log):
+                if self.photsub:
+                    c.galaxy_subtract(self.template_images)
+                c.do_photometry(photsub = self.photsub, log = self.log)
+            if (first_obs is None) or (c.mjd < first_obs):
+                first_obs = c.mjd
+            # check for success
+            if (os.path.exists(c.psf) is False) and (os.path.exists(c.psfsub) is False):
                 self.log.warn('photometry failed on image: {}'.format(fl))
-                self.image_list.pop(self.image_list.index(fl))
+                self.phot_failed.append(fl)
+        self.phot_failed = pd.Series(self.phot_failed)
+        self.image_list = self.image_list[~self.image_list.isin(self.phot_failed)]
         if self.first_obs is None:
             self.first_obs = first_obs
 
@@ -457,7 +461,7 @@ class LPP(object):
         for fl in tqdm(image_list):
 
             # instantiate file object
-            fl_obj = FitsInfo(fl)
+            fl_obj = Phot(fl)
 
             # select color term based on telescope and date
             if fl_obj.telescope == 'kait':
@@ -489,11 +493,14 @@ class LPP(object):
 
             # execute idl calibration procedure
             with redirect_stdout(self.log):
-                upsf = True:
-                if self.calmethod != 'psf':
-                    upsf = False
                 self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
-                              usepsf = upsf, photsub = self.photsub, output = True)
+                              usepsf = True, photsub = self.photsub, output = True)
+            # check for success
+            if (os.path.exists(fl_obj.psfdat) is False) and (os.path.exists(fl_obj.psfsubdat) is False):
+                self.log.warn('calibration failed on image: {}'.format(fl))
+                self.cal_failed.append(fl)
+            self.cal_failed = pd.Series(self.cal_failed)
+            self.image_list = self.image_list[~self.image_list.isin(self.cal_failed)]
 
     def process_calibration(self):
         '''
@@ -835,7 +842,7 @@ class LPP(object):
             shutil.copy2(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1]))
             self.template_images[filt] = os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])
             if decomp:
-                subprocess.Popen(['gzip', '-d', '-r', '-q', self.template_images[filt]])
+                subprocess.Popen(['gzip', '-d', '-q', '-f', self.template_images[filt]])
                 self.template_images[filt] = self.template_images[filt][:-3]
 
         # rebin if needed
