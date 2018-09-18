@@ -720,6 +720,7 @@ class LPP(object):
             self.generate_bin_lc()
             self.generate_group_lc()
             self.generate_final_lc()
+            LPPu.plot_lc(self.lc_base + m + '_standard.dat', name = self.targetname, photmethod = m, filters = (f.upper() for f in self.filter_set))
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''
