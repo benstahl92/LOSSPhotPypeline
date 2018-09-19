@@ -73,6 +73,7 @@ class LPP(object):
         self.image_list = []
         self.phot_failed = []
         self.cal_failed = []
+        self.no_obj = []
 
         # load configuration file
         loaded = False
@@ -116,6 +117,7 @@ class LPP(object):
         self.current_step = 0
         self.steps = [self.get_image_list,
                       self.find_ref_stars,
+                      self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.do_calibration,
                       self.generate_lc]
@@ -387,6 +389,34 @@ class LPP(object):
                 f.write('   {:.7f}  {:.7f}\n'.format(imagera[i], imagedec[i]))
         self.log.info('{} written'.format(self.radecfile))
 
+    def do_galaxy_subtraction_all_image(self, image_list = None):
+        '''
+        performs galaxy subtraction on all selected image files
+        '''
+
+        if not self.photsub:
+            self.log.warn('not in photsub mode, skipping galaxy subtraction')
+            return
+
+        self.log.info('starting galaxy subtraction on all images')
+
+        if image_list is None:
+            image_list = self.image_list
+        else:
+            self.log.info('using argument supplied image list')
+
+        if self.template_images is None:
+            self.get_template_images()
+
+        # iterate through image list and perform galaxy subtraction on each
+        for fl in tqdm(image_list):
+            c = Phot(fl, self.radecfile)
+            with redirect_stdout(self.log):
+                if self.photsub:
+                    c.galaxy_subtract(self.template_images)
+
+        self.log.info('galaxy subtraction done')
+
     def do_photometry_all_image(self, image_list = None):
         '''
         performs photometry on all selected image files
@@ -398,9 +428,6 @@ class LPP(object):
             image_list = self.image_list
         else:
             self.log.info('using argument supplied image list')
-
-        if self.photsub and (self.template_images is None):
-            self.get_template_images()
 
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
@@ -499,8 +526,8 @@ class LPP(object):
             if (os.path.exists(fl_obj.psfdat) is False) and (os.path.exists(fl_obj.psfsubdat) is False):
                 self.log.warn('calibration failed on image: {}'.format(fl))
                 self.cal_failed.append(fl)
-            self.cal_failed = pd.Series(self.cal_failed)
-            self.image_list = self.image_list[~self.image_list.isin(self.cal_failed)]
+        self.cal_failed = pd.Series(self.cal_failed)
+        self.image_list = self.image_list[~self.image_list.isin(self.cal_failed)]
 
     def process_calibration(self):
         '''
@@ -643,6 +670,8 @@ class LPP(object):
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.photmethod), ())
             d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
             if 1 not in d['ID'].values:
+                self.log.warn('no object in image: {}'.format(fl))
+                self.no_obj.append(fl)
                 continue
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
@@ -655,6 +684,9 @@ class LPP(object):
                 lcs[m]['mag'].append(round(mag,5))
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
+
+        self.no_obj = pd.Series(self.no_obj)
+        self.image_list = self.image_list[~self.image_list.isin(self.no_obj)]
 
         for m in self.photmethod:
             pd.DataFrame(lcs[m]).to_csv(self.lc_base + m + '_natural_raw.dat', sep = '\t', columns = columns, index = False)
@@ -750,10 +782,10 @@ class LPP(object):
             if 'y' in resp.lower():
                 full_cal = True
         if full_cal:
-            self.current_step = 3
+            self.current_step = self.steps.index(self.do_photometry_all_image)
         else:
             self.calibrate(second_pass = False, image_list = new_image_list)
-            self.current_step = 4
+            self.current_step = self.steps.index(self.generate_lc)
 
         # run program after calibration has been completed
         self.run()
