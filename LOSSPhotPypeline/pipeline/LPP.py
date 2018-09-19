@@ -586,6 +586,7 @@ class LPP(object):
         while not accept_tol:
             summary_results = {}
             cut_list = [] # store IDs that will be cut
+            full_list = []
             for filt in results.keys():
                 if filt not in summary_results.keys():
                     summary_results[filt] = {}
@@ -598,19 +599,21 @@ class LPP(object):
                         summary_results[filt][ID] = [obs, ref, diff]
                         if diff > self.cal_diff_tol:
                             cut_list.append(ID - 2)
+                        full_list.append(ID - 2)
 
             cut_list = list(set(cut_list))
+            full_list = list(set(full_list))
             if not self.interactive:
                 accept_tol = True
             else:
                 for filt in summary_results.keys():
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
-                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']))
+                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']).sort_index())
 
-                print('\nIDs that will be cut:')
+                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print('*'*60)
-                print([i + 2 for i in cut_list])
+                print([i + 2 for i in sorted(cut_list)])
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))
                 if (response == '') or ('y' in response.lower()):
                     accept_tol = True
@@ -689,7 +692,11 @@ class LPP(object):
         self.image_list = self.image_list[~self.image_list.isin(self.no_obj)]
 
         for m in self.photmethod:
-            pd.DataFrame(lcs[m]).to_csv(self.lc_base + m + '_natural_raw.dat', sep = '\t', columns = columns, index = False)
+            lc_raw_name = self.lc_base + m + '_natural_raw.dat'
+            lc_raw = pd.DataFrame(lcs[m]).to_csv(lc_raw_name, sep = '\t', columns = columns, index = False)
+            p = LPPu.plotLC(lc_raw = lc_raw, lc_file = lc_raw_name, name = self.targetname, photmethod = m, filters = self.filter_set)
+            p._transform_raw()
+            p.plot_lc()
 
         self.log.info('raw light curves generated')
 
@@ -752,7 +759,8 @@ class LPP(object):
             self.generate_bin_lc()
             self.generate_group_lc()
             self.generate_final_lc()
-            LPPu.plot_lc(self.lc_base + m + '_standard.dat', name = self.targetname, photmethod = m, filters = (f.upper() for f in self.filter_set))
+            p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m, filters = self.filter_set)
+            p.plot_lc()
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''
