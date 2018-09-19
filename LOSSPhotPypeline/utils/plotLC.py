@@ -35,7 +35,6 @@ class plotLC:
         self.raw = lc_raw
         self.lc_file = lc_file
         self.tref = tref
-        self.filters = filters
         self.offset_scale = offset_scale
         self.style = style
         self.context = context
@@ -48,8 +47,9 @@ class plotLC:
         if set(filters).issubset(('B','V','R','I','CLEAR')) is False:
             print('provided filter set is not supported, exiting')
             return
+        self.filters = filters
 
-        if (self.lc is None) and (self.lc_raw is None) and (self.lc_file is not None):
+        if (self.lc is None) and (self.raw is None) and (self.lc_file is not None):
             self.load_lc(self.lc_file)
             self._set_t()
 
@@ -82,19 +82,19 @@ class plotLC:
     def _set_t(self):
         '''set time relative to reference'''
         if self.tref == 'min':
-            self.tref = lc['MJD'].min()
+            self.tref = self.lc['MJD'].min()
         if self.lc is not None:
-            self.lc['t_ref'] = self.lc['MJD'] - self.tref
+            self.lc['t_rel'] = self.lc['MJD'] - self.tref
             self.tset = True
         else:
-            print('no lc to set t_ref for, exiting')
+            print('no lc to set t_rel for, exiting')
             return
 
     def _transform_raw(self):
         '''transforms dataframe of light curve in raw format to internal format'''
         df = self.raw
         df['err'] = (df['+emag'] - df['-emag']) / 2
-        self.lc = pd.concat([df[df['filter'].str.upper() == filt][['mjd', 'mag','err']].set_axis(['MJD', filt, 'E' + filt], axis = 'columns', inplace = False),
+        self.lc = pd.concat([df[df['filter'].str.upper() == filt][['mjd', 'mag','err']].set_axis(['MJD', filt, 'E' + filt], axis = 'columns', inplace = False)
                              for filt in self.filters], sort = False)
 
     def _load_raw(self, lc_file):
@@ -160,10 +160,14 @@ class plotLC:
 
         # make plot
         fig, ax = plt.subplots(1,1)
-        for filt in filters:
-            tmp = self.lc[~self.lc[filt].isnan()]
+        for filt in self.filters:
+            tmp = self.lc[self.lc[filt].notnull()]
+            offset = self._offset(filt)
+            sgn = '+'
+            if offset < 0:
+                sgn = '-'
             ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.',
-                        c = self._color(filt), label = '{} + {}'.format(filt, self._offset(filt)))
+                        c = self._color(filt), label = '{} {} {}'.format(filt, sgn, offset))
         ax.legend()
         ax.invert_yaxis()
         ax.set_xlabel('Time (MJD - {:.1f})'.format(self.tref))
