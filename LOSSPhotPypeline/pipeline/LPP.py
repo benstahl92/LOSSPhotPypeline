@@ -434,6 +434,7 @@ class LPP(object):
         first_obs = None
         for fl in tqdm(image_list):
             c = Phot(fl, self.radecfile)
+            with redirect_sgdout(self.log):
                 c.do_photometry(photsub = self.photsub, log = self.log)
             if (first_obs is None) or (c.mjd < first_obs):
                 first_obs = c.mjd
