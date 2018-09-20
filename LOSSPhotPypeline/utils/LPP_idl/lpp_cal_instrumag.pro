@@ -145,6 +145,16 @@ for j=0,n_elements(inputfiles)-1 do begin
   ;;zero point offset is the offset to 25.0. So the real zeropoint should be
   ;;25.0 + zeropointoffset
   ;;should do more clean up, getrid of big offset ones, but for now, let it be
+
+  ;;write the zeropoint
+  if (j eq 0) then begin
+    openw,lun,imagest.zero,/get_lun
+    ;;note here the skynoise was divided by exposures too, in order to make it
+    ;;consistent with stars count for calculating the right magnitudes.
+    printf,lun,25.0+zeropointoffset
+    close,lun
+    free_lun,lun
+  endif
   
   ;;now, output the calibrated mag, name mag+zeropointoffset
   if keyword_set(usepsf) then begin
@@ -167,14 +177,6 @@ for j=0,n_elements(inputfiles)-1 do begin
     free_lun,lun
   endelse
 endfor
-
-;;write the zeropoint
-openw,lun,imagest.zero,/get_lun
-;;note here the skynoise was divided by exposures too, in order to make it
-;;consistent with stars count for calculating the right magnitudes.
-printf,lun,25.0+zeropointoffset
-close,lun
-free_lun,lun
 
 
 end

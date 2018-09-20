@@ -1,7 +1,7 @@
 pro lpp_nstar,image,id,xc,yc,mags,sky,group,phpadu,readns,psfname,DEBUG=debug, $  
                 errmag,iter,chisq,peak,PRINT=print,SILENT=silent, VARSKY = varsky $
                 ,keepfaint=keepfaint,norecentroid=norecentroid $
-                ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad
+                ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,fail=fail
 ;+
 ; NAME:
 ;       NSTAR
@@ -290,6 +290,12 @@ RESTART:
  endfor
 
  igood = where(mask, ngoodpix)
+ ;;Updated by zwk on 180919, if ngoodpix=0, it will report "Array dimensions must be greater than 0.", so I added to check, if ngoodpix less than 3, return fail
+ if ngoodpix lt 3 then begin
+   if not keyword_set(silent) then print,'too few good piexels, unable to do psf fitting, quiting'
+   fail=1
+   return
+ endif
  x = dblarr(ngoodpix,nterm)
  if varsky then x[0, nterm-1] = replicate(-1.0d, ngoodpix)
 
