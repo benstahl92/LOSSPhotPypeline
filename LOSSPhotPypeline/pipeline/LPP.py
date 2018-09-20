@@ -833,10 +833,12 @@ class LPP(object):
         # select only candidates that are before the first observation or at least one year later
         cand = cand[(cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin))]
 
+        get_templ_fl_msg = ''
         radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
 
         if len(cand) == 0:
             msg = 'No suitable candidates in any band. Schedule observations:\n{}'.format(radecmsg)
+            get_templ_fl_msg += msg + '\n'
             self.log.warn(msg)
             return
 
@@ -845,12 +847,14 @@ class LPP(object):
             tmp = cand[cand['filter'] == filt]
             if len(tmp) == 0:
                 msg = 'No suitable indidates in the {} band. Schedule an observation:\n{}'.format(filt, radecmsg)
+                get_templ_fl_msg += msg + '\n'
                 self.log.warn(msg)
             elif len(tmp) == 1:
                 self.log.info('Only one candidate found in the {} band'.format(filt))
                 if tmp.iloc[0]['telescope'].lower() != 'nickel':
                     msg1 = 'Not a Nickel image.'
                     msg2 = 'May want to schedule observation, but using in meantime.'
+                    get_templ_fl_msg += msg1 + '\n' + msg2 + '\n'
                     self.log.warn('{}\n{}\n{}'.format(msg1, msg2, radecmsg))
                 self.template_images[filt] = base_dir + tmp.iloc[0]['savepath'] + tmp.iloc[0]['uniformname']
             else:
@@ -863,9 +867,14 @@ class LPP(object):
                 if tmp.iloc[index_to_use]['telescope'].lower() != 'nickel':
                     msg1 = 'Best {} image is not from Nickel.'.format(filt)
                     msg2 = 'May want to schedule observation, but using in meantime.'
+                    get_templ_fl_msg += msg1 + '\n' + msg2 + '\n'
                     self.log.warn('{}\n{}\n{}'.format(msg1, msg2, radecmsg))
                 self.template_images[filt] = os.path.join(base_dir, tmp.iloc[index_to_use]['savepath'], tmp.iloc[index_to_use]['uniformname'])
 
+        with open('GET.TEMPLATES', 'w') as f:
+            f.write(get_templ_fl_msg)
+            f.write(radecmsg)
+            
         if not os.path.isdir(self.templates_dir):
             os.makedirs(self.templates_dir)
 
