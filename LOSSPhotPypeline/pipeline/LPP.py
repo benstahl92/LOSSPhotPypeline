@@ -826,8 +826,6 @@ class LPP(object):
 
         base_dir = storelocation
 
-        self.template_images = {filt: None for filt in self.filter_set}
-
         # is this a good choice for the radius?
         cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
 
@@ -845,6 +843,8 @@ class LPP(object):
                 f.write(get_templ_fl_msg)
                 f.write(radecmsg)
             return
+
+        self.template_images = {filt: None for filt in self.filter_set}
 
         # iterate through filters to determine the best template for each
         for idx, filt in cand['filter'].drop_duplicates().iteritems():
