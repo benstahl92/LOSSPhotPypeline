@@ -434,9 +434,6 @@ class LPP(object):
         first_obs = None
         for fl in tqdm(image_list):
             c = Phot(fl, self.radecfile)
-            with redirect_stdout(self.log):
-                if self.photsub:
-                    c.galaxy_subtract(self.template_images)
                 c.do_photometry(photsub = self.photsub, log = self.log)
             if (first_obs is None) or (c.mjd < first_obs):
                 first_obs = c.mjd
@@ -874,7 +871,7 @@ class LPP(object):
         with open('GET.TEMPLATES', 'w') as f:
             f.write(get_templ_fl_msg)
             f.write(radecmsg)
-            
+
         if not os.path.isdir(self.templates_dir):
             os.makedirs(self.templates_dir)
 
