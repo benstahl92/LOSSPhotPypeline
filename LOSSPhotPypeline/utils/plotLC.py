@@ -242,12 +242,12 @@ class plotLC:
                 sgn = '-'
 
             # plot light curve
-            errobj = ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.',
-                                 c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)), picker = 3)
+            errobj = ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.', elinewidth = 1, capsize = 2,
+                                 capthick = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)), picker = 3)
 
             # handle selection of bad points
             if icut is True:
-                cut, = ax.plot([], [], 'rX', markersize = 12, label = 'points to cut')
+                cut, = ax.plot([], [], 'rX', markersize = 10, label = 'points to cut')
                 ax.legend()
                 plt.ion()
                 cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event, tmp, drop_dict, filt, cut, fig, offset))
@@ -259,7 +259,6 @@ class plotLC:
                 continue
 
         if icut is True:
-            print(drop_dict)
             self._drop_lc_points(drop_dict)
             self.plot_lc(lc = self.lc_cut)
         else:
