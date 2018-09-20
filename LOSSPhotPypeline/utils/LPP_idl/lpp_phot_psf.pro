@@ -243,38 +243,43 @@ if fail eq 0 then begin
   ;print,n_elements(magpsf),n_elements(magpsferr),n_elements(skyspsf),inds,n_elements(objx),n_elements(objy)
   ;; group the stars together
   group,xs,ys,psfrad+fitrad,ngroup
+  psfphotfail=0
   lpp_nstar,imagedata,inds,xs,ys,magpsf,skyspsf,ngroup,ccdgain,ccdronoise,'',magpsferr $
-    ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,/silent
-  
-  ;;findout the targets corresponding to xs,ys
-  close_match,objx,objy,xs,ys,m1,m2,radtol,1,missed1,/silent
-  ;print,'start matching 5'
-  if m1[0] eq -1 then begin
-      print,'*********************************'
-      print,'Could not fit PSF to target on '+image+'...sorry'
-      print,'*********************************'
+    ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,fail=psfphotfail,/silent
+  ;;psf fit failed
+  if psfphotfail ne 0 then begin
+    if keyword_set(output) then print,'psf fitting failed'
   endif else begin
-      ;; psf
-      fluxall[m1,nphot-1]=10.0^(-0.4*(magpsf[m2]-25))
-      blah=10.0^(-0.4*(magpsf[m2]-psfmag))
-      eblah=alog(10.0)/2.5*blah*magpsferr[m2]
-      fluxerrall[m1,nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
-      ;;print out to check the value
-      for i=0,n_elements(m1)-1 do begin
-        ;;need to re-calculate the mag using flux value, considering the exposure time
-        magall[m1[i],nphot-1]=-2.5*alog10(fluxall[m1[i],nphot-1]/exposures)+25.0
-        if finite(fluxerrall[m1[i],nphot-1]) eq 1 then begin
-          emagptmp=-2.5*alog10((fluxall[m1[i],nphot-1]-fluxerrall[m1[i],nphot-1])/exposures)+25.0
-          emagmtmp=-2.5*alog10((fluxall[m1[i],nphot-1]+fluxerrall[m1[i],nphot-1])/exposures)+25.0
-          magerrall[m1[i],nphot-1]=(emagptmp-emagmtmp)/2.0
-        endif else begin
-          magerrall[m1[i],nphot-1]=9.99
-        endelse
-        ;help,i,fluxall[m1[i],nphot-1],fluxerrall[m1[i],nphot-1],magall[m1[i],nphot-1],magerrall[m1[i],nphot-1]
-        ;print,i,fluxall[m1[i],nphot-1],fluxerrall[m1[i],nphot-1],magall[m1[i],nphot-1],magerrall[m1[i],nphot-1],magall[m1[i],0]
-      endfor
+    ;;findout the targets corresponding to xs,ys
+    close_match,objx,objy,xs,ys,m1,m2,radtol,1,missed1,/silent
+    ;print,'start matching 5'
+    if m1[0] eq -1 then begin
+        print,'*********************************'
+        print,'Could not fit PSF to target on '+image+'...sorry'
+        print,'*********************************'
+    endif else begin
+        ;; psf
+        fluxall[m1,nphot-1]=10.0^(-0.4*(magpsf[m2]-25))
+        blah=10.0^(-0.4*(magpsf[m2]-psfmag))
+        eblah=alog(10.0)/2.5*blah*magpsferr[m2]
+        fluxerrall[m1,nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
+        ;;print out to check the value
+        for i=0,n_elements(m1)-1 do begin
+          ;;need to re-calculate the mag using flux value, considering the exposure time
+          magall[m1[i],nphot-1]=-2.5*alog10(fluxall[m1[i],nphot-1]/exposures)+25.0
+          if finite(fluxerrall[m1[i],nphot-1]) eq 1 then begin
+            emagptmp=-2.5*alog10((fluxall[m1[i],nphot-1]-fluxerrall[m1[i],nphot-1])/exposures)+25.0
+            emagmtmp=-2.5*alog10((fluxall[m1[i],nphot-1]+fluxerrall[m1[i],nphot-1])/exposures)+25.0
+            magerrall[m1[i],nphot-1]=(emagptmp-emagmtmp)/2.0
+          endif else begin
+            magerrall[m1[i],nphot-1]=9.99
+          endelse
+          ;help,i,fluxall[m1[i],nphot-1],fluxerrall[m1[i],nphot-1],magall[m1[i],nphot-1],magerrall[m1[i],nphot-1]
+          ;print,i,fluxall[m1[i],nphot-1],fluxerrall[m1[i],nphot-1],magall[m1[i],nphot-1],magerrall[m1[i],nphot-1],magall[m1[i],0]
+        endfor
+    endelse
+    ;print,magall,magerrall
   endelse
-  ;print,magall,magerrall
 endif
 
 subphotdid=0
@@ -289,6 +294,7 @@ if keyword_set(photsub) then begin
     if keyword_set(output) then begin
       print,'Doing sub image photometry now'
     endif
+      print,'Doing sub image photometry now'
     subfluxall=fltarr(nphot)
     subfluxerrall=fltarr(nphot)
     subskynoise=fltarr(nphot)
@@ -299,6 +305,7 @@ if keyword_set(photsub) then begin
     submagerrall[*]=!values.d_nan
     ;;readin subimage data
     subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
+    help,(subimagedata)
     ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
     xs=objx[0]
     ys=objy[0]
@@ -345,37 +352,43 @@ if keyword_set(photsub) then begin
       submagpsferr=submagerrall[0]
       subskyspsf=subskys[0]
 
+      subpsfphotfail=0
       lpp_nstar,subimagedata,[0],xs,ys,submagpsf,subskyspsf,[0],ccdgain,ccdronoise,'',submagpsferr $
-        ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,/silent
+        ,usepsf=psf,gauss=gauss,psfmag=psfmag,psfrad=psfrad,fitrad=fitrad,fail=subpsfphotfail,/silent
 
-      ;;findout the targets corresponding to xs,ys
-      close_match,objx[0],objy[0],xs,ys,m1,m2,radtol,1,missed1,/silent
-      ;print,'start matching 5'
-      if m1[0] eq -1 then begin
-          print,'*********************************'
-          print,'Could not fit PSF to target on subimage of '+image+'...sorry'
-          print,'target at X,Y of: ',objx[0],objy[0]
-          print,'fitting object at X,Y of: ',xs,ys
-          print,'*********************************'
+      ;;psf fit failed
+      if subpsfphotfail ne 0 then begin
+        if keyword_set(output) then print,'sub psf fitting failed'
       endif else begin
-          ;; psf
-          ;help,subfluxall,submagpsf,psfmag,submagpsferr
-          subfluxall[nphot-1]=10.0^(-0.4*(submagpsf-25))
-          blah=10.0^(-0.4*(submagpsf-psfmag))
-          eblah=alog(10.0)/2.5*blah*submagpsferr
-          subfluxerrall[nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
-          ;;print out to check the value
-          ;;only one object
-          ;;need to re-calculate the mag using flux value, considering the exposure time
-          submagall[nphot-1]=-2.5*alog10(subfluxall[nphot-1]/exposures)+25.0
-          if finite(subfluxerrall[nphot-1]) eq 1 then begin
-            subemagptmp=-2.5*alog10((subfluxall[nphot-1]-subfluxerrall[nphot-1])/exposures)+25.0
-            subemagmtmp=-2.5*alog10((subfluxall[nphot-1]+subfluxerrall[nphot-1])/exposures)+25.0
-            submagerrall[nphot-1]=(subemagptmp-subemagmtmp)/2.0
-          endif else begin
-            submagerrall[nphot-1]=9.99
-          endelse
-          ;print,subfluxall[nphot-1],subfluxerrall[nphot-1],submagall[nphot-1],submagerrall[nphot-1],submagall[0]
+        ;;findout the targets corresponding to xs,ys
+        close_match,objx[0],objy[0],xs,ys,m1,m2,radtol,1,missed1,/silent
+        ;print,'start matching 5'
+        if m1[0] eq -1 then begin
+            print,'*********************************'
+            print,'Could not fit PSF to target on subimage of '+image+'...sorry'
+            print,'target at X,Y of: ',objx[0],objy[0]
+            print,'fitting object at X,Y of: ',xs,ys
+            print,'*********************************'
+        endif else begin
+            ;; psf
+            ;help,subfluxall,submagpsf,psfmag,submagpsferr
+            subfluxall[nphot-1]=10.0^(-0.4*(submagpsf-25))
+            blah=10.0^(-0.4*(submagpsf-psfmag))
+            eblah=alog(10.0)/2.5*blah*submagpsferr
+            subfluxerrall[nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
+            ;;print out to check the value
+            ;;only one object
+            ;;need to re-calculate the mag using flux value, considering the exposure time
+            submagall[nphot-1]=-2.5*alog10(subfluxall[nphot-1]/exposures)+25.0
+            if finite(subfluxerrall[nphot-1]) eq 1 then begin
+              subemagptmp=-2.5*alog10((subfluxall[nphot-1]-subfluxerrall[nphot-1])/exposures)+25.0
+              subemagmtmp=-2.5*alog10((subfluxall[nphot-1]+subfluxerrall[nphot-1])/exposures)+25.0
+              submagerrall[nphot-1]=(subemagptmp-subemagmtmp)/2.0
+            endif else begin
+              submagerrall[nphot-1]=9.99
+            endelse
+            ;print,subfluxall[nphot-1],subfluxerrall[nphot-1],submagall[nphot-1],submagerrall[nphot-1],submagall[0]
+        endelse
       endelse
     endif
   endelse
