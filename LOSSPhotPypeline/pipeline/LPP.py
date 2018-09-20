@@ -407,6 +407,9 @@ class LPP(object):
 
         if self.template_images is None:
             self.get_template_images()
+            if self.template_images is None:
+                self.log.warn('could not get suitable template images, exiting')
+                return
 
         # iterate through image list and perform galaxy subtraction on each
         for fl in tqdm(image_list):
@@ -838,6 +841,9 @@ class LPP(object):
             msg = 'No suitable candidates in any band. Schedule observations:\n{}'.format(radecmsg)
             get_templ_fl_msg += msg + '\n'
             self.log.warn(msg)
+            with open('GET.TEMPLATES', 'w') as f:
+                f.write(get_templ_fl_msg)
+                f.write(radecmsg)
             return
 
         # iterate through filters to determine the best template for each
