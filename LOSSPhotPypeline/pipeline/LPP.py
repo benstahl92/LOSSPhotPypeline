@@ -408,7 +408,8 @@ class LPP(object):
         if self.template_images is None:
             self.get_template_images()
             if self.template_images is None:
-                self.log.warn('could not get suitable template images, exiting')
+                self.log.warn('could not get suitable template images, running without galaxy subtraction')
+                self.photsub = False
                 return
 
         # iterate through image list and perform galaxy subtraction on each
@@ -437,7 +438,7 @@ class LPP(object):
         first_obs = None
         for fl in tqdm(image_list):
             c = Phot(fl, self.radecfile)
-            with redirect_sgdout(self.log):
+            with redirect_stdout(self.log):
                 c.do_photometry(photsub = self.photsub, log = self.log)
             if (first_obs is None) or (c.mjd < first_obs):
                 first_obs = c.mjd
@@ -837,11 +838,10 @@ class LPP(object):
 
         if len(cand) == 0:
             msg = 'No suitable candidates in any band. Schedule observations:\n{}'.format(radecmsg)
-            get_templ_fl_msg += msg + '\n'
+            get_templ_fl_msg += msg
             self.log.warn(msg)
             with open('GET.TEMPLATES', 'w') as f:
                 f.write(get_templ_fl_msg)
-                f.write(radecmsg)
             return
 
         self.template_images = {filt: None for filt in self.filter_set}
