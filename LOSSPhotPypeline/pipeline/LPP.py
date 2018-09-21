@@ -1,7 +1,7 @@
 # standard imports
 import os
 import shutil
-import pprint
+from pprint import pprint
 import pidly
 import pickle as pkl
 import copy
@@ -334,7 +334,7 @@ class LPP(object):
         '''show available methods'''
         print('method: docstring')
         for name in LPP.__dict__.keys():
-            if name[:2] != '--' and name != 'show_methods':
+            if name[:2] != '__' and name != 'show_methods':
                 print('{}: {}'.format(name, LPP.__dict__[name].__doc__))
 
     ###################################################################################################
@@ -678,15 +678,19 @@ class LPP(object):
             if 1 not in d['ID'].values:
                 self.log.warn('no object in image: {}'.format(fl))
                 self.no_obj.append(fl)
-                continue
+            #    continue
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
                 lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
                 lcs[m]['filter'].append(fl_obj.filter)
                 lcs[m]['imagename'].append(fl)
                 lcs[m]['limmag'].append(round(-2.5*np.log10(3*sky) + zero, 5))
-                mag = d[d['ID'] == 1][m + '_mag'].item()
-                err = d[d['ID'] == 1][m + '_err'].item()
+                if 1 not in d['ID'].values:
+                    mag = np.nan
+                    err = np.nan
+                else:
+                    mag = d[d['ID'] == 1][m + '_mag'].item()
+                    err = d[d['ID'] == 1][m + '_err'].item()
                 lcs[m]['mag'].append(round(mag,5))
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
