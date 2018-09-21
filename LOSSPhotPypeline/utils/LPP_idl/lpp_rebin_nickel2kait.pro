@@ -1,7 +1,7 @@
-pro lpp_rebin_from_nickel,nickelimname,newim,savefile=savefile
+pro lpp_rebin_nickel2kait,nickelimname,newim,savefile=savefile
 
 if n_params() eq 0 then begin
-    print,'LPP_rebin_from_nickel,nickelimname,newim,savefile=savefile'
+    print,'LPP_rebin_nickel2kait,nickelimname,newim,savefile=savefile'
     return
 endif
 
