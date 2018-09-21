@@ -90,9 +90,6 @@ class LPP(object):
                 else:
                     self.config_file = response
 
-        # get color term from reference image
-        self.color_term = LPPu.get_color_term(self.refname)
-
         # calibration variables
         self.calibration_dir = 'calibration'
         if not os.path.isdir(self.calibration_dir):
@@ -102,7 +99,7 @@ class LPP(object):
         self.calfile=''
         self.calfile_use=''
         self.cal_nat_fit=''
-        self.color_term = None
+        self.color_term = LPPu.get_color_term(self.refname)
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
