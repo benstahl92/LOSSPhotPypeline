@@ -1,6 +1,7 @@
 # standard imports
 import os
 import shutil
+import pprint
 import pidly
 import pickle as pkl
 import copy
@@ -28,11 +29,10 @@ import LOSSPhotPypeline.utils as LPPu
 from LOSSPhotPypeline.image import Phot, FitsInfo, FileNames
 
 class LPP(object):
-    '''
-    look into speedups from blocking all printing
-    '''
+    '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
     def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20):
+        '''Instantiation instructions'''
 
         # basics from instantiation
         self.targetname = targetname.lower().replace(' ', '')
@@ -187,9 +187,7 @@ class LPP(object):
     ###################################################################################################
 
     def build_log(self):
-        '''
-        starts up the log
-        '''
+        '''starts and sets up log'''
 
         self.log = logging.getLogger('LOSSPhotPypeline')
         self.log.setLevel(logging.DEBUG)
@@ -219,6 +217,7 @@ class LPP(object):
         return self
 
     def next(self, *args, **kwargs):
+        '''performs next reduction step (arguments for that step can be passed through)'''
         if self.current_step < len(self.steps):
             self.steps[self.current_step](*args, **kwargs)
             self.current_step += 1
@@ -228,11 +227,13 @@ class LPP(object):
             raise StopIteration
 
     def skip(self):
+        '''skip current step'''
         self.log.info('skipping step: {}'.format(self.steps[self.current_step].__name__))
         self.go_to(self.current_step + 1)
         self.summary()
 
     def go_to(self, step = None):
+        '''go to specified step, or choose interactively'''
         if type(step) == int:
             self.current_step = step
             self.summary()
@@ -268,6 +269,7 @@ class LPP(object):
             self.summary()
 
     def save(self):
+        '''saves current state of pipeline'''
         vs = vars(self).copy()
         vs.pop('steps')
         vs.pop('idl')
@@ -277,6 +279,7 @@ class LPP(object):
         self.log.info('{} written'.format(self.savefile))
 
     def load(self, savefile = None):
+        '''re-initializes pipeline from saved state in file'''
         if savefile is None:
             savefile = self.savefile
         with open(savefile, 'rb') as f:
@@ -288,6 +291,7 @@ class LPP(object):
         self.summary()
 
     def summary(self):
+        '''print summary of pipeline status'''
         print('\n' + '*'*60)
         print('Reduction status for {}'.format(self.targetname))
         print('Interactive: {}'.format(self.interactive))
@@ -312,6 +316,7 @@ class LPP(object):
             print('End of reduction pipeline.')
 
     def run(self, skips = []):
+        '''run through reduction steps'''
         while True:
             if self.current_step in skips:
                 self.skip()
@@ -321,14 +326,24 @@ class LPP(object):
                 except StopIteration:
                     break
 
+    def show_variables(self):
+        '''prints instance variables'''
+        pprint(vars(self))
+
+    def show_methods(self):
+        '''show available methods'''
+        print('method: docstring')
+        for name in LPP.__dict__.keys():
+            if name[:2] != '--' and name != 'show_methods':
+                print('{}: {}'.format(name, LPP.__dict__[name].__doc__))
+
     ###################################################################################################
     #          Reduction Pipeline Methods
     ###################################################################################################
 
     def get_image_list(self):
-        '''
-        reads and optionally prints image list
-        '''
+        '''reads and optionally prints image list'''
+
         self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
                                       comment = '#', squeeze = True)
 
@@ -390,9 +405,7 @@ class LPP(object):
         self.log.info('{} written'.format(self.radecfile))
 
     def do_galaxy_subtraction_all_image(self, image_list = None):
-        '''
-        performs galaxy subtraction on all selected image files
-        '''
+        '''performs galaxy subtraction on all selected image files'''
 
         if not self.photsub:
             self.log.warn('not in photsub mode, skipping galaxy subtraction')
@@ -422,9 +435,7 @@ class LPP(object):
         self.log.info('galaxy subtraction done')
 
     def do_photometry_all_image(self, image_list = None):
-        '''
-        performs photometry on all selected image files
-        '''
+        '''performs photometry on all selected image files'''
 
         self.log.info('starting photometry on all images (galsub: {})'.format(self.photsub))
 
@@ -454,11 +465,7 @@ class LPP(object):
         self.log.info('photometry done')
 
     def calibrate(self, second_pass = False, image_list = None):
-        '''
-        performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image
-
-        B. Stahl - June 25, 2018; July 23, 2018
-        '''
+        '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
 
         self.log.info('commencing calibration (second pass: {})'.format(second_pass))
 
@@ -532,9 +539,7 @@ class LPP(object):
         self.image_list = self.image_list[~self.image_list.isin(self.cal_failed)]
 
     def process_calibration(self):
-        '''
-        combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made
-        '''
+        '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
 
         self.log.info('processing calibration')
 
@@ -638,9 +643,7 @@ class LPP(object):
         os.system('rm tmp.tmp')
 
     def do_calibration(self):
-        '''
-        executes full calibration routine
-        '''
+        '''executes full calibration routine'''
 
         self.calibrate()
         self.process_calibration()
@@ -649,9 +652,7 @@ class LPP(object):
         self.log.info('full calibration sequence completed')
 
     def generate_raw_lcs(self):
-        '''
-        builds raw light curve files from calibrated results
-        '''
+        '''builds raw light curve files from calibrated results'''
 
         self.log.info('generating raw lightcurve(s)')
 
@@ -703,9 +704,7 @@ class LPP(object):
         self.log.info('raw light curves generated')
 
     def generate_bin_lc(self, lc_file = None):
-        '''
-        wraps IDL lightcurve binning routine
-        '''
+        '''wraps IDL lightcurve binning routine'''
 
         if lc_file is None:
             lc_file = self.lc_raw
@@ -716,9 +715,7 @@ class LPP(object):
         self.log.info('binned light curve generated')
 
     def generate_group_lc(self, lc_file = None):
-        '''
-        wraps IDL lightcurve grouping routine
-        '''
+        '''wraps IDL lightcurve grouping routine'''
 
         if lc_file is None:
             lc_file = self.lc_bin
@@ -729,9 +726,7 @@ class LPP(object):
         self.log.info('grouped light curve generated')
 
     def generate_final_lc(self, lc_table = None):
-        '''
-        wraps IDL routine to convert to natural system
-        '''
+        '''wraps IDL routine to convert to natural system'''
 
         if lc_table is None:
             lc_table = self.lc_group
@@ -742,9 +737,7 @@ class LPP(object):
         self.log.info('final light curve generated')
 
     def generate_lc(self):
-        '''
-        performs all functions to transform image photometry into calibrated light curve of target
-        '''
+        '''performs all functions to transform image photometry into calibrated light curve of target'''
 
         # set up file system
         if not os.path.isdir(self.lc_dir):
@@ -765,9 +758,7 @@ class LPP(object):
             p.plot_lc()
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
-        '''
-        processes images obtained after initial processing
-        '''
+        '''processes images obtained after initial processing'''
 
         # read in new images to list
         if (new_image_file is not None) and (new_image_list == []):
@@ -813,10 +804,8 @@ class LPP(object):
 
         self.log.info('new images processed')
 
-    def get_template_images(self, late_time_begin = 365):#, base_dir = '/media/FilData2/Data/imagedatabase/'):
-        '''
-        searches database to identify template images for galaxy subtraction
-        '''
+    def get_template_images(self, late_time_begin = 365):
+        '''searches database to identify template images for galaxy subtraction'''
 
         if not haveDB:
             self.log.warn('Database unavailable. Exiting.')
