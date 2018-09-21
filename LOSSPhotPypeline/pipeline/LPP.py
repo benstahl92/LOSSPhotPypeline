@@ -695,9 +695,9 @@ class LPP(object):
 
         for m in self.photmethod:
             lc_raw_name = self.lc_base + m + '_natural_raw.dat'
-            lc_raw = pd.DataFrame(lcs[m]).to_csv(lc_raw_name, sep = '\t', columns = columns, index = False)
-            p = LPPu.plotLC(lc_raw = lc_raw, lc_file = lc_raw_name, name = self.targetname, photmethod = m, filters = self.filter_set)
-            p._transform_raw()
+            lc_raw = pd.DataFrame(lcs[m])
+            lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False)
+            p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m, filters = self.filter_set)
             p.plot_lc()
 
         self.log.info('raw light curves generated')
