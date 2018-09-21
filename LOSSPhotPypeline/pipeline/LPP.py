@@ -90,6 +90,9 @@ class LPP(object):
                 else:
                     self.config_file = response
 
+        # get color term from reference image
+        self.color_term = LPPu.get_color_term(self.refname)
+
         # calibration variables
         self.calibration_dir = 'calibration'
         if not os.path.isdir(self.calibration_dir):
@@ -301,17 +304,17 @@ class LPP(object):
             print('Beginning of reduction pipeline.\n')
         else:
             print('Previous step: {}'.format(self.steps[self.current_step - 1].__name__))
-            print(self.steps[self.current_step - 1].__doc__)
+            print(self.steps[self.current_step - 1].__doc__ + '\n')
         try:
             print('--> Next step: {}'.format(self.steps[self.current_step].__name__))
-            print(self.steps[self.current_step].__doc__)
+            print(self.steps[self.current_step].__doc__ + '\n')
         except IndexError:
             print('End of reduction pipeline.')
             self.save()
             return
         try:
             print('----> Subsequent step: {}'.format(self.steps[self.current_step + 1].__name__))
-            print(self.steps[self.current_step + 1].__doc__)
+            print(self.steps[self.current_step + 1].__doc__ + '\n')
         except IndexError:
             print('End of reduction pipeline.')
 
@@ -499,27 +502,8 @@ class LPP(object):
             # instantiate file object
             fl_obj = Phot(fl)
 
-            # select color term based on telescope and date
-            if fl_obj.telescope == 'kait':
-                tel = 'kait'
-                if fl_obj.mjd < 51229.0: # mjd of 1999-02-20
-                    tel += '1'
-                elif fl_obj.mjd < 52163.0: # mjd of 2001-09-11
-                    tel += '2'
-                elif fl_obj.mjd < 54232.0: # mjd of 2007-05-12
-                    tel += '3'
-                else:
-                    tel += '4'
-            elif fl_obj.telescope == 'Nickel':
-                tel = 'nickel'
-                if fl_obj.mjd < 54845.0: # mjd of 2009-01-14
-                    tel += 1
-                else:
-                    tel += 2
-            else:
-                self.log.warn('telescope "{}" not recognized for image: {}'.format(fl_obj.telescope, fl))
-
-            # enforce only handling one color term per run
+            # get color term and enforce only one color term per run
+            tel = LPPu.get_color_term(fl)
             if self.color_term is not None:
                 assert self.color_term == tel
             self.color_term = tel
