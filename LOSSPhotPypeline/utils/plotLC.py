@@ -248,7 +248,7 @@ class plotLC:
             # handle selection of bad points
             if icut is True:
                 cut, = ax.plot([], [], 'rX', markersize = 10, label = 'points to cut')
-                ax.legend()
+                ax.legend(loc = 'upper right')
                 plt.ion()
                 cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event, tmp, drop_dict, filt, cut, fig, offset))
                 fig.show()
@@ -262,7 +262,9 @@ class plotLC:
             self._drop_lc_points(drop_dict)
             self.plot_lc(lc = self.lc_cut)
         else:
-            ax.legend()
+            handles, labels = ax.get_legend_handles_labels()
+            handles = [h[0] for h in handles]
+            ax.legend(handles, labels, loc = 'upper right')
             if return_fig:
                 return fig, ax
             else:
