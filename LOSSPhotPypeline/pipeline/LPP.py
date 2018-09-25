@@ -772,7 +772,7 @@ class LPP(object):
             else:
                 lc_raw_name = self.lc_base + m + '_natural_raw_sub.dat'
             lc_raw = pd.DataFrame(lcs[m])
-            lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False)
+            lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m, filters = self.filter_set)
             p.plot_lc()
 
