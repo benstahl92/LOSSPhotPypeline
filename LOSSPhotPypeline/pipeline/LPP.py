@@ -72,8 +72,11 @@ class LPP(object):
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.image_list = []
         self.phot_failed = []
+        self.phot_sub_failed = []
         self.cal_failed = []
+        self.cal_sub_failed = []
         self.no_obj = []
+        self.no_obj_sub = []
 
         # load configuration file
         loaded = False
@@ -98,6 +101,7 @@ class LPP(object):
         self.cal_source=''
         self.calfile=''
         self.calfile_use=''
+        self.calfile_use_sub
         self.cal_nat_fit=''
         self.color_term = LPPu.get_color_term(self.refname)
 
@@ -105,9 +109,13 @@ class LPP(object):
         self.lc_dir = 'lightcurve'
         self.lc_base = None
         self.lc_raw = None
+        self.lc_raw_sub = None
         self.lc_bin = None
+        self.lc_bin_sub = None
         self.lc_group = None
+        self.lc_group_sub = None
         self.lc = None
+        self.lc_sub = None
 
         # galaxy subtraction variables
         self.template_images = None
@@ -454,11 +462,17 @@ class LPP(object):
             if (first_obs is None) or (c.mjd < first_obs):
                 first_obs = c.mjd
             # check for success
-            if (os.path.exists(c.psf) is False) and (os.path.exists(c.psfsub) is False):
-                self.log.warn('photometry failed on image: {}'.format(fl))
+            #if (os.path.exists(c.psf) is False) and (os.path.exists(c.psfsub) is False):
+            #    self.log.warn('photometry failed on image: {}'.format(fl))
+            #    self.phot_failed.append(fl)
+            if os.path.exists(c.psf) is False:
+                self.log.warn('photometry failed on image: {}'format(fl))
                 self.phot_failed.append(fl)
-        self.phot_failed = pd.Series(self.phot_failed)
-        self.image_list = self.image_list[~self.image_list.isin(self.phot_failed)]
+            if (self.photsub is True) and (os.path.exists(c.psfsub) is False):
+                self.log.warn('photometry (sub) failed on image: {}'.format(fl))
+                self.phot_sub_failed.append(fl)
+        #self.phot_failed = pd.Series(self.phot_failed)
+        #self.image_list = self.image_list[~self.image_list.isin(self.phot_failed)]
         if self.first_obs is None:
             self.first_obs = first_obs
 
@@ -491,10 +505,27 @@ class LPP(object):
             catalog.cal_source = self.cal_source
             with redirect_stdout(self.log):
                 catalog.to_natural()
+            if self.photsub is True:
+                catalog.cal_filename = self.calfile_use_sub
+                catalog.cal_source = self.cal_source
+                with redirect_stdout(self.log):
+                    catalog.to_natural()
             self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
         for fl in tqdm(image_list):
+
+            # skip if photometry has failed
+            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+                continue
+            elif (fl in self.phot_failed) and (self.photsub is False):
+                continue
+
+            # skip images where calibration failed on first pass
+            if (fl in self.cal_failed) and (self.photsub is True) and (fl in self.cal_sub_failed):
+                continue
+            elif (fl in self.cal_failed) and (self.photsub is False):
+                continue
 
             # instantiate file object
             fl_obj = Phot(fl)
@@ -510,16 +541,26 @@ class LPP(object):
 
             # execute idl calibration procedure
             with redirect_stdout(self.log):
+                # set photsub mode appropriately
+                do_photsub = self.photsub
+                if (self.photsub is True) and (fl in self.phot_sub_failed):
+                    do_photsub = False
                 self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
-                              usepsf = True, photsub = self.photsub, output = True)
+                              usepsf = True, photsub = do_photsub, output = True)
             # check for success
-            if (os.path.exists(fl_obj.psfdat) is False) and (os.path.exists(fl_obj.psfsubdat) is False):
-                self.log.warn('calibration failed on image: {}'.format(fl))
+            #if (os.path.exists(fl_obj.psfdat) is False) and (os.path.exists(fl_obj.psfsubdat) is False):
+            #    self.log.warn('calibration failed on image: {}'.format(fl))
+            #    self.cal_failed.append(fl)
+            if os.path.exists(fl_obj.psfdat) is False:
+                self.log.warn('calibration failed on image: {}'format(fl))
                 self.cal_failed.append(fl)
-        self.cal_failed = pd.Series(self.cal_failed)
-        self.image_list = self.image_list[~self.image_list.isin(self.cal_failed)]
+            if (do_photsub is True) and (os.path.exists(fl_obj.psfsubdat) is False):
+                self.log.warn('calibration (sub) failed on image: {}'.format(fl))
+                self.cal_sub_failed.append(fl)
+        #self.cal_failed = pd.Series(self.cal_failed)
+        #self.image_list = self.image_list[~self.image_list.isin(self.cal_failed)]
 
-    def process_calibration(self):
+    def process_calibration(self, photsub_mode = False):
         '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
 
         self.log.info('processing calibration')
@@ -528,19 +569,35 @@ class LPP(object):
         # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
         results = {}
 
-        self.calfile_use = self.calfile.replace('.dat', '_use.dat')
+        if photsub_mode is False:
+            calfile_use = self.calfile.replace('.dat', '_use.dat')
+            self.calfile_use = calfile_use
+        else:
+            calfile_use = self.calfile.replace('.dat', '_use_sub.dat')
+            self.calfile_use_sub = calfile_use
+
 
         # generate ordered calibration file
         with redirect_stdout(self.log):
             self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile), output = True)
-            self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use), output = True)
+            self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, calfile_use), output = True)
 
         # read ordered calibration file, using index offset to match
-        cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
+        cal = pd.read_csv(os.path.join(self.calibration_dir, calfile_use), delim_whitespace = True)
         IDs = cal['starID'] + 2
 
         # iterate through files and store photometry into data structure
         for fl in tqdm(self.image_list):
+
+            # skip failed images
+            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+                continue
+            elif (fl in self.phot_failed) and (self.photsub is False):
+                continue
+            if (fl in self.cal_failed) and (self.photsub is True) and (fl in self.cal_sub_failed):
+                continue
+            elif (fl in self.cal_failed) and (self.photsub is False):
+                continue
 
             fl_obj = Phot(fl)
             filt = fl_obj.filter
@@ -552,7 +609,12 @@ class LPP(object):
             # read file (using selected columns corresponding to desired photometry method(s))
             cols = (0,) + tuple((self.phot_cols[m] for m in self.photmethod))
             col_names = ('id',) + tuple((m for m in self.photmethod))
-            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
+            # select appropriate file to read
+            if photsub_mode is False:
+                dat = fl_obj.psfdat
+            else:
+                dat = fl_obj.psfsubdat
+            d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
 
             # populate results dict from file
             for idx, row in d.iterrows():
@@ -594,6 +656,8 @@ class LPP(object):
             if not self.interactive:
                 accept_tol = True
             else:
+                print('Calibration Summary (photsub mode: {})'.format(photsub_mode))
+                print('*'*60)
                 for filt in summary_results.keys():
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
@@ -611,9 +675,9 @@ class LPP(object):
         self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
 
         # write new calibration file
-        os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
+        os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, calfile_use)))
         with open('tmp.tmp', 'r') as infile:
-            with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
+            with open(os.path.join(self.calibration_dir, calfile_use), 'w') as outfile:
                 for idx, line in enumerate(infile):
                     if idx == 0:
                         outfile.write(line)
@@ -628,11 +692,13 @@ class LPP(object):
 
         self.calibrate()
         self.process_calibration()
+        if self.photsub is True:
+            self.process_calibration(photsub_mode = True)
         self.calibrate(second_pass = True)
 
         self.log.info('full calibration sequence completed')
 
-    def generate_raw_lcs(self):
+    def generate_raw_lcs(self, photsub_mode = False):
         '''builds raw light curve files from calibrated results'''
 
         self.log.info('generating raw lightcurve(s)')
@@ -643,6 +709,16 @@ class LPP(object):
 
         # iterate through files and extract LC information
         for fl in tqdm(self.image_list):
+
+            # skip failed images
+            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+                continue
+            elif (fl in self.phot_failed) and (self.photsub is False):
+                continue
+            if (fl in self.cal_failed) and (self.photsub is True) and (fl in self.cal_sub_failed):
+                continue
+            elif (fl in self.cal_failed) and (self.photsub is False):
+                continue
 
             fl_obj = Phot(fl)
 
@@ -655,11 +731,22 @@ class LPP(object):
             # read photometry results
             cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.photmethod), ())
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.photmethod), ())
-            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
+
+            if photsub_mode is False:
+                dat = fl_obj.psfdat
+            else:
+                dat = fl_obj.psfsubdat
+
+            d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
+
             if 1 not in d['ID'].values:
                 self.log.warn('no object in image: {}'.format(fl))
-                self.no_obj.append(fl)
+                if self.photsub_mode is False
+                    self.no_obj.append(fl)
+                else:
+                    self.no_obj_sub.append(fl)
             #    continue
+
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
                 lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
@@ -676,11 +763,14 @@ class LPP(object):
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
 
-        self.no_obj = pd.Series(self.no_obj)
-        self.image_list = self.image_list[~self.image_list.isin(self.no_obj)]
+        #self.no_obj = pd.Series(self.no_obj)
+        #self.image_list = self.image_list[~self.image_list.isin(self.no_obj)]
 
         for m in self.photmethod:
-            lc_raw_name = self.lc_base + m + '_natural_raw.dat'
+            if self.photsub_mode is False:
+                lc_raw_name = self.lc_base + m + '_natural_raw.dat'
+            else:
+                lc_raw_name = self.lc_base + m + '_natural_raw_sub.dat'
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False)
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m, filters = self.filter_set)
@@ -696,6 +786,8 @@ class LPP(object):
 
         with redirect_stdout(self.log):
             self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin, output = True)
+            if self.photsub is True:
+                self.idl.pro('lpp_dat_res_bin', self.lc_raw_sub, self.lc_bin_sub, outfile = self.lc_bin_sub, output = True)
 
         self.log.info('binned light curve generated')
 
@@ -707,6 +799,8 @@ class LPP(object):
 
         with redirect_stdout(self.log):
             self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
+            if self.photsub is True:
+                self.idl.pro('lpp_dat_res_group', self.lc_bin_sub, self.lc_group_sub, outfile = self.lc_group_sub)
 
         self.log.info('grouped light curve generated')
 
@@ -718,6 +812,8 @@ class LPP(object):
 
         with redirect_stdout(self.log):
             self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc, output = True)
+            if self.photsub is True:
+                self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, self.color_term, outfile = self.lc_sub, output = True)
 
         self.log.info('final light curve generated')
 
@@ -731,16 +827,26 @@ class LPP(object):
 
         # run through all routines
         self.generate_raw_lcs()
+        if self.photsub is True:
+            self.generate_raw_lcs(photsub_mode = True)
         for m in self.photmethod:
             self.lc_raw = self.lc_base + m + '_natural_raw.dat'
             self.lc_bin = self.lc_base + m + '_natural_bin.dat'
             self.lc_group = self.lc_base + m + '_natural_group.dat'
             self.lc = self.lc_base + m + '_standard.dat'
+            if self.photsub is True:
+                self.lc_raw_sub = self.lc_base + m + '_natural_raw_sub.dat'
+                self.lc_bin_sub = self.lc_base + m + '_natural_bin_sub.dat'
+                self.lc_group_sub = self.lc_base + m + '_natural_group_sub.dat'
+                self.lc_sub = self.lc_base + m + '_standard_sub.dat'
             self.generate_bin_lc()
             self.generate_group_lc()
             self.generate_final_lc()
             p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m, filters = self.filter_set)
             p.plot_lc()
+            if self.photsub is True:
+                p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m, filters = self.filter_set)
+                p.plot_lc()
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''processes images obtained after initial processing'''
