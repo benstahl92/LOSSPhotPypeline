@@ -149,7 +149,15 @@ class plotLC:
         if 'standard' not in lc_file:
             print('{} must have "standard" in its name, exiting.'.format(lc_file))
             return
-        self.lc = pd.read_csv(lc_file, delim_whitespace = True, usecols = (1,3,4,5,6,7,8,9,10,11,12))
+        cols = [1] + list(range(3, 2*len(self.filters) + 3))
+        self.lc = pd.read_csv(lc_file, delim_whitespace = True, usecols = cols)
+
+    def _load_cut(self, lc_file):
+        '''loads "cut" light curves generated with icut mode'''
+        if 'cut' not in lc_file:
+            print('{} must have "cut" in its name, exiting.'.format(lc_file))
+            return
+        self.lc = pd.read_csv(lc_file, delim_whitespace = True)
 
     def load_lc(self, lc_file):
         '''
@@ -162,10 +170,12 @@ class plotLC:
             should either be a "raw" or "standard" file for LOSSPhotPypeline
         '''
 
-        if 'raw' in lc_file:
-            self._load_raw(lc_file)
+        if 'cut' in lc_file: # checked first b/c others will appear with
+            self._load_cut(lc_file)
         elif 'standard' in lc_file:
             self._load_standard(lc_file)
+        elif 'raw' in lc_file:
+            self._load_raw(lc_file)
         else:
             print('{} is an unrecognized light curve format, exiting')
             return
@@ -175,6 +185,14 @@ class plotLC:
         self.lc_cut = copy.deepcopy(self.lc)
         for filt in drop_dict.keys():
             self.lc_cut.loc[drop_dict[filt], filt] = np.nan
+
+    def write_cut_lc(self, fname = None):
+        '''write cut lc to file'''
+
+        if fname is None:
+            fname = self.lc_file.replace('.dat', '_cut.dat')
+        cols = self.lc_cut.columns[self.lc_cut.columns != 't_rel']
+        self.lc_cut.to_csv(fname, sep = '\t', na_rep = 'NaN', index = False, columns = cols)
 
     def _setup_plot(self):
         '''does some of the bookkeeping needed to set up light curve plots'''
@@ -189,7 +207,7 @@ class plotLC:
             ax.set_title(title_msg)
         return fig, ax
 
-    def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False):
+    def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False, fname = None):
         '''
         Plots light curve.
 
@@ -205,6 +223,8 @@ class plotLC:
             return figure and axes if True
         icut : bool, optional, default: False
             run interactive point cutting
+        fname : str, optional, default: None
+            name of file to write plot to
         '''
 
         # set plot attributes
@@ -260,7 +280,8 @@ class plotLC:
 
         if icut is True:
             self._drop_lc_points(drop_dict)
-            self.plot_lc(lc = self.lc_cut)
+            self.write_cut_lc()
+            self.plot_lc(lc = self.lc_cut, fname = self.lc_file.replace('.dat', '_cut.ps'))
         else:
             handles, labels = ax.get_legend_handles_labels()
             handles = [h[0] for h in handles]
@@ -268,4 +289,6 @@ class plotLC:
             if return_fig:
                 return fig, ax
             else:
-                plt.savefig('{}.ps'.format(self.lc_file.split('.dat')[0]), bbox_inches = 'tight')
+                if fname is None:
+                    fname = self.lc_file.replace('.dat', '.ps')
+                plt.savefig(fname, bbox_inches = 'tight')
