@@ -258,6 +258,9 @@ class LPP(object):
             print('\nadditional options:')
             print('n  --- add new image(s) by filename(s)')
             print('nf --- add new images from file of names')
+            print('c  --- cut points from specific light curve')
+            print('cr --- cut points from raw light curves')
+            print('cs --- cut points from standard light curves')
             print('q  --- quit\n')
             resp = input('selection > ').lower()
             if 'n' == resp:
@@ -270,6 +273,15 @@ class LPP(object):
             elif 'nf' == resp:
                 new_image_file = input('enter name of new image file > ')
                 self.process_new_images(new_image_file = new_image_file)
+            elif 'c' == 'resp':
+                lc_file = input('enter light curve file (including relative path) to cut points from > ')
+                self.cut_lc_points([lc_file])
+            elif 'cr' == resp:
+                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('raw' in fl) and ('cut' not in fl)]
+                self.cut_lc_points(lc_list)
+            elif 'cs' == resp:
+                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('standard' in fl) and ('cut' not in fl)]
+                self.cut_lc_points(lc_list)
             else:
                 try:
                     self.current_step = int(resp)
@@ -969,3 +981,13 @@ class LPP(object):
                 os.system('ds9 -zscale {} &'.format(' '.join([self.template_images[filt] for filt in self.template_images.keys()])))
 
         self.log.info('template images selected')
+
+    def cut_lc_points(self, lc_list):
+        '''interactively cut points from each band in each lc file from the input list'''
+
+        self.log.info('interactively cutting points from light curve files')
+
+        for fl in lc_list:
+            self.log.info('working on {}'.format(fl))
+            p = LPPu.plotLC(lc_file = fl)
+            p.plot_lc(icut = True)
