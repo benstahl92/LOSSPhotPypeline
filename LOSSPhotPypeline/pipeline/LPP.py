@@ -277,10 +277,10 @@ class LPP(object):
                 lc_file = input('enter light curve file (including relative path) to cut points from > ')
                 self.cut_lc_points([lc_file])
             elif 'cr' == resp:
-                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('raw' in fl) and ('cut' not in fl)]
+                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('raw' in fl) and ('cut' not in fl) and ('.dat' in fl)]
                 self.cut_lc_points(lc_list)
             elif 'cs' == resp:
-                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('standard' in fl) and ('cut' not in fl)]
+                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('standard' in fl) and ('cut' not in fl) and ('.dat' in fl)]
                 self.cut_lc_points(lc_list)
             else:
                 try:
