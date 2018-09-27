@@ -37,7 +37,7 @@ def onpick(event, df, drop_dict, filt, cut, fig, offset):
 class plotLC:
     '''Light curve plotting for LOSSPhotPypeline outputs'''
 
-    def __init__(self, lc = None, lc_raw = None, lc_file = None, tref = 'min', filters = ('B','V','R','I','CLEAR'), 
+    def __init__(self, lc = None, lc_raw = None, lc_file = None, tref = 'min', filters = 'auto', 
                  offset_scale = 1, style = 'white', context = 'notebook', name = None, photmethod = None):
         '''
         instantiation instructions
@@ -46,14 +46,14 @@ class plotLC:
         ----------
         lc : pandas.DataFrame, optional, default: None
             internal representation of light curve
-            must have columns: MJD, B, EB, V, EV, R, ER, I, EI, CLEAR, ECLEAR
+            must have columns: MJD, <some combination of filter mags and errors
         lc_raw : pandas.DataFrame, optional, default: None
             dataframe in "raw" light curve format
         lc_file : str, optional, default: None
             name of file containing light curve to plot
         tref : int or float, optional, default: 'min'
             time to reference all others to
-        filters : iterable, optional, default: ('B','V','R','I','CLEAR')
+        filters : iterable, optional, default: 'auto'
             photometric passbands to plot
         offset_scale : int or float, optional, default: 1
             multiplicative factor to set magnitude offset scale
@@ -80,15 +80,19 @@ class plotLC:
         self.tset = False
         self.lc_cut = None
 
-        filters = [filt.upper() for filt in filters]
-        if set(filters).issubset(('B','V','R','I','CLEAR')) is False:
-            print('provided filter set is not supported, exiting')
-            return
-        self.filters = filters
-
         if (self.lc is None) and (self.raw is None) and (self.lc_file is not None):
             self.load_lc(self.lc_file)
             self._set_t()
+
+        self.filter_ref = ('B','V','R','I','CLEAR')
+        if filters == 'auto':
+            self._get_filters()
+        else:
+            filters = [filt.upper() for filt in filters]
+            if set(filters).issubset(self.filter_ref) is False:
+                print('provided filter set is not supported, exiting')
+                return
+            self.filters = filters
 
     def _color(self, filt):
         '''returns color to plot for given filter'''
@@ -179,6 +183,16 @@ class plotLC:
         else:
             print('{} is an unrecognized light curve format, exiting')
             return
+
+    def _get_filters(self):
+        '''determine filters from light curve (only filters with at least one NaN)'''
+
+        # drop any columns with only NaN
+        tmp = self.lc.dropna(axis = 1, how = 'all')
+
+        # extract filters and then sort
+        self.filters = list(pd.Series(self.filter_ref).loc[pd.Series(self.filter_ref).isin(tmp.columns)])
+        self.filters.sort(key = lambda x: self.filter_ref.index(x))
 
     def _drop_lc_points(self, drop_dict):
         '''copy lc and then set all elements specified by dropdict to NaN'''

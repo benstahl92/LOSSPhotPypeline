@@ -762,7 +762,7 @@ class LPP(object):
                 filter_set = self.filter_set_sub
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
-            p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m, filters = filter_set)
+            p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
             p.plot_lc()
 
         self.log.info('raw light curves generated')
@@ -831,10 +831,10 @@ class LPP(object):
             self.generate_bin_lc()
             self.generate_group_lc()
             self.generate_final_lc()
-            p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m, filters = self.filter_set)
+            p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m)
             p.plot_lc()
             if self.photsub is True:
-                p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m, filters = self.filter_set_sub)
+                p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m)
                 p.plot_lc()
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
