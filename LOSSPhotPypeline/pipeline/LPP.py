@@ -532,7 +532,7 @@ class LPP(object):
                 continue
 
             # instantiate file object
-            fl_obj = Phot(fl)
+            fl_obj = Phot(fl, radec = self.radec)
 
             # get color term and enforce only one color term per run if not forced
             if self.force_calfit_file is False:
@@ -590,7 +590,7 @@ class LPP(object):
             if fl in self.cal_failed:
                 continue
 
-            fl_obj = Phot(fl)
+            fl_obj = Phot(fl, radec = self.radec)
             filt = fl_obj.filter.upper()
 
             # add second level dictionary if needed
@@ -706,7 +706,7 @@ class LPP(object):
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            fl_obj = Phot(fl)
+            fl_obj = Phot(fl, radec = self.radec)
 
             # read info and calculate limiting magnitude 
             with open(fl_obj.sky, 'r') as f:
