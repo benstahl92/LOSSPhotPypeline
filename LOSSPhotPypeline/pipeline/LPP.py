@@ -481,13 +481,19 @@ class LPP(object):
                 first_obs = c.mjd
             # check for success
             if os.path.exists(c.psf) is False:
-                self.log.warn('photometry failed on image: {}'.format(fl))
+                self.log.warn('photometry failed --- {} not generated'.format(c.psf))
                 self.phot_failed.append(fl)
             if (self.photsub is True) and (os.path.exists(c.psfsub) is False):
-                self.log.warn('photometry (sub) failed on image: {}'.format(fl))
+                self.log.warn('photometry (sub) failed --- {} not generated'.format(c.psfsub))
                 self.phot_sub_failed.append(fl)
         if self.first_obs is None:
             self.first_obs = first_obs
+
+        # remove failures from image list where possible
+        if self.photsub is False:
+            self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed))]
+        else:
+            self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed)) & ~self.image_list.isin(pd.Series(self.phot_failed))]
 
         self.log.info('photometry done')
 
@@ -528,8 +534,8 @@ class LPP(object):
                 continue
             elif (fl in self.phot_failed) and (self.photsub is False):
                 continue
-            if fl in self.cal_failed:
-                continue
+            #if fl in self.cal_failed:
+            #    continue
 
             # instantiate file object
             fl_obj = Phot(fl)
@@ -553,10 +559,10 @@ class LPP(object):
                               usepsf = True, photsub = do_photsub, output = True)
             # check for success
             if os.path.exists(fl_obj.psfdat) is False:
-                self.log.warn('calibration failed on image: {}'.format(fl))
+                self.log.warn('calibration failed --- {} not generated'.format(fl_obj.psfdat))
                 self.cal_failed.append(fl)
             if (self.photsub is True) and (os.path.exists(fl_obj.psfsubdat) is False):
-                self.log.warn('calibration (sub) failed on image: {}'.format(fl))
+                self.log.warn('calibration (sub) failed --- {} not generated'.format(fl_obj.psfsubdat))
                 self.cal_sub_failed.append(fl)
 
     def process_calibration(self, photsub_mode = False):
@@ -650,7 +656,7 @@ class LPP(object):
                     print('*'*60)
                     print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']).sort_index())
 
-                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), full_list))
+                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print('*'*60)
                 print([i + 2 for i in sorted(cut_list)])
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))
