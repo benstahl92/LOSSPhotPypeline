@@ -145,7 +145,7 @@ class plotLC:
             return
         df = pd.read_csv(lc_file, delim_whitespace = True, comment = ';',
                          names = ('mjd', 'etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename'))
-        self.raw = df # is a copy needed here?
+        self.raw = df
         self._transform_raw()
 
     def _load_standard(self, lc_file):
@@ -153,8 +153,8 @@ class plotLC:
         if 'standard' not in lc_file:
             print('{} must have "standard" in its name, exiting.'.format(lc_file))
             return
-        cols = [1] + list(range(3, 2*len(self.filters) + 3))
-        self.lc = pd.read_csv(lc_file, delim_whitespace = True, usecols = cols)
+        #cols = [1] + list(range(3, 2*len(self.filters) + 3)) # no longer used
+        self.lc = pd.read_csv(lc_file, delim_whitespace = True)
 
     def _load_cut(self, lc_file):
         '''loads "cut" light curves generated with icut mode'''
@@ -187,8 +187,12 @@ class plotLC:
     def _get_filters(self):
         '''determine filters from light curve (only filters with at least one NaN)'''
 
-        # drop any columns with only NaN
-        tmp = self.lc.dropna(axis = 1, how = 'all')
+        # get lc data
+        if self.lc is not None:
+            tmp = self.lc.dropna(axis = 1, how = 'all')
+        else:
+            print('load light curve first')
+            return
 
         # extract filters and then sort
         self.filters = list(pd.Series(self.filter_ref).loc[pd.Series(self.filter_ref).isin(tmp.columns)])
