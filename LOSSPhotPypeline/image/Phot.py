@@ -19,10 +19,7 @@ class Phot(FitsInfo,FileNames):
         self.radecfile = radecfile
         self.radec = radec
 
-        if (self.radecfile is None) and (self.radec is None):
-            print('must pass either radecfile or radec dataframe, exiting')
-            return
-        if self.radec is None:
+        if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
         self.idl = pidly.IDL()

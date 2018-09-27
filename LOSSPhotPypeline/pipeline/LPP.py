@@ -453,7 +453,7 @@ class LPP(object):
 
         # iterate through image list and perform galaxy subtraction on each
         for fl in tqdm(image_list):
-            c = Phot(fl, radec = self.radec)
+            c = Phot(fl)
             with redirect_stdout(self.log):
                 if self.photsub:
                     c.galaxy_subtract(self.template_images)
@@ -532,7 +532,7 @@ class LPP(object):
                 continue
 
             # instantiate file object
-            fl_obj = Phot(fl, radec = self.radec)
+            fl_obj = Phot(fl)
 
             # get color term and enforce only one color term per run if not forced
             if self.force_calfit_file is False:
@@ -590,7 +590,7 @@ class LPP(object):
             if fl in self.cal_failed:
                 continue
 
-            fl_obj = Phot(fl, radec = self.radec)
+            fl_obj = Phot(fl)
             filt = fl_obj.filter.upper()
 
             # add second level dictionary if needed
@@ -624,7 +624,7 @@ class LPP(object):
         while not accept_tol:
             summary_results = {}
             cut_list = [] # store IDs that will be cut
-            tot_cnt = 0
+            full_list = []
             for filt in results.keys():
                 if filt not in summary_results.keys():
                     summary_results[filt] = {}
@@ -636,9 +636,10 @@ class LPP(object):
                         summary_results[filt][ID] = [obs, ref, diff]
                         if diff > self.cal_diff_tol:
                             cut_list.append(ID - 2)
-                        tot_cnt += 1
+                        full_list.append(ID - 2)
 
             cut_list = list(set(cut_list))
+            full_list = list(set(full_list))
             if not self.interactive:
                 accept_tol = True
             else:
@@ -649,7 +650,7 @@ class LPP(object):
                     print('*'*60)
                     print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']).sort_index())
 
-                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), tot_cnt))
+                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), full_list))
                 print('*'*60)
                 print([i + 2 for i in sorted(cut_list)])
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))
@@ -706,7 +707,7 @@ class LPP(object):
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            fl_obj = Phot(fl, radec = self.radec)
+            fl_obj = Phot(fl)
 
             # read info and calculate limiting magnitude 
             with open(fl_obj.sky, 'r') as f:
