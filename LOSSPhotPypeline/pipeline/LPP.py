@@ -31,7 +31,7 @@ from LOSSPhotPypeline.image import Phot, FitsInfo, FileNames
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20):
+    def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20, force_calfit_file = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -104,7 +104,10 @@ class LPP(object):
         self.calfile=''
         self.calfile_use=''
         self.cal_nat_fit=''
+        self.force_calfit_file = force_calfit_file
         self.color_term = LPPu.get_color_term(self.refname)
+        if force_calfit_file is not False:
+            self.force_calfit(force_calfit_file)
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
@@ -273,7 +276,7 @@ class LPP(object):
             elif 'nf' == resp:
                 new_image_file = input('enter name of new image file > ')
                 self.process_new_images(new_image_file = new_image_file)
-            elif 'c' == 'resp':
+            elif 'c' == resp:
                 lc_file = input('enter light curve file (including relative path) to cut points from > ')
                 self.cut_lc_points([lc_file])
             elif 'cr' == resp:
@@ -529,14 +532,14 @@ class LPP(object):
             # instantiate file object
             fl_obj = Phot(fl)
 
-            # get color term and enforce only one color term per run
-            tel = LPPu.get_color_term(fl)
-            if self.color_term is not None:
-                assert self.color_term == tel
-            self.color_term = tel
-
-            base = self.calfile.split('.')[0]
-            self.cal_nat_fit = base + '_{}_natural.fit'.format(self.color_term)
+            # get color term and enforce only one color term per run if not forced
+            if self.force_calfit_file is False:
+                tel = LPPu.get_color_term(fl)
+                if self.color_term is not None:
+                    assert self.color_term == tel
+                self.color_term = tel
+                base = self.calfile.split('.')[0]
+                self.cal_nat_fit = base + '_{}_natural.fit'.format(self.color_term)
 
             # execute idl calibration procedure
             with redirect_stdout(self.log):
@@ -837,6 +840,10 @@ class LPP(object):
                 p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m)
                 p.plot_lc()
 
+    ###################################################################################################
+    #          Utility Methods
+    ###################################################################################################
+
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''processes images obtained after initial processing'''
 
@@ -991,3 +998,8 @@ class LPP(object):
             self.log.info('working on {}'.format(fl))
             p = LPPu.plotLC(lc_file = fl)
             p.plot_lc(icut = True)
+
+    def force_calfit(self, calfit):
+        '''sets instance attributes appropriatetly to force use of a specified calibration .fit fil'''
+        self.force_calfit_file = calfit
+        self.cal_nat_fit = self.force_calfit_file
