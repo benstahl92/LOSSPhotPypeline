@@ -736,7 +736,7 @@ class LPP(object):
             else:
                 dat = fl_obj.psfsubdat
 
-            d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
+            d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names)
 
             if 1 not in d['ID'].values:
                 self.log.warn('no object in calibrated photometry file: {}'.format(dat))
