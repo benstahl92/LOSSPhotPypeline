@@ -388,7 +388,8 @@ class LPP(object):
 
         # if radecfile already exist, no need to do it
         if os.path.isfile(self.radecfile):
-            self.log.info('radecfile already exists, doing nothing')
+            self.log.info('radecfile already exists, loading only')
+            self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
             return
         if self.refname == '' :
             self.log.warn('refname has not been assigned, please do it first!')
@@ -427,6 +428,7 @@ class LPP(object):
             for i in range(len(imagera)):
                 f.write('   {:.7f}  {:.7f}\n'.format(imagera[i], imagedec[i]))
         self.log.info('{} written'.format(self.radecfile))
+        self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
     def do_galaxy_subtraction_all_image(self, image_list = None):
         '''performs galaxy subtraction on all selected image files'''
@@ -451,7 +453,7 @@ class LPP(object):
 
         # iterate through image list and perform galaxy subtraction on each
         for fl in tqdm(image_list):
-            c = Phot(fl, self.radecfile)
+            c = Phot(fl, radec = self.radec)
             with redirect_stdout(self.log):
                 if self.photsub:
                     c.galaxy_subtract(self.template_images)
@@ -472,7 +474,7 @@ class LPP(object):
         # also determine date of first observation since already touching each file
         first_obs = None
         for fl in tqdm(image_list):
-            c = Phot(fl, self.radecfile)
+            c = Phot(fl, radec = self.radec)
             with redirect_stdout(self.log):
                 c.do_photometry(photsub = self.photsub, log = self.log)
             if (first_obs is None) or (c.mjd < first_obs):
@@ -622,23 +624,21 @@ class LPP(object):
         while not accept_tol:
             summary_results = {}
             cut_list = [] # store IDs that will be cut
-            full_list = []
+            tot_cnt = 0
             for filt in results.keys():
                 if filt not in summary_results.keys():
                     summary_results[filt] = {}
                 for ID in results[filt].keys():
                     if len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0:
                         obs = np.median(results[filt][ID])
-                        std = np.std(results[filt][ID])
                         ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
                         diff = np.abs(obs - ref)
                         summary_results[filt][ID] = [obs, ref, diff]
                         if diff > self.cal_diff_tol:
                             cut_list.append(ID - 2)
-                        full_list.append(ID - 2)
+                        tot_cnt += 1
 
             cut_list = list(set(cut_list))
-            full_list = list(set(full_list))
             if not self.interactive:
                 accept_tol = True
             else:
@@ -649,7 +649,7 @@ class LPP(object):
                     print('*'*60)
                     print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']).sort_index())
 
-                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
+                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), tot_cnt))
                 print('*'*60)
                 print([i + 2 for i in sorted(cut_list)])
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))

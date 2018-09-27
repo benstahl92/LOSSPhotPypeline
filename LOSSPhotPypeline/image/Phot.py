@@ -11,12 +11,19 @@ from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
 class Phot(FitsInfo,FileNames):
 
-    def __init__(self, name, radecfile = None, quiet_idl = True):
+    def __init__(self, name, radecfile = None, radec = None, quiet_idl = True):
 
         FitsInfo.__init__(self, name)
         FileNames.__init__(self, name)
 
         self.radecfile = radecfile
+        self.radec = radec
+
+        if (self.radecfile is None) and (self.radec is None):
+            print('must pass either radecfile or radec dataframe, exiting')
+            return
+        if self.radec is None:
+            self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
         self.idl = pidly.IDL()
         if quiet_idl:
@@ -39,13 +46,10 @@ class Phot(FitsInfo,FileNames):
 
         # generate obj file
 
-        # read radec file: later optimization store in memory so don't have to read every time
-        radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
-
         # convert to pixel coordinates in current image and save
         im = fits.open(self.cimg)
         cs = WCS(header=im[0].header)
-        imagex, imagey = cs.all_world2pix(radec['RA'], radec['DEC'], 1) # may need to manually remove points that are nan
+        imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1) # may need to manually remove points that are nan
         pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
 
         # select photometry method
