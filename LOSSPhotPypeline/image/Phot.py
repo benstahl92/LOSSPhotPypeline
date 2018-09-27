@@ -44,8 +44,8 @@ class Phot(FitsInfo,FileNames):
         # generate obj file
 
         # convert to pixel coordinates in current image and save
-        im = fits.open(self.cimg)
-        cs = WCS(header=im[0].header)
+        with fits.open(self.cimg) as im:
+            cs = WCS(header=im[0].header)
         imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1) # may need to manually remove points that are nan
         pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
 

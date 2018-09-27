@@ -406,16 +406,16 @@ class LPP(object):
             return
 
         # read sobj file of X_IMAGE and Y_IMAGE columns, as well as MAG_APER for sort
-        hdul = fits.open(nametmp.sobj)
-        data=hdul[1].data
+        with fits.open(nametmp.sobj) as hdul:
+            data=hdul[1].data
         # sort according to magnitude, from small/bright to hight/faint
         data.sort(order='MAG_APER')
         imagex=data.X_IMAGE
         imagey=data.Y_IMAGE
 
         # transform to RA and DEC using ref image header information
-        ref = fits.open(self.refname)
-        cs = WCS(header=ref[0].header)
+        with fits.open(self.refname) as ref:
+            cs = WCS(header=ref[0].header)
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
 
         # write radec file
@@ -534,8 +534,6 @@ class LPP(object):
                 continue
             elif (fl in self.phot_failed) and (self.photsub is False):
                 continue
-            #if fl in self.cal_failed:
-            #    continue
 
             # instantiate file object
             fl_obj = Phot(fl)
@@ -665,6 +663,7 @@ class LPP(object):
                 else:
                     self.cal_diff_tol = float(response)
 
+        im.close()
         self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
 
         # write new calibration file
@@ -733,7 +732,7 @@ class LPP(object):
             d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names).dropna()
 
             if 1 not in d['ID'].values:
-                self.log.warn('no object in image: {}'.format(fl))
+                self.log.warn('no object in calibrated photometry file: {}'.format(dat))
                 if photsub_mode is False:
                     self.no_obj.append(fl)
                 else:
