@@ -18,38 +18,38 @@ inputfiles=[]
 outputfiles=[]
 
 ;;findinput files
-if keyword_set(usepsf) then begin
+;if keyword_set(usepsf) then begin
   fp=findfile(imagest.psf)
   if fp[0] eq '' then begin
     print,'file : ',imagest.psf,' not found!'
   endif
   inputfiles=[fp[0]]
   outputfiles=[imagest.psfdat]
-endif else begin
-  fp=findfile(imagest.apt)
-  if fp[0] eq '' then begin
-    print,'file : ',imagest.apt,' not found!'
-  endif
-  inputfiles=[fp[0]]
-  outputfiles=[imagest.aptdat]
-endelse
+;endif  else begin
+;  fp=findfile(imagest.apt)
+;  if fp[0] eq '' then begin
+;    print,'file : ',imagest.apt,' not found!'
+;  endif
+;  inputfiles=[fp[0]]
+;  outputfiles=[imagest.aptdat]
+;endelse
 ;;if photsub, find again
 if keyword_set(photsub) then begin
-  if keyword_set(usepsf) then begin
+  ;if keyword_set(usepsf) then begin
     fp=findfile(imagest.psfsub)
     if fp[0] eq '' then begin
       print,'file : ',imagest.psfsub,' not found!'
     endif
     inputfiles=[inputfiles,fp[0]]
     outputfiles=[outputfiles,imagest.psfsubdat]
-  endif else begin
-    fp=findfile(imagest.aptsub)
-    if fp[0] eq '' then begin
-      print,'file : ',imagest.aptsub,' not found!'
-    endif
-    inputfiles=[inputfiles,fp[0]]
-    outputfiles=[outputfiles,imagest.aptsubdat]
-  endelse
+  ;endif else begin
+  ;  fp=findfile(imagest.aptsub)
+  ;  if fp[0] eq '' then begin
+  ;    print,'file : ',imagest.aptsub,' not found!'
+  ;  endif
+  ;  inputfiles=[inputfiles,fp[0]]
+  ;  outputfiles=[outputfiles,imagest.aptsubdat]
+  ;endelse
 endif
 if n_elements(inputfiles) eq 0 then begin
   print,'No input mag file found, doing nuthing'
