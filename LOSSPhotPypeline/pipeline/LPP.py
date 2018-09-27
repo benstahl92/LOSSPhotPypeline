@@ -192,6 +192,9 @@ class LPP(object):
         self.refname = conf['refname']
         self.photlistfile = conf['photlistfile']
 
+        if '.fit' in conf['forcecalfit'].lower():
+            self.force_calfit(conf['forcecalfit'].lower())
+
         self.log.info('{} loaded'.format(self.config_file))
 
     ###################################################################################################
@@ -701,12 +704,11 @@ class LPP(object):
         # iterate through files and extract LC information
         for fl in tqdm(self.image_list):
 
-            # skip failed images
+            # skip failed images (some checks here should be redundant)
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
                 continue
             elif (fl in self.phot_failed) and (self.photsub is False):
                 continue
-
             if (fl in self.cal_failed) and (photsub_mode is False):
                 continue
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):

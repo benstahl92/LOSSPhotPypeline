@@ -31,6 +31,7 @@ def genconf(object = None, targetname = None, config_file = None):
         f.write('{:<20}all\n'.format('photmethod'))
         f.write('{:<20}\n'.format('refname'))
         f.write('{:<20}{}.photlist\n'.format('photlistfile', targetname))
+        f.write('{:<20}\nnone'.format('forcecalfit'))
 
 def get_first_obs_date(object):
     '''
