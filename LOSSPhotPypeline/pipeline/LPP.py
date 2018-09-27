@@ -557,8 +557,12 @@ class LPP(object):
                 do_photsub = self.photsub
                 if (self.photsub is True) and (fl in self.phot_sub_failed):
                     do_photsub = False
+                if self.calmethod == 'psf':
+                    upsf = True
+                else:
+                    upsf = False
                 self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
-                              usepsf = True, photsub = do_photsub, output = True)
+                              usepsf = upsf, photsub = do_photsub, output = True)
             # check for success
             if os.path.exists(fl_obj.psfdat) is False:
                 self.log.warn('calibration failed --- {} not generated'.format(fl_obj.psfdat))
