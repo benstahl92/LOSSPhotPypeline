@@ -80,6 +80,20 @@ class LPP(object):
         self.no_obj = []
         self.no_obj_sub = []
 
+        # calibration variables
+        self.calibration_dir = 'calibration'
+        if not os.path.isdir(self.calibration_dir):
+            os.makedirs(self.calibration_dir)
+        self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
+        self.cal_source=''
+        self.calfile=''
+        self.calfile_use=''
+        self.cal_nat_fit=''
+        self.force_calfit_file = force_calfit_file
+        self.color_term = LPPu.get_color_term(self.refname)
+        if force_calfit_file is not False:
+            self.force_calfit(force_calfit_file)
+
         # load configuration file
         loaded = False
         while not loaded:
@@ -94,20 +108,6 @@ class LPP(object):
                     return
                 else:
                     self.config_file = response
-
-        # calibration variables
-        self.calibration_dir = 'calibration'
-        if not os.path.isdir(self.calibration_dir):
-            os.makedirs(self.calibration_dir)
-        self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
-        self.cal_source=''
-        self.calfile=''
-        self.calfile_use=''
-        self.cal_nat_fit=''
-        self.force_calfit_file = force_calfit_file
-        self.color_term = LPPu.get_color_term(self.refname)
-        if force_calfit_file is not False:
-            self.force_calfit(force_calfit_file)
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
