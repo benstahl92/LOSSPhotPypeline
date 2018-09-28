@@ -84,7 +84,7 @@ class astroCatalog:
             data.columns = out_cols
             os.system('rm {}'.format(tmp_fl)) # remove temp file
         except ValueError:
-            #print('Search of PS1 for calibration information failed...')
+            print('Search of PS1 for calibration information failed...')
             os.system('rm {}'.format(tmp_fl)) # remove temp file
             return None
         
@@ -111,7 +111,7 @@ class astroCatalog:
 
         # process and return results
         if data is None:
-            #print('Search of SDSS for calibration information failed...')
+            print('Search of SDSS for calibration information failed...')
             return None
 
         for filt in 'ugriz':
