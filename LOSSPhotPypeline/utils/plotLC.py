@@ -38,7 +38,7 @@ class plotLC:
     '''Light curve plotting for LOSSPhotPypeline outputs'''
 
     def __init__(self, lc = None, lc_raw = None, lc_file = None, tref = 'min', filters = 'auto', 
-                 offset_scale = 1, style = 'white', context = 'notebook', name = None, photmethod = None):
+                 offset_scale = 1, style = 'whitegrid', context = 'notebook', name = None, photmethod = None):
         '''
         instantiation instructions
 
@@ -289,7 +289,7 @@ class plotLC:
             # handle selection of bad points
             if icut is True:
                 cut, = ax.plot([], [], 'rX', markersize = 10, label = 'points to cut')
-                ax.legend(loc = 'upper right')
+                ax.legend(bbox_to_anchor = (1.01, 0.5), loc = 'center left')
                 plt.ion()
                 cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event, tmp, drop_dict, filt, cut, fig, offset))
                 fig.show()
@@ -305,9 +305,10 @@ class plotLC:
             self.write_cut_lc()
             self.plot_lc(lc = self.lc_cut, fname = self.lc_file.replace('.dat', '_cut.ps'))
         else:
+            # workaround for bugs with the legend
             handles, labels = ax.get_legend_handles_labels()
-            handles = [h[0] for h in handles]
-            ax.legend(handles, labels, loc = 'upper right')
+            handles = [h for h in handles]
+            ax.legend(handles, labels, bbox_to_anchor = (1.01, 0.5), loc = 'center left')
             if return_fig:
                 return fig, ax
             else:
