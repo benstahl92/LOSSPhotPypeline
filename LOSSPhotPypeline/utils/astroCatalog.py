@@ -154,25 +154,29 @@ class astroCatalog:
         self.cal_filename = 'cal_{}_{}.dat'.format(self.targetname, self.cal_source)
         df.to_csv(os.path.join(self.relative_path, self.cal_filename), sep = '\t', index=False, header = True, float_format='%9.4f')
 
-    def get_cal(self):
-        '''
-        obtains calibration information by trying sources in preferred order until data is obtained
-        '''
+    def get_cal(self, method = 'auto'):
+        '''obtains calibration information from specified method or by trying sources in preferred order until data is obtained (auto mode)'''
 
-        self.PS1_get_calib()
-        if self.cal_filename is not None:
-            return
-        if self.cal_filename is None:
-            self.SDSS_get_calib()
+        if method.lower() not in ['ps1','sdss','apass']:
+            self.PS1_get_calib()
             if self.cal_filename is not None:
                 return
-        if self.cal_filename is None:
-            self.APASS_get_calib()
+            if self.cal_filename is None:
+                self.SDSS_get_calib()
+                if self.cal_filename is not None:
+                    return
+            if self.cal_filename is None:
+                self.APASS_get_calib()
+                return
+            # if it gets to here, print warning
+            print('warning: calibration data not found!!!')
             return
-        
-        # if it gets to here, print warning
-        print('warning: calibration data not found!!!')
-        return
+        elif method.lower() == 'ps1':
+            self.PS1_get_calib()
+        elif method.lower() == 'sdss':
+            self.SDSS_get_calib()
+        elif method.lower() == 'apass':
+            self.APASS_get_calib()
 
     def to_natural(self, quiet_idl = True):
         '''

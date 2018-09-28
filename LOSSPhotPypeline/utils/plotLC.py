@@ -224,6 +224,8 @@ class plotLC:
             if self.photmethod is not None:
                 title_msg += ' ({})'.format(self.photmethod)
             ax.set_title(title_msg)
+        elif self.lc_file is not None:
+            ax.set_title(self.lc_file)
         return fig, ax
 
     def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False, fname = None):

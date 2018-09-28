@@ -80,7 +80,7 @@ class LPP(object):
         self.no_obj = []
         self.no_obj_sub = []
 
-        self.cal_source=''
+        self.cal_source = 'auto'
         self.calfile=''
         self.calfile_use=''
         self.cal_nat_fit=''
@@ -170,6 +170,8 @@ class LPP(object):
         self.targetdec = float(conf['targetdec'])
         if conf['photsub'].lower() == 'yes': # defaults to False in all other cases
             self.photsub = True 
+        if conf['calsource'].lower() in ['psf','sdss','apass']: # only set if a known source is specified
+            self.cal_source = conf['calsource'].lower() 
         if conf['calmethod'].lower == 'psf': # defaults to '3.5p' in all other cases
             self.calmethod = 'psf'
         if conf['photmethod'].lower() == 'all':
@@ -193,8 +195,8 @@ class LPP(object):
         self.refname = conf['refname']
         self.photlistfile = conf['photlistfile']
 
-        if '.fit' in conf['forcecalfit'].lower():
-            self.force_calfit(conf['forcecalfit'].lower())
+        if '.fit' in conf['forcecalfit']:
+            self.force_calfit(conf['forcecalfit'])
 
         self.log.info('{} loaded'.format(self.config_file))
 
@@ -514,7 +516,7 @@ class LPP(object):
         # check for calibration data and download if it doesn't exist yet
         if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
-            catalog.get_cal()
+            catalog.get_cal(method = self.cal_source)
             with redirect_stdout(self.log):
                 catalog.to_natural()
             self.calfile = catalog.cal_filename
@@ -612,11 +614,11 @@ class LPP(object):
             # read file (using selected columns corresponding to desired photometry method(s))
             cols = (0,) + tuple((self.phot_cols[m] for m in self.photmethod))
             col_names = ('id',) + tuple((m for m in self.photmethod))
-            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names).dropna()
+            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
 
             # populate results dict from file
             for idx, row in d.iterrows():
-                if (idx in IDs.values):
+                if (idx in IDs.values) and (np.isnan(row[self.calmethod]) is False):
                     if idx not in results[filt].keys():
                         results[filt][idx] = [row[self.calmethod]]
                     else:
