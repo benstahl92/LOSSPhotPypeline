@@ -618,7 +618,7 @@ class LPP(object):
 
             # populate results dict from file
             for idx, row in d.iterrows():
-                if (idx in IDs.values) and (np.isnan(row[self.calmethod]) is False):
+                if (idx in IDs.values) and (~np.isnan(row[self.calmethod])):
                     if idx not in results[filt].keys():
                         results[filt][idx] = [row[self.calmethod]]
                     else:
