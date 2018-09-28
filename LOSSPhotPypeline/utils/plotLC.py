@@ -25,8 +25,12 @@ def onpick(event, df, drop_dict, filt, cut, fig, offset):
     '''
 
     # get index of event and use it to add appropriate id to drop_dict
+
     ind = event.ind[0]
-    drop_dict[filt].append(df.index[ind])
+    if df.index[ind] in drop_dict[filt]:
+        drop_dict[filt].remove(df.index[ind])
+    else:
+        drop_dict[filt].add(df.index[ind])
 
     # plot the location
     x = df['t_rel'].loc[drop_dict[filt]]
@@ -203,15 +207,24 @@ class plotLC:
         '''copy lc and then set all elements specified by dropdict to NaN'''
         self.lc_cut = copy.deepcopy(self.lc)
         for filt in drop_dict.keys():
-            self.lc_cut.loc[drop_dict[filt], filt] = np.nan
+            self.lc_cut.loc[list(drop_dict[filt]), filt] = np.nan
+        self.drop_dict = drop_dict
 
     def write_cut_lc(self, fname = None):
-        '''write cut lc to file'''
+        '''write cut lc to file of same format that it was read from'''
 
         if fname is None:
             fname = self.lc_file.replace('.dat', '_cut.dat')
-        cols = self.lc_cut.columns[self.lc_cut.columns != 't_rel']
-        self.lc_cut.to_csv(fname, sep = '\t', na_rep = 'NaN', index = False, columns = cols)
+        if self.raw is None: # it was a "standard" file
+            cols = self.lc_cut.columns[self.lc_cut.columns != 't_rel']
+            self.lc_cut.to_csv(fname, sep = '\t', na_rep = 'NaN', index = False, columns = cols)
+        else:
+            df = copy.deepcopy(self.raw.drop('err', axis = 1))
+            df.columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
+            for filt in self.drop_dict.keys():
+                df.loc[(df['filter'].str.upper() == filt) & (df[';; MJD'].isin(self.lc.loc[self.drop_dict[filt],'MJD'])), ['mag','-emag','+emag']] = np.nan
+            self.raw_cut = df
+            self.raw_cut.to_csv(fname, sep = '\t', na_rep = 'NaN', index = False, float_format='%9.5f')
 
     def _setup_plot(self):
         '''does some of the bookkeeping needed to set up light curve plots'''
@@ -228,7 +241,7 @@ class plotLC:
             ax.set_title(self.lc_file)
         return fig, ax
 
-    def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False, fname = None):
+    def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False, magerr_cut = 2, fname = None):
         '''
         Plots light curve.
 
@@ -244,6 +257,8 @@ class plotLC:
             return figure and axes if True
         icut : bool, optional, default: False
             run interactive point cutting
+        magerr_cut : int or float, optional, default: 2
+            cutoff on magnitude error above which points are cut (forced if icut is False, proposed otherwise)
         fname : str, optional, default: None
             name of file to write plot to
         '''
@@ -265,16 +280,19 @@ class plotLC:
         if icut is False:
             fig, ax = self._setup_plot()
         else:
-            drop_dict = {filt: [] for filt in self.filters}
+            drop_dict = {filt: set() for filt in self.filters}
 
         # iterate through filters to generate light curves
         for filt in self.filters:
 
-            if icut is True:
-                fig, ax = self._setup_plot()
-
             # get non-null points in current passband
-            tmp = lc[self.lc[filt].notnull()]
+            tmp = lc[lc[filt].notnull()]
+
+            if (magerr_cut is None) or (magerr_cut is False):
+                ob = tmp['E' + filt] > np.inf
+            else:
+                ob = tmp['E' + filt] > magerr_cut
+            outliers = tmp.index[ob]
 
             # bookkeeping for current passband
             offset = self._offset(filt)
@@ -283,17 +301,25 @@ class plotLC:
                 sgn = '-'
 
             # plot light curve
-            errobj = ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.', elinewidth = 1, capsize = 2,
-                                 capthick = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)), picker = 3)
+            if icut is True:
+                fig, ax = self._setup_plot()
+                errobj = ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.', elinewidth = 1, capsize = 2,
+                                     capthick = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)), picker = 3)
+            else:
+                errobj = ax.errorbar(tmp.loc[~ob,'t_rel'], tmp.loc[~ob,filt] + self._offset(filt), yerr = tmp.loc[~ob,'E' + filt], 
+                                     fmt = '.', elinewidth = 1, capsize = 2, capthick = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)))
 
             # handle selection of bad points
             if icut is True:
-                cut, = ax.plot([], [], 'rX', markersize = 10, label = 'points to cut')
+                drop_dict[filt].update(outliers)
+                cut, = ax.plot(tmp['t_rel'].loc[drop_dict[filt]], tmp[filt].loc[drop_dict[filt]] + offset, 'rX', markersize = 10, label = 'points to cut')
                 ax.legend(bbox_to_anchor = (1.01, 0.5), loc = 'center left')
+                box = ax.get_position()
+                ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
                 plt.ion()
                 cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event, tmp, drop_dict, filt, cut, fig, offset))
                 fig.show()
-                input('hit [return] when done selection bad points in {} band > '.format(filt))
+                input('click to (un)select points for removal from {} band [hit "enter" when done] '.format(filt))
                 fig.canvas.mpl_disconnect(cid)
                 plt.ioff()
                 plt.clf()
@@ -303,7 +329,7 @@ class plotLC:
         if icut is True:
             self._drop_lc_points(drop_dict)
             self.write_cut_lc()
-            self.plot_lc(lc = self.lc_cut, fname = self.lc_file.replace('.dat', '_cut.ps'))
+            self.plot_lc(lc = self.lc_cut, fname = self.lc_file.replace('.dat', '_cut.ps'), magerr_cut = False)
         else:
             # workaround for bugs with the legend
             handles, labels = ax.get_legend_handles_labels()
