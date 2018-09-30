@@ -38,7 +38,7 @@ class Phot(FitsInfo, FileNames):
         # get paths to needed files
         sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
         filt = os.path.join(sxcp, 'gauss_2.0_5x5.conv')
-        par = os.path.join(sxcp, 'fwhn.par')
+        par = os.path.join(sxcp, 'fwhm.par')
         star = os.path.join(sxcp, 'default.nnw')
 
         # set up configuration dictionary to override SExtractor defaults
