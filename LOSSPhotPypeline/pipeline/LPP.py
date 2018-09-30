@@ -1,6 +1,7 @@
 # standard imports
 import os
 import shutil
+import inspect
 from pprint import pprint
 import pidly
 import pickle as pkl
@@ -25,6 +26,7 @@ except ModuleNotFoundError:
     haveDB = False
 
 # internal imports
+import LOSSPhotPypeline
 import LOSSPhotPypeline.utils as LPPu
 from LOSSPhotPypeline.image import Phot, FitsInfo, FileNames
 
@@ -401,8 +403,42 @@ class LPP(object):
             self.log.warn('refname has not been assigned, please do it first!')
             return
 
+        # get paths to needed files
+        sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
+        config = os.path.join(sxcp, 'kait.sex')
+        filt = os.path.join(sxcp, 'gauss_2.0_5x5.conv')
+        par = os.path.join(sxcp, 'kait.par')
+        star = os.path.join(sxcp, 'default.nnw')
+
+        cf = {'CATALOG_TYPE': 'FITS_1.0',
+              'PARAMETERS_NAME': par,
+              'DETECT_MINAREA': 5,
+              'DETECT_THRESH': 1,
+              'FILTER_NAME': filt,
+              'DEBLEND_MINCOUNT': 0.0001,
+              'MASK_TYPE': 'NONE',
+              'SATUR_LEVEL': 36000.0,
+              'MAG_ZEROPOINT': 25.0,
+              'GAIN': 3,
+              'PIXEL_SCALE': 0.7965,
+              'SEEING_FWHM': 4.17,
+              'STARNNW_NAME': star,
+              'BACK_SIZE': 8,
+              'BACKPHOTO_THICK': 24,
+              'CHECKIMAGE_TYPE': 'MINIBACKGROUND',
+              'WEIGHT_TYPE': 'BACKGROUND',
+              'WEIGHT_GAIN': 'Y'}
+
         # use sextractor to extract all stars to be used as refstars
-        p = subprocess.Popen(['LPP-Ssex-kait.sh', self.refname], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        #p = subprocess.Popen(['LPP-Ssex-kait.sh', self.refname], stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        cmd_list = ['sex', self.refname,
+                    '-c', config,
+                    '-PARAMETERS_NAME', par,
+                    '-FILTER_NAME', filt,
+                    '-STARNNW_NAME', star, 
+                    '-CATALOG_NAME', nametmp.sobj,
+                    '-CHECKIMAGE_NAME', nametmp.sky]
+        p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         self.log.debug(p.communicate())
 
         # check if output sobj file exists or not
