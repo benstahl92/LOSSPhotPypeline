@@ -57,7 +57,7 @@ class FitsImage(object):
     def extract_info(self):
         '''extract basic fits information'''
 
-        header = self.hudlist[0].header
+        header = self.hdulist[0].header
 
         if 'TELESCOP' in header:
             telescope=header["TELESCOP"]
@@ -229,7 +229,7 @@ class FitsImage(object):
     def extract_wcsinfo(self):
         '''extract WCS information, if no keyword "WCSED"'''
 
-        header = self.hudlist[0].header
+        header = self.hdulist[0].header
 
         if not 'WCSED' in header:
           #print('Warning: this image is not WCSed, no WCSED keyword')
@@ -334,7 +334,7 @@ class FitsInfo(FitsImage):
             self.zeromag=0.0
         if not isinstance(self.zeromag,(int,float)) :
             self.zeromag = 0.0
-            
+
         ##need to calculate the limiting mag
         #self.limitmag=-2.5*alog10(self.sky)+self.zeromag
         try:
