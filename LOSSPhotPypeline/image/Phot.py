@@ -62,7 +62,7 @@ class Phot(FitsInfo, FileNames):
 
         # run SExtractor and get results
         sew = sewpy.SEW(config = cf, configfilepath = sxcp)
-        res = sew(self.name)["table"]
+        res = sew(self.cimg)["table"]
         self.fwhm = np.median(res["FWHM_IMAGE"])
 
         # set in the fits image
