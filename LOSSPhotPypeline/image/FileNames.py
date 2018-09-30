@@ -67,5 +67,6 @@ class FileNames(object):
         self.objectrd  = self.root + '_objectrd.txt'
         self.objectxy  = self.root + '_objectxy.txt'
         self.sky       = self.root + '_sky.txt'
+        self.skyfit    = self.root + '_sky.fit'
         self.apass     = self.root + '_apass.dat'
         self.zero      = self.root + '_zero.txt'

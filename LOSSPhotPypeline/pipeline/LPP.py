@@ -418,12 +418,12 @@ class LPP(object):
                     '-FILTER_NAME', filt,
                     '-STARNNW_NAME', star, 
                     '-CATALOG_NAME', nametmp.sobj,
-                    '-CHECKIMAGE_NAME', nametmp.sky]
+                    '-CHECKIMAGE_NAME', nametmp.skyfit]
         p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         self.log.debug(p.communicate())
 
         # make sure process succeeded
-        if not os.path.isfile(nametmp.sobj) :
+        if not os.path.isfile(nametmp.sobj):
             self.log.warn('SExtractor failed --- no sobj file generated, check!')
             return
 
