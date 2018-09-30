@@ -1,15 +1,20 @@
 # standard imports
 import pandas as pd
+import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
-import subprocess
+import inspect
+import os
+#import subprocess
 import pidly
+import sewpy
 
 # internal imports
+import LOSSPhotPypeline
 from LOSSPhotPypeline.image.FileNames import FileNames
 from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
-class Phot(FitsInfo,FileNames):
+class Phot(FitsInfo, FileNames):
 
     def __init__(self, name, radecfile = None, radec = None, quiet_idl = True):
 
@@ -27,19 +32,60 @@ class Phot(FitsInfo,FileNames):
             self.idl('!quiet = 1')
             self.idl('!except = 0')
 
+    def get_fwhm(self):
+        '''runs SExtractor to determine and write fwhm file'''
+
+        # get paths to needed files
+        sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
+        filt = os.path.join(sxcp, 'gauss_2.0_5x5.conv')
+        par = os.path.join(sxcp, 'fwhn.par')
+        star = os.path.join(sxcp, 'default.nnw')
+
+        # set up configuration dictionary to override SExtractor defaults
+        cf = {'PARAMETERS_NAME': par,
+              'DETECT_MINAREA': 10,
+              'DETECT_THRESH': 3,
+              'ANALYSIS_THRESH': 3.5,
+              'FILTER_NAME': filt,
+              'DEBLEND_MINCOUNT': 0.0001,
+              'MASK_TYPE': 'NONE',
+              'SATUR_LEVEL': 36000.0,
+              'MAG_ZEROPOINT': 25.0,
+              'GAIN': 3,
+              'PIXEL_SCALE': 0.7965,
+              'SEEING_FWHM': 4.17,
+              'STARNNW_NAME': star,
+              'BACK_SIZE': 8,
+              'BACKPHOTO_THICK': 24,
+              'WEIGHT_TYPE': 'BACKGROUND',
+              'WEIGHT_GAIN': 'Y'}
+
+        # run SExtractor and get results
+        sew = sewpy.SEW(config = cf, configfilepath = sxcp)
+        res = sew(self.name)["table"]
+        self.fwhm = np.median(res["FWHM_IMAGE"])
+
+        # set in the fits image
+        hdulist = fits.open(self.cimg, mode = 'update')
+        hdulist[0].header = self.fwhm
+        hdulist.close()
+
+        # write output file
+        with open(self.fwhm_fl, 'w') as f:
+            f.write(self.fwhm)
+
     def do_photometry(self, method = 'psf', photsub = False, log = None):
         '''
         performs aperture/psf photometry by running shell scripts to generate needed files then wrapping an IDL procedure
-
-        B. Stahl - June 20, 2018
         '''
 
         # generate fwhm file
-        p = subprocess.Popen(['LPP_get_fwhm.sh', self.cimg], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if log is None:
-            print(p.communicate)
-        else:
-            log.debug(p.communicate())
+        self.get_fwhm()
+        #p = subprocess.Popen(['LPP_get_fwhm.sh', self.cimg], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        #if log is None:
+        #    print(p.communicate)
+        #else:
+        #    log.debug(p.communicate())
 
         # generate obj file
 
