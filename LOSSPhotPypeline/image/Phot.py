@@ -5,7 +5,6 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import inspect
 import os
-#import subprocess
 import pidly
 import sewpy
 
@@ -72,7 +71,7 @@ class Phot(FitsInfo, FileNames):
 
         # write output file
         with open(self.fwhm_fl, 'w') as f:
-            f.write(str(self.fwhm))
+            f.write('{:.3f}'.format(self.fwhm))
 
     def do_photometry(self, method = 'psf', photsub = False, log = None):
         '''
@@ -81,11 +80,6 @@ class Phot(FitsInfo, FileNames):
 
         # generate fwhm file
         self.get_fwhm()
-        #p = subprocess.Popen(['LPP_get_fwhm.sh', self.cimg], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        #if log is None:
-        #    print(p.communicate)
-        #else:
-        #    log.debug(p.communicate())
 
         # generate obj file
 

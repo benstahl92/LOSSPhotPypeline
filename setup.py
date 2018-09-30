@@ -43,13 +43,6 @@ with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ss
 st = os.stat(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.sh'))
 os.chmod(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP-Ssex-kait.sh'), st.st_mode | 0o111)
 
-with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'lpp_templates', 'LPP_get_fwhm.template.sh'), 'r') as f:
-	s = f.read()
-with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'), 'w') as f:
-	f.write(s.replace('sexconfpath=', 'sexconfpath={}/'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'sextractor_config'))))
-st = os.stat(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'))
-os.chmod(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin', 'LPP_get_fwhm.sh'), st.st_mode | 0o111)
-
 # write so path into get_local_sky procedure
 with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'conf', 'lpp_templates', 'get_local_sky.template.pro'), 'r') as f:
 	s = f.read()
