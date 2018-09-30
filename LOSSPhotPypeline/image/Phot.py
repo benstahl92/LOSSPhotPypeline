@@ -72,7 +72,7 @@ class Phot(FitsInfo, FileNames):
 
         # write output file
         with open(self.fwhm_fl, 'w') as f:
-            f.write(self.fwhm)
+            f.write(str(self.fwhm))
 
     def do_photometry(self, method = 'psf', photsub = False, log = None):
         '''
