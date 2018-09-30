@@ -67,7 +67,7 @@ class Phot(FitsInfo, FileNames):
 
         # set in the fits image
         hdulist = fits.open(self.cimg, mode = 'update')
-        hdulist[0].header = self.fwhm
+        hdulist[0].header['fwhm'] = self.fwhm
         hdulist.close()
 
         # write output file
