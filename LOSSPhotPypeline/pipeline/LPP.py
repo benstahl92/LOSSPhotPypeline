@@ -73,6 +73,7 @@ class LPP(object):
         self.filter_set_sub = None
         self.first_obs = None
         self.image_list = []
+        self.image_list = [] # will hold a Phot instance for each image in self.image_list
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.image_list = []
         self.phot_failed = []
@@ -130,7 +131,7 @@ class LPP(object):
 
         # steps in standard reduction procedure
         self.current_step = 0
-        self.steps = [self.get_image_list,
+        self.steps = [self.load_images,
                       self.find_ref_stars,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
@@ -373,8 +374,8 @@ class LPP(object):
     #          Reduction Pipeline Methods
     ###################################################################################################
 
-    def get_image_list(self):
-        '''reads and optionally prints image list'''
+    def load_images(self):
+        '''reads image list file to generate lists of file names and Phot instances'''
 
         self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
                                       comment = '#', squeeze = True)
@@ -386,6 +387,9 @@ class LPP(object):
             print('\n')
 
         self.log.info('image list loaded from {}'.format(self.photlistfile))
+
+        self.instance_list = [Phot(img) for img in self.image_list]
+        self.log.info('instance list generated from image list')
 
     def find_ref_stars(self):
         '''
@@ -399,14 +403,14 @@ class LPP(object):
             self.log.info('radecfile already exists, loading only')
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
             return
-        if self.refname == '' :
+
+        # check if reference image has been specified, and instantiate Phot instance if it has
+        if self.refname == '':
             self.log.warn('refname has not been assigned, please do it first!')
             return
+        self.ref = Phot(self.refname)
 
-        # instantiate object to manage names
-        nametmp=FileNames(self.refname)
-
-        # use sextractor to extract all stars to be used as refstars
+        # use SExtractor to extract all stars to be used as reference stars
         sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
         config = os.path.join(sxcp, 'kait.sex')
         filt = os.path.join(sxcp, 'gauss_2.0_5x5.conv')
@@ -417,23 +421,25 @@ class LPP(object):
                     '-PARAMETERS_NAME', par,
                     '-FILTER_NAME', filt,
                     '-STARNNW_NAME', star, 
-                    '-CATALOG_NAME', nametmp.sobj,
-                    '-CHECKIMAGE_NAME', nametmp.skyfit]
+                    '-CATALOG_NAME', self.ref.sobj,
+                    '-CHECKIMAGE_NAME', self.ref.skyfit]
         p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         self.log.debug(p.communicate())
 
         # make sure process succeeded
-        if not os.path.isfile(nametmp.sobj):
+        if not os.path.isfile(self.ref.sobj):
             self.log.warn('SExtractor failed --- no sobj file generated, check!')
             return
 
         # read sobj file of X_IMAGE and Y_IMAGE columns, as well as MAG_APER for sort
-        with fits.open(nametmp.sobj) as hdul:
+        with fits.open(self.ref.sobj) as hdul:
             data=hdul[1].data
         # sort according to magnitude, from small/bright to hight/faint
-        data.sort(order='MAG_APER')
-        imagex=data.X_IMAGE
-        imagey=data.Y_IMAGE
+        data.sort(order = 'MAG_APER')
+        imagex = data.X_IMAGE
+        imagey = data.Y_IMAGE
+
+        # the below can be be simplified by accessing the instance in Phot class -- do later
 
         # transform to RA and DEC using ref image header information
         with fits.open(self.refname) as ref:
@@ -461,10 +467,15 @@ class LPP(object):
 
         self.log.info('starting galaxy subtraction on all images')
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
+        #if image_list is None:
+        #    image_list = self.image_list
+        #else:
+        #    self.log.info('using argument supplied image list')
+        if image_list is not None:
+            intance_list = [Phot(img) for img in image_list]
             self.log.info('using argument supplied image list')
+        else:
+            instance_list = self.instance_list
 
         if self.template_images is None:
             self.get_template_images()
@@ -474,11 +485,13 @@ class LPP(object):
                 return
 
         # iterate through image list and perform galaxy subtraction on each
-        for fl in tqdm(image_list):
-            c = Phot(fl)
+        #for fl in tqdm(image_list):
+        #    c = Phot(fl)
+        for instance in tqdm(instance_list)
             with redirect_stdout(self.log):
                 if self.photsub:
-                    c.galaxy_subtract(self.template_images)
+                    #c.galaxy_subtract(self.template_images)
+                    instance.galaxy_subtract(self.template_images)
 
         self.log.info('galaxy subtraction done')
 
@@ -487,35 +500,55 @@ class LPP(object):
 
         self.log.info('starting photometry on all images (galsub: {})'.format(self.photsub))
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
+        #if image_list is None:
+        #    image_list = self.image_list
+        #else:
+        #    self.log.info('using argument supplied image list')
+
+        if image_list is not None:
+            intance_list = [Phot(img) for img in image_list]
             self.log.info('using argument supplied image list')
+        else:
+            instance_list = self.instance_list
 
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
         first_obs = None
-        for fl in tqdm(image_list):
-            c = Phot(fl, radec = self.radec)
+        #for fl in tqdm(image_list):
+        #    c = Phot(fl, radec = self.radec)
+        for instance in tqdm(instance_list)
             with redirect_stdout(self.log):
-                c.do_photometry(photsub = self.photsub, log = self.log)
-            if (first_obs is None) or (c.mjd < first_obs):
-                first_obs = c.mjd
+                #c.do_photometry(photsub = self.photsub, log = self.log)
+                instance.do_photometry(photsub = self.photsub, log = self.log)
+            #if (first_obs is None) or (c.mjd < first_obs):
+            #    first_obs = c.mjd
+            if (first_obs is None) or (instance.mjd < first_obs):
+                first_obs = instance.mjd
             # check for success
-            if os.path.exists(c.psf) is False:
-                self.log.warn('photometry failed --- {} not generated'.format(c.psf))
-                self.phot_failed.append(fl)
-            if (self.photsub is True) and (os.path.exists(c.psfsub) is False):
-                self.log.warn('photometry (sub) failed --- {} not generated'.format(c.psfsub))
-                self.phot_sub_failed.append(fl)
+            #if os.path.exists(c.psf) is False:
+            #    self.log.warn('photometry failed --- {} not generated'.format(c.psf))
+            #    self.phot_failed.append(fl)
+            #if (self.photsub is True) and (os.path.exists(c.psfsub) is False):
+            #    self.log.warn('photometry (sub) failed --- {} not generated'.format(c.psfsub))
+            #    self.phot_sub_failed.append(fl)
+            if os.path.exists(instance.psf) is False:
+                self.log.warn('photometry failed --- {} not generated'.format(instance.psf))
+                self.phot_failed.append(instance)
+            if (self.photsub is True) and (os.path.exists(instance.psfsub) is False):
+                self.log.warn('photometry (sub) failed --- {} not generated'.format(instance.psfsub))
+                self.phot_sub_failed.append(instance)
         if self.first_obs is None:
             self.first_obs = first_obs
 
         # remove failures from image list where possible
+        #if self.photsub is False:
+        #    self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed))]
+        #else:
+        #    self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed)) & ~self.image_list.isin(pd.Series(self.phot_failed))]
         if self.photsub is False:
-            self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed))]
+            self.instance_list = self.instance_list[~self.instance_list.isin(pd.Series(self.phot_failed))]
         else:
-            self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed)) & ~self.image_list.isin(pd.Series(self.phot_failed))]
+            self.instance_list = self.instance_list[~self.instance_list.isin(pd.Series(self.phot_failed)) & ~self.instance_list.isin(pd.Series(self.phot_failed))]
 
         self.log.info('photometry done')
 
@@ -524,10 +557,15 @@ class LPP(object):
 
         self.log.info('commencing calibration (second pass: {})'.format(second_pass))
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
+        #if image_list is None:
+        #    image_list = self.image_list
+        #else:
+        #    self.log.info('using argument supplied image list')
+        if image_list is not None:
+            intance_list = [Phot(img) for img in image_list]
             self.log.info('using argument supplied image list')
+        else:
+            instance_list = self.instance_list
 
         # check for calibration data and download if it doesn't exist yet
         if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
@@ -549,20 +587,26 @@ class LPP(object):
             self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
-        for fl in tqdm(image_list):
+        #for fl in tqdm(image_list):
+        for instance in tqdm(instance_list)
 
             # skip if photometry has failed
-            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #    continue
+            #elif (fl in self.phot_failed) and (self.photsub is False):
+            #    continue
+            if (instance in self.phot_failed) and (self.photsub is True) and (instance in self.phot_sub_failed):
                 continue
-            elif (fl in self.phot_failed) and (self.photsub is False):
+            elif (instance in self.phot_failed) and (self.photsub is False):
                 continue
 
             # instantiate file object
-            fl_obj = Phot(fl)
+            #fl_obj = Phot(fl)
 
             # get color term and enforce only one color term per run if not forced
             if self.force_calfit_file is False:
-                tel = LPPu.get_color_term(fl)
+                #tel = LPPu.get_color_term(fl)
+                tel = LPPu.get_color_term(instance.oriname)
                 if self.color_term is not None:
                     assert self.color_term == tel
                 self.color_term = tel
@@ -573,21 +617,31 @@ class LPP(object):
             with redirect_stdout(self.log):
                 # set photsub mode appropriately
                 do_photsub = self.photsub
-                if (self.photsub is True) and (fl in self.phot_sub_failed):
+                #if (self.photsub is True) and (fl in self.phot_sub_failed):
+                if (self.photsub is True) and (instance in self.phot_sub_failed):
                     do_photsub = False
                 if self.calmethod == 'psf':
                     upsf = True
                 else:
                     upsf = False
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
+                #self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
+                #              usepsf = upsf, photsub = do_photsub, output = True)
+                self.idl.pro('lpp_cal_instrumag', instance.oriname, instance.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
                               usepsf = upsf, photsub = do_photsub, output = True)
             # check for success
-            if os.path.exists(fl_obj.psfdat) is False:
-                self.log.warn('calibration failed --- {} not generated'.format(fl_obj.psfdat))
-                self.cal_failed.append(fl)
-            if (self.photsub is True) and (os.path.exists(fl_obj.psfsubdat) is False):
-                self.log.warn('calibration (sub) failed --- {} not generated'.format(fl_obj.psfsubdat))
-                self.cal_sub_failed.append(fl)
+            #if os.path.exists(fl_obj.psfdat) is False:
+            #    self.log.warn('calibration failed --- {} not generated'.format(fl_obj.psfdat))
+            #    self.cal_failed.append(fl)
+            #if (self.photsub is True) and (os.path.exists(fl_obj.psfsubdat) is False):
+            #    self.log.warn('calibration (sub) failed --- {} not generated'.format(fl_obj.psfsubdat))
+            #    self.cal_sub_failed.append(fl)
+
+            if os.path.exists(instance.psfdat) is False:
+                self.log.warn('calibration failed --- {} not generated'.format(instance.psfdat))
+                self.cal_failed.append(instance)
+            if (self.photsub is True) and (os.path.exists(instance.psfsubdat) is False):
+                self.log.warn('calibration (sub) failed --- {} not generated'.format(instance.psfsubdat))
+                self.cal_sub_failed.append(instance)
 
     def process_calibration(self, photsub_mode = False):
         '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
@@ -610,18 +664,27 @@ class LPP(object):
         IDs = cal['starID'] + 2
 
         # iterate through files and store photometry into data structure
-        for fl in tqdm(self.image_list):
+        #for fl in tqdm(self.image_list):
+        for instance in tqdm(self.instance_list):
 
             # skip failed images
-            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #    continue
+            #elif (fl in self.phot_failed) and (self.photsub is False):
+            #    continue
+            #if fl in self.cal_failed:
+            #    continue
+
+            if (instance in self.phot_failed) and (self.photsub is True) and (instance in self.phot_sub_failed):
                 continue
-            elif (fl in self.phot_failed) and (self.photsub is False):
+            elif (instance in self.phot_failed) and (self.photsub is False):
                 continue
-            if fl in self.cal_failed:
+            if instance in self.cal_failed:
                 continue
 
-            fl_obj = Phot(fl)
-            filt = fl_obj.filter.upper()
+            #fl_obj = Phot(fl)
+            #filt = fl_obj.filter.upper()
+            filt = instance.filter.upper()
 
             # add second level dictionary if needed
             if filt not in results.keys():
@@ -630,7 +693,8 @@ class LPP(object):
             # read file (using selected columns corresponding to desired photometry method(s))
             cols = (0,) + tuple((self.phot_cols[m] for m in self.photmethod))
             col_names = ('id',) + tuple((m for m in self.photmethod))
-            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
+            #d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
+            d = pd.read_csv(instance.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
 
             # populate results dict from file
             for idx, row in d.iterrows():
@@ -725,51 +789,73 @@ class LPP(object):
         has_filt = np.array([False] * len(self.filter_set_ref))
 
         # iterate through files and extract LC information
-        for fl in tqdm(self.image_list):
+        #for fl in tqdm(self.image_list):
+        for instance in tqdm(self.instance_list):
 
             # skip failed images (some checks here should be redundant)
-            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #    continue
+            #elif (fl in self.phot_failed) and (self.photsub is False):
+            #    continue
+            #if (fl in self.cal_failed) and (photsub_mode is False):
+            #    continue
+            #elif (fl in self.cal_sub_failed) and (photsub_mode is True):
+            #    continue
+
+            # skip failed images (some checks here should be redundant)
+            if (instance in self.phot_failed) and (self.photsub is True) and (instance in self.phot_sub_failed):
                 continue
-            elif (fl in self.phot_failed) and (self.photsub is False):
+            elif (instance in self.phot_failed) and (self.photsub is False):
                 continue
-            if (fl in self.cal_failed) and (photsub_mode is False):
+            if (instance in self.cal_failed) and (photsub_mode is False):
                 continue
-            elif (fl in self.cal_sub_failed) and (photsub_mode is True):
+            elif (instance in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            fl_obj = Phot(fl)
+            #fl_obj = Phot(fl)
 
             # read info and calculate limiting magnitude 
-            with open(fl_obj.sky, 'r') as f:
-                sky = float(f.read())
-            with open(fl_obj.zero, 'r') as f:
-                zero = float(f.read())
+            #with open(fl_obj.sky, 'r') as f:
+            #    sky = float(f.read())
+            #with open(fl_obj.zero, 'r') as f:
+            #    zero = float(f.read())
+            sky = instance.sky
+            zero = instance.zero
 
             # read photometry results
             cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.photmethod), ())
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.photmethod), ())
 
             if photsub_mode is False:
-                dat = fl_obj.psfdat
+                #dat = fl_obj.psfdat
+                dat = instance.psfdat
             else:
-                dat = fl_obj.psfsubdat
+                #dat = fl_obj.psfsubdat
+                dat = instance.psfsubdat
 
             d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names)
 
             if 1 not in d['ID'].values:
                 self.log.warn('no object in calibrated photometry file: {}'.format(dat))
                 if photsub_mode is False:
-                    self.no_obj.append(fl)
+                    #self.no_obj.append(fl)
+                    self.no_obj.append(instance)
                 else:
-                    self.no_obj_sub.append(fl)
+                    #self.no_obj_sub.append(fl)
+                    self.no_obj_sub.append(instance)
             else:
-                has_filt[np.array(self.filter_set_ref) == fl_obj.filter.upper()] = True
+                #has_filt[np.array(self.filter_set_ref) == fl_obj.filter.upper()] = True
+                has_filt[np.array(self.filter_set_ref) == instance.filter.upper()] = True
 
             for m in self.photmethod:
-                lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
-                lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
-                lcs[m]['filter'].append(fl_obj.filter)
-                lcs[m]['imagename'].append(fl)
+                #lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
+                #lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
+                #lcs[m]['filter'].append(fl_obj.filter)
+                #lcs[m]['imagename'].append(fl)
+                lcs[m][';; MJD'].append(round(instance.mjd, 6))
+                lcs[m]['etburst'].append(round(instance.exptime / (60 * 24), 5)) # exposure time in days
+                lcs[m]['filter'].append(instance.filter)
+                lcs[m]['imagename'].append(instance.name)
                 lcs[m]['limmag'].append(round(-2.5*np.log10(3*sky) + zero, 5))
                 if 1 not in d['ID'].values:
                     mag = np.nan
