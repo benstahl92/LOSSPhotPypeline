@@ -24,12 +24,6 @@ then
 	cp $ISISPATH/default_config .
 fi
 
-##for old iraf style
-#HEAD=`echo $2 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
-#mrj_phot $1 $2
-#mv conv0.fit ${HEAD}_istpt.fit
-#mv conv.fit ${HEAD}_issub.fit
-
 #for new idl style
 HEAD=`echo $2 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/_cfwp\.fit//' |  sed 's/_c\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
 outsub=$3
@@ -44,10 +38,8 @@ then
 fi
 
 $ISISPATH/bin/mrj_phot $1 $2 > /dev/null 2>&1
+
 mv conv0.fit $outconv
 mv conv.fit $outsub
-#echo $outconv $outsub
-
-#delete kc_ and kt_ file
 rm -f kc_0*_c.fit
 rm -f kt_*_c.fit
