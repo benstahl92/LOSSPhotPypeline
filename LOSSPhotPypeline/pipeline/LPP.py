@@ -308,6 +308,7 @@ class LPP(object):
         vs.pop('steps')
         vs.pop('idl')
         vs.pop('log')
+        vs.pop('instances') # need to make sure to reload if needed
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
         self.log.info('{} written'.format(self.savefile))
@@ -500,18 +501,20 @@ class LPP(object):
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
         first_obs = None
-        for fl in tqdm(image_list):
-            c = Phot(fl, radec = self.radec)
+        for idx, fl in tqdm(image_list.iteritems()):
+            #c = Phot(fl, radec = self.radec)
+            img = self.instances.loc[idx]
             with redirect_stdout(self.log):
-                c.do_photometry(photsub = self.photsub, log = self.log)
-            if (first_obs is None) or (c.mjd < first_obs):
-                first_obs = c.mjd
+                #c.do_photometry(photsub = self.photsub, log = self.log)
+                img.do_photometry(photsub = self.photsub, log = self.log)
+            if (first_obs is None) or (img.mjd < first_obs):
+                first_obs = img.mjd
             # check for success
-            if os.path.exists(c.psf) is False:
-                self.log.warn('photometry failed --- {} not generated'.format(c.psf))
+            if os.path.exists(img.psf) is False:
+                self.log.warn('photometry failed --- {} not generated'.format(img.psf))
                 self.phot_failed.append(fl)
-            if (self.photsub is True) and (os.path.exists(c.psfsub) is False):
-                self.log.warn('photometry (sub) failed --- {} not generated'.format(c.psfsub))
+            if (self.photsub is True) and (os.path.exists(img.psfsub) is False):
+                self.log.warn('photometry (sub) failed --- {} not generated'.format(img.psfsub))
                 self.phot_sub_failed.append(fl)
         if self.first_obs is None:
             self.first_obs = first_obs
