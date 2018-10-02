@@ -15,7 +15,7 @@ from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
 class Phot(FitsInfo, FileNames):
 
-    def __init__(self, name, radecfile = None, radec = None, quiet_idl = True):
+    def __init__(self, name, radecfile = None, radec = None, quiet_idl = True, idl = None):
 
         FitsInfo.__init__(self, name)
         FileNames.__init__(self, name)
@@ -26,7 +26,11 @@ class Phot(FitsInfo, FileNames):
         if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
-        self.idl = pidly.IDL()
+        # setup idl
+        if type(idl) is pidly.IDL:
+            self.idl = idl
+        else:
+            self.idl = pidly.IDL()
         if quiet_idl:
             self.idl('!quiet = 1')
             self.idl('!except = 0')

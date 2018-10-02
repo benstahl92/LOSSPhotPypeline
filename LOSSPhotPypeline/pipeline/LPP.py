@@ -457,7 +457,7 @@ class LPP(object):
         self.log.info('image list loaded from {}'.format(self.photlistfile))
 
         self.log.info('generating list of Phot instances from image list')
-        self.phot_instances = self.image_list.progress_apply(Phot, radec = self.radec)
+        self.phot_instances = self.image_list.progress_apply(Phot, radec = self.radec, idl = self.idl)
 
     def do_galaxy_subtraction_all_image(self, image_list = None):
         '''performs galaxy subtraction on all selected image files'''
@@ -502,7 +502,7 @@ class LPP(object):
         # iterate through image list and perform photometry on each
         # also determine date of first observation since already touching each file
         first_obs = None
-        for idx, fl in tqdm(image_list.iteritems()):
+        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
             #c = Phot(fl, radec = self.radec)
             img = self.phot_instances.loc[idx]
             with redirect_stdout(self.log):
