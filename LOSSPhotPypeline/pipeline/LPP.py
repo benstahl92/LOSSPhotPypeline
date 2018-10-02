@@ -558,7 +558,7 @@ class LPP(object):
             self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
-        for fl in tqdm(image_list):
+        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
 
             # skip if photometry has failed
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
@@ -567,7 +567,8 @@ class LPP(object):
                 continue
 
             # instantiate file object
-            fl_obj = Phot(fl)
+            #fl_obj = Phot(fl)
+            img = self.phot_instances.loc[idx]
 
             # get color term and enforce only one color term per run if not forced
             if self.force_calfit_file is False:
@@ -588,14 +589,14 @@ class LPP(object):
                     upsf = True
                 else:
                     upsf = False
-                self.idl.pro('lpp_cal_instrumag', fl, fl_obj.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
+                self.idl.pro('lpp_cal_instrumag', fl, img.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
                               usepsf = upsf, photsub = do_photsub, output = True)
             # check for success
-            if os.path.exists(fl_obj.psfdat) is False:
-                self.log.warn('calibration failed --- {} not generated'.format(fl_obj.psfdat))
+            if os.path.exists(img.psfdat) is False:
+                self.log.warn('calibration failed --- {} not generated'.format(img.psfdat))
                 self.cal_failed.append(fl)
-            if (self.photsub is True) and (os.path.exists(fl_obj.psfsubdat) is False):
-                self.log.warn('calibration (sub) failed --- {} not generated'.format(fl_obj.psfsubdat))
+            if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False):
+                self.log.warn('calibration (sub) failed --- {} not generated'.format(img.psfsubdat))
                 self.cal_sub_failed.append(fl)
 
     def process_calibration(self, photsub_mode = False):
