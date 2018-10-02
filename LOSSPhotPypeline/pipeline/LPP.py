@@ -744,7 +744,7 @@ class LPP(object):
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            img = self.instance_list.loc[idx]
+            img = self.phot_instances.loc[idx]
 
             # read info and calculate limiting magnitude 
             with open(img.sky, 'r') as f:
