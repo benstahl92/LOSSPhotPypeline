@@ -11,6 +11,7 @@ import inspect
 
 # internal imports
 import LOSSPhotPypeline
+from LOSSPhotPypeline.image.FileNames import FileNames
 
 class FitsImage(object):
     '''basic fits image handling'''
