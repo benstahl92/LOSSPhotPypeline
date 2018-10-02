@@ -14,7 +14,7 @@ class Phot(FitsInfo):
 
     def __init__(self, name, radecfile = None, radec = None, quiet_idl = True, idl = None):
 
-        FitsInfo.__init__(self, name)
+        FitsInfo.__init__(self, name, autoload = True)
 
         self.radecfile = radecfile
         self.radec = radec

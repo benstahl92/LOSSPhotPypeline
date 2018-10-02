@@ -289,7 +289,7 @@ class FitsImage(object):
 class FitsInfo(FitsImage, FileNames):
     '''measure quantities from fits images'''
 
-    def __init__(self, name):
+    def __init__(self, name, autoload = False):
         '''instantiation instructions'''
 
         FitsImage.__init__(self,name)
@@ -300,7 +300,8 @@ class FitsInfo(FitsImage, FileNames):
         self.zeromag=0.0
         self.limitmag=0.0
 
-        self.get_quantities()
+        if autoload:
+            self.get_quantities()
 
     def get_quantities(self):
         '''calculate all quantities from fits image'''
