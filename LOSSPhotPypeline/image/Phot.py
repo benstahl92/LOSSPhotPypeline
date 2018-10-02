@@ -10,12 +10,11 @@ import pidly
 from LOSSPhotPypeline.image.FileNames import FileNames
 from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
-class Phot(FitsInfo, FileNames):
+class Phot(FitsInfo):
 
     def __init__(self, name, radecfile = None, radec = None, quiet_idl = True, idl = None):
 
         FitsInfo.__init__(self, name)
-        FileNames.__init__(self, name)
 
         self.radecfile = radecfile
         self.radec = radec
