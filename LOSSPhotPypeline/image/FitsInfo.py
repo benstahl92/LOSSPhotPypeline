@@ -285,13 +285,14 @@ class FitsImage(object):
             print('This method has not been developed yet, please do it!!!')
             return
 
-class FitsInfo(FitsImage):
+class FitsInfo(FitsImage, FileNames):
     '''measure quantities from fits images'''
 
     def __init__(self, name):
         '''instantiation instructions'''
 
         FitsImage.__init__(self,name)
+        FileNames.__init__(self, name)
 
         self.fwhm=0.0
         self.sky=0.0
