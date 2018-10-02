@@ -77,6 +77,7 @@ class LPP(object):
         self.first_obs = None
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.image_list = []
+        self.phot_instances = []
         self.phot_failed = []
         self.phot_sub_failed = []
         self.cal_failed = []
@@ -308,7 +309,7 @@ class LPP(object):
         vs.pop('steps')
         vs.pop('idl')
         vs.pop('log')
-        vs.pop('instances') # need to make sure to reload if needed
+        vs.pop('phot_instances') # need to make sure to reload if needed
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
         self.log.info('{} written'.format(self.savefile))
@@ -456,7 +457,7 @@ class LPP(object):
         self.log.info('image list loaded from {}'.format(self.photlistfile))
 
         self.log.info('generating list of Phot instances from image list')
-        self.instances = self.image_list.progress_apply(Phot, radec = self.radec)
+        self.phot_instances = self.image_list.progress_apply(Phot, radec = self.radec)
 
     def do_galaxy_subtraction_all_image(self, image_list = None):
         '''performs galaxy subtraction on all selected image files'''
@@ -503,7 +504,7 @@ class LPP(object):
         first_obs = None
         for idx, fl in tqdm(image_list.iteritems()):
             #c = Phot(fl, radec = self.radec)
-            img = self.instances.loc[idx]
+            img = self.phot_instances.loc[idx]
             with redirect_stdout(self.log):
                 #c.do_photometry(photsub = self.photsub, log = self.log)
                 img.do_photometry(photsub = self.photsub, log = self.log)
