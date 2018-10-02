@@ -341,7 +341,7 @@ class FitsInfo(FitsImage, FileNames):
         self.fwhm = np.median(res["FWHM_IMAGE"])
 
         # write nominal value if fwhm is still zero
-        if self.fwhm = 0:
+        if self.fwhm == 0:
             self.fwhm = nominal
 
         # set in the fits image
