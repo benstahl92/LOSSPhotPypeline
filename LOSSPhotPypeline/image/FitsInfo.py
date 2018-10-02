@@ -1,9 +1,16 @@
+# standard imports
 from astropy.io import fits
 from astropy.time import Time
 from astropy import wcs
+import numpy as np
 import os
 import re
 import math
+import sewpy
+import inspect
+
+# internal imports
+import LOSSPhotPypeline
 
 class FitsImage(object):
     '''basic fits image handling'''
@@ -15,8 +22,8 @@ class FitsImage(object):
         self.name=os.path.basename(name)
 
         # open fits file        
-        self.hdulist=fits.open(self.oriname)
-        self.hdulist[0].verify('fix')
+        self.hdulist=fits.open(self.oriname, mode = 'update')
+        self.hdulist[0].verify('fix+ignore')
 
         # basic information
         self.telescope=''
@@ -290,6 +297,58 @@ class FitsInfo(FitsImage):
         self.sky=0.0
         self.zeromag=0.0
         self.limitmag=0.0
+
+        self.get_quantities()
+
+    def get_quantities(self):
+        '''calculate all quantities from fits image'''
+
+        self.get_fwhm()
+
+    def get_fwhm(self, force = False):
+        '''runs SExtractor to determine and write fwhm file'''
+
+        # skip if already done unless forced to re-calculate
+        if (self.fwhm != 0) and (force is False):
+            return
+
+        # get paths to needed files
+        sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
+        filt = os.path.join(sxcp, 'gauss_2.0_5x5.conv')
+        par = os.path.join(sxcp, 'fwhm.par')
+        star = os.path.join(sxcp, 'default.nnw')
+
+        # set up configuration dictionary to override SExtractor defaults
+        cf = {'PARAMETERS_NAME': par,
+              'DETECT_MINAREA': 10,
+              'DETECT_THRESH': 3,
+              'ANALYSIS_THRESH': 3.5,
+              'FILTER_NAME': filt,
+              'DEBLEND_MINCOUNT': 0.0001,
+              'MASK_TYPE': 'NONE',
+              'SATUR_LEVEL': 36000.0,
+              'MAG_ZEROPOINT': 25.0,
+              'GAIN': 3,
+              'PIXEL_SCALE': 0.7965,
+              'SEEING_FWHM': 4.17,
+              'STARNNW_NAME': star,
+              'BACK_SIZE': 8,
+              'BACKPHOTO_THICK': 24,
+              'WEIGHT_TYPE': 'BACKGROUND',
+              'WEIGHT_GAIN': 'Y'}
+
+        # run SExtractor and get results
+        sew = sewpy.SEW(config = cf, configfilepath = sxcp)
+        res = sew(self.cimg)["table"]
+        self.fwhm = np.median(res["FWHM_IMAGE"])
+
+        # set in the fits image
+        self.hdulist[0].header['fwhm'] = self.fwhm
+        self.hdulist.flush(output_verify = 'ignore')
+
+        # write output txt file
+        with open(self.fwhm_fl, 'w') as f:
+            f.write('{:.3f}'.format(self.fwhm))
 
     def find_zeromag(self):
         '''determine zeromag photometry'''
