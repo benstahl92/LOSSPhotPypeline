@@ -382,7 +382,7 @@ class LPP(object):
         '''
         identifies all suitable stars in reference image
         computes ra & dec positions
-        writes radecfile
+        writes radecfile and loads into memory
         '''
 
         # if radecfile already exist, no need to do it
@@ -444,7 +444,7 @@ class LPP(object):
         self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
     def get_images(self):
-        '''reads and optionally prints image list'''
+        '''reads image list file to generate lists of file names and Phot instances'''
 
         self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
                                       comment = '#', squeeze = True)
