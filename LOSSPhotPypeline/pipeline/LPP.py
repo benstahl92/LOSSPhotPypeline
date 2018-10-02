@@ -30,6 +30,9 @@ import LOSSPhotPypeline
 import LOSSPhotPypeline.utils as LPPu
 from LOSSPhotPypeline.image import Phot, FitsInfo, FileNames
 
+# setup tqdm for pandas
+tqdm.pandas()
+
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
@@ -72,7 +75,6 @@ class LPP(object):
         self.filter_set = None
         self.filter_set_sub = None
         self.first_obs = None
-        self.image_list = []
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.image_list = []
         self.phot_failed = []
@@ -130,8 +132,8 @@ class LPP(object):
 
         # steps in standard reduction procedure
         self.current_step = 0
-        self.steps = [self.get_image_list,
-                      self.find_ref_stars,
+        self.steps = [self.find_ref_stars,
+                      self.get_images,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.do_calibration,
@@ -373,20 +375,6 @@ class LPP(object):
     #          Reduction Pipeline Methods
     ###################################################################################################
 
-    def get_image_list(self):
-        '''reads and optionally prints image list'''
-
-        self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
-                                      comment = '#', squeeze = True)
-
-        if self.interactive:
-            print('\nSelected image files')
-            print('*'*60 + '\n')
-            print(self.image_list)
-            print('\n')
-
-        self.log.info('image list loaded from {}'.format(self.photlistfile))
-
     def find_ref_stars(self):
         '''
         identifies all suitable stars in reference image
@@ -451,6 +439,23 @@ class LPP(object):
                 f.write('   {:.7f}  {:.7f}\n'.format(imagera[i], imagedec[i]))
         self.log.info('{} written'.format(self.radecfile))
         self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
+
+    def get_images(self):
+        '''reads and optionally prints image list'''
+
+        self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
+                                      comment = '#', squeeze = True)
+
+        if self.interactive:
+            print('\nSelected image files')
+            print('*'*60 + '\n')
+            print(self.image_list)
+            print('\n')
+
+        self.log.info('image list loaded from {}'.format(self.photlistfile))
+
+        self.log.info('generating list of Phot instances from image list')
+        self.instances = self.image_list.progress_apply(Phot, radec = self.radec)
 
     def do_galaxy_subtraction_all_image(self, image_list = None):
         '''performs galaxy subtraction on all selected image files'''
