@@ -91,7 +91,7 @@ class LPP(object):
         self.cal_nat_fit=''
         self.force_calfit_file = force_calfit_file
         if force_calfit_file is not False:
-            self.force_calfit(force_calfit_file)
+            self._force_calfit(force_calfit_file)
 
         # load configuration file
         loaded = False
@@ -201,7 +201,7 @@ class LPP(object):
         self.photlistfile = conf['photlistfile']
 
         if '.fit' in conf['forcecalfit']:
-            self.force_calfit(conf['forcecalfit'])
+            self._force_calfit(conf['forcecalfit'])
 
         self.log.info('{} loaded'.format(self.config_file))
 
@@ -309,7 +309,7 @@ class LPP(object):
         vs.pop('steps')
         vs.pop('idl')
         vs.pop('log')
-        vs.pop('phot_instances') # need to make sure to reload if needed
+        vs.pop('phot_instances')
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
         self.log.info('{} written'.format(self.savefile))
@@ -323,6 +323,7 @@ class LPP(object):
         for v in vs.keys():
             s = 'self.{} = vs["{}"]'.format(v, v)
             exec(s)
+        self.phot_instances = self._im2inst(self.image_list, mode = 'quiet')
         self.log.info('{} loaded'.format(savefile))
         self.summary()
 
@@ -457,7 +458,7 @@ class LPP(object):
         self.log.info('image list loaded from {}'.format(self.photlistfile))
 
         self.log.info('generating list of Phot instances from image list')
-        self.phot_instances = self.image_list.progress_apply(Phot, radec = self.radec, idl = self.idl)
+        self.phot_instances = self._im2inst(self.image_list)
 
     def do_galaxy_subtraction_all_image(self, image_list = None):
         '''performs galaxy subtraction on all selected image files'''
@@ -1037,7 +1038,15 @@ class LPP(object):
             p = LPPu.plotLC(lc_file = fl)
             p.plot_lc(icut = True)
 
-    def force_calfit(self, calfit):
+    def _force_calfit(self, calfit):
         '''sets instance attributes appropriatetly to force use of a specified calibration .fit fil'''
         self.force_calfit_file = calfit
         self.cal_nat_fit = self.force_calfit_file
+
+    def _im2inst(self, image_list, mode = 'progress'):
+        '''create a series of Phot instances from input image list (also a series)'''
+
+        if mode != 'quiet':
+            return image_list.progress_apply(Phot, radec = self.radec, idl = self.idl)
+        else:
+            return image_list.apply(Phot, radec = self.radec, idl = self.idl)
