@@ -617,7 +617,7 @@ class LPP(object):
         IDs = cal['starID'] + 2
 
         # iterate through files and store photometry into data structure
-        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
+        for idx, fl in tqdm(self.image_list.iteritems(), total = len(self.image_list)):
 
             # skip failed images
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
