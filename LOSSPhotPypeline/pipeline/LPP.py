@@ -583,6 +583,9 @@ class LPP(object):
                     do_photsub = False
                 self.idl.pro('lpp_cal_instrumag', fl, img.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
                               photsub = do_photsub, output = True)
+                # also get zero value
+                img.get_zero()
+
             # check for success
             if os.path.exists(img.psfdat) is False:
                 self.log.warn('calibration failed --- {} not generated'.format(img.psfdat))
@@ -740,12 +743,13 @@ class LPP(object):
                 continue
 
             img = self.phot_instances.loc[idx]
+            img.calc_limmag()
 
             # read info and calculate limiting magnitude 
-            with open(img.skytxt, 'r') as f:
-                sky = float(f.read())
-            with open(img.zerotxt, 'r') as f:
-                zero = float(f.read())
+            #with open(img.skytxt, 'r') as f:
+            #    sky = float(f.read())
+            #with open(img.zerotxt, 'r') as f:
+            #    zero = float(f.read())
 
             # read photometry results
             cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.photmethod), ())
@@ -772,7 +776,7 @@ class LPP(object):
                 lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
                 lcs[m]['filter'].append(img.filter)
                 lcs[m]['imagename'].append(fl)
-                lcs[m]['limmag'].append(round(-2.5*np.log10(3*sky) + zero, 5))
+                lcs[m]['limmag'].append(round(img.limmag, 5))
                 if 1 not in d['ID'].values:
                     mag = np.nan
                     err = np.nan

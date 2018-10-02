@@ -44,13 +44,18 @@ class Phot(FitsInfo):
         performs aperture/psf photometry by running shell scripts to generate needed files then wrapping an IDL procedure
         '''
 
+        # do necessary pre-steps
+        self.get_fwhm()
         self.gen_obj_fl()
 
         # run idl photometry routine
         if not photsub:
-            self.idl.pro('lpp_phot_psf', self.cimg, exposures = self.exptime, savesky = True, output = True)
+            self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, output = True)
         else:
-            self.idl.pro('lpp_phot_psf', self.cimg, exposures = self.exptime, savesky = True, photsub = True, output = True)
+            self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, photsub = True, output = True)
+
+        # get sky value as post-step
+        self.get_sky()
 
     def galaxy_subtract(self, template_images):
 
