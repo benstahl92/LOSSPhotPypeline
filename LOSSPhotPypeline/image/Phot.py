@@ -39,24 +39,18 @@ class Phot(FitsInfo):
         imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1)
         pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
 
-    def do_photometry(self, method = 'psf', photsub = False, log = None):
+    def do_photometry(self, photsub = False, log = None):
         '''
         performs aperture/psf photometry by running shell scripts to generate needed files then wrapping an IDL procedure
         '''
 
         self.gen_obj_fl()
 
-        # select photometry method
-        if 'psf' in method.lower():
-            cmd = 'lpp_phot_psf'
-        else:
-            cmd = 'lpp_phot_apt'
-
         # run idl photometry routine
         if not photsub:
-            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True, output = True)
+            self.idl.pro('lpp_phot_psf', self.cimg, exposures = self.exptime, savesky = True, output = True)
         else:
-            self.idl.pro(cmd, self.cimg, exposures = self.exptime, savesky = True, photsub = True, output = True)
+            self.idl.pro('lpp_phot_psf', self.cimg, exposures = self.exptime, savesky = True, photsub = True, output = True)
 
     def galaxy_subtract(self, template_images):
 

@@ -59,7 +59,6 @@ class LPP(object):
         self.targetra = None
         self.targetdec = None
         self.photsub = False
-        self.calmethod = '3.5p'
         self.photmethod = 'all'
         self.refname=''
         self.photlistfile=''
@@ -76,6 +75,7 @@ class LPP(object):
         self.filter_set_sub = None
         self.first_obs = None
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
+        self.calmethod = 'psf' # can be set to any key in phot_cols, but recommended is 'psf'
         self.image_list = []
         self.phot_instances = []
         self.phot_failed = []
@@ -177,8 +177,6 @@ class LPP(object):
             self.photsub = True 
         if conf['calsource'].lower() in ['psf','sdss','apass']: # only set if a known source is specified
             self.cal_source = conf['calsource'].lower() 
-        if conf['calmethod'].lower == 'psf': # defaults to '3.5p' in all other cases
-            self.calmethod = 'psf'
         if conf['photmethod'].lower() == 'all':
             self.photmethod = list(self.phot_cols.keys())
         elif ',' not in conf['photmethod'].lower():
