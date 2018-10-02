@@ -503,10 +503,8 @@ class LPP(object):
         # also determine date of first observation since already touching each file
         first_obs = None
         for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
-            #c = Phot(fl, radec = self.radec)
             img = self.phot_instances.loc[idx]
             with redirect_stdout(self.log):
-                #c.do_photometry(photsub = self.photsub, log = self.log)
                 img.do_photometry(photsub = self.photsub, log = self.log)
             if (first_obs is None) or (img.mjd < first_obs):
                 first_obs = img.mjd
@@ -567,7 +565,6 @@ class LPP(object):
                 continue
 
             # instantiate file object
-            #fl_obj = Phot(fl)
             img = self.phot_instances.loc[idx]
 
             # get color term and enforce only one color term per run if not forced
@@ -620,7 +617,7 @@ class LPP(object):
         IDs = cal['starID'] + 2
 
         # iterate through files and store photometry into data structure
-        for fl in tqdm(self.image_list):
+        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
 
             # skip failed images
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
@@ -630,8 +627,8 @@ class LPP(object):
             if fl in self.cal_failed:
                 continue
 
-            fl_obj = Phot(fl)
-            filt = fl_obj.filter.upper()
+            img = self.phot_instances.loc[idx]
+            filt = img.filter.upper()
 
             # add second level dictionary if needed
             if filt not in results.keys():
@@ -640,7 +637,7 @@ class LPP(object):
             # read file (using selected columns corresponding to desired photometry method(s))
             cols = (0,) + tuple((self.phot_cols[m] for m in self.photmethod))
             col_names = ('id',) + tuple((m for m in self.photmethod))
-            d = pd.read_csv(fl_obj.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
+            d = pd.read_csv(img.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
 
             # populate results dict from file
             for idx, row in d.iterrows():
@@ -735,7 +732,7 @@ class LPP(object):
         has_filt = np.array([False] * len(self.filter_set_ref))
 
         # iterate through files and extract LC information
-        for fl in tqdm(self.image_list):
+        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
 
             # skip failed images (some checks here should be redundant)
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
@@ -747,12 +744,12 @@ class LPP(object):
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            fl_obj = Phot(fl)
+            img = self.instance_list.loc[idx]
 
             # read info and calculate limiting magnitude 
-            with open(fl_obj.sky, 'r') as f:
+            with open(img.sky, 'r') as f:
                 sky = float(f.read())
-            with open(fl_obj.zero, 'r') as f:
+            with open(img.zero, 'r') as f:
                 zero = float(f.read())
 
             # read photometry results
@@ -760,9 +757,9 @@ class LPP(object):
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.photmethod), ())
 
             if photsub_mode is False:
-                dat = fl_obj.psfdat
+                dat = img.psfdat
             else:
-                dat = fl_obj.psfsubdat
+                dat = img.psfsubdat
 
             d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names)
 
@@ -773,12 +770,12 @@ class LPP(object):
                 else:
                     self.no_obj_sub.append(fl)
             else:
-                has_filt[np.array(self.filter_set_ref) == fl_obj.filter.upper()] = True
+                has_filt[np.array(self.filter_set_ref) == img.filter.upper()] = True
 
             for m in self.photmethod:
-                lcs[m][';; MJD'].append(round(fl_obj.mjd, 6))
-                lcs[m]['etburst'].append(round(fl_obj.exptime / (60 * 24), 5)) # exposure time in days
-                lcs[m]['filter'].append(fl_obj.filter)
+                lcs[m][';; MJD'].append(round(img.mjd, 6))
+                lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
+                lcs[m]['filter'].append(img.filter)
                 lcs[m]['imagename'].append(fl)
                 lcs[m]['limmag'].append(round(-2.5*np.log10(3*sky) + zero, 5))
                 if 1 not in d['ID'].values:
