@@ -31,9 +31,9 @@ class Phot(FitsInfo, FileNames):
             self.idl = idl
         else:
             self.idl = pidly.IDL()
-        if quiet_idl:
-            self.idl('!quiet = 1')
-            self.idl('!except = 0')
+            if quiet_idl:
+                self.idl('!quiet = 1')
+                self.idl('!except = 0')
 
     def get_fwhm(self):
         '''runs SExtractor to determine and write fwhm file'''
@@ -88,8 +88,9 @@ class Phot(FitsInfo, FileNames):
         # generate obj file
 
         # convert to pixel coordinates in current image and save
-        with fits.open(self.cimg) as im:
-            cs = WCS(header=im[0].header)
+        #with fits.open(self.cimg) as im:
+        #    cs = WCS(header=im[0].header)
+        cs = WCS(header = self.hdulist[0].header)
         imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1) # may need to manually remove points that are nan
         pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
 

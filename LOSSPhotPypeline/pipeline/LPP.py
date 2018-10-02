@@ -732,7 +732,7 @@ class LPP(object):
         has_filt = np.array([False] * len(self.filter_set_ref))
 
         # iterate through files and extract LC information
-        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
+        for idx, fl in tqdm(self.image_list.iteritems(), total = len(self.image_list)):
 
             # skip failed images (some checks here should be redundant)
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
