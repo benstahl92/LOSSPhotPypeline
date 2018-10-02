@@ -747,9 +747,9 @@ class LPP(object):
             img = self.phot_instances.loc[idx]
 
             # read info and calculate limiting magnitude 
-            with open(img.sky, 'r') as f:
+            with open(img.skytxt, 'r') as f:
                 sky = float(f.read())
-            with open(img.zero, 'r') as f:
+            with open(img.zerotxt, 'r') as f:
                 zero = float(f.read())
 
             # read photometry results
