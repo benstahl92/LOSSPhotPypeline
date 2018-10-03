@@ -23,9 +23,10 @@ class FitsImage(object):
         self.name=os.path.basename(name)
 
         # open fits file        
-        #self.hdulist=fits.open(self.oriname, mode = 'update', memmap = False)
-        #self.hdulist[0].verify('fix+ignore')
-        self.header = fits.getheader(self.oriname, verify = 'fix+ignore')
+        hdulist=fits.open(self.oriname)
+        hdulist[0].verify('fix+ignore')
+        self.header = hdulist[0].header
+        hdulist.close()
 
         # basic information
         self.telescope=''
@@ -336,18 +337,19 @@ class FitsInfo(FitsImage, FileNames):
               'WEIGHT_TYPE': 'BACKGROUND',
               'WEIGHT_GAIN': 'Y'}
 
-        # run SExtractor and get results
+        # run SExtractor and get results, write nominal val if failed
         sew = sewpy.SEW(config = cf, configfilepath = sxcp)
         res = sew(self.cimg)["table"]
-        self.fwhm = np.median(res["FWHM_IMAGE"])
+        if len(res) == 0:
+            self.fwhm = nominal
+        else:
+            self.fwhm = np.median(res["FWHM_IMAGE"])
 
-        # write nominal value if fwhm is still zero
+        # if somehow still zero, write nominal value
         if self.fwhm == 0:
             self.fwhm = nominal
 
         # set in the fits image
-        #self.header['FWHM'] = self.fwhm
-        #self.hdulist.flush(output_verify = 'ignore')
         self.write_header('FWHM', self.fwhm)
 
     def get_zeromag(self):
@@ -386,7 +388,5 @@ class FitsInfo(FitsImage, FileNames):
         hdul = fits.open(self.oriname, mode = 'update', memmap = False)
         hdul[0].verify('fix+ignore')
         hdul[0].header[keyword] = value
-        hdul.flush(output_verify = True)
+        hdul.flush(output_verify = 'ignore')
         hdul.close()
-            
-
