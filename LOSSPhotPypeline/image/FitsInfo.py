@@ -25,7 +25,7 @@ class FitsImage(object):
         # open fits file        
         #self.hdulist=fits.open(self.oriname, mode = 'update', memmap = False)
         #self.hdulist[0].verify('fix+ignore')
-        self.header = fits.getheader(self.oriname)
+        self.header = fits.getheader(self.oriname, verify = 'fix+ignore')
 
         # basic information
         self.telescope=''
@@ -377,14 +377,14 @@ class FitsInfo(FitsImage, FileNames):
 
         if (self.zero != 0) and (self.sky != 0):
            self.limmag = -2.5*np.log10(3*sky.sky) + sky.zero
-
         else:
             print('zero and sky are not yet determined, cannot calculate limiting mag')
 
     def write_header(self, keyword, value):
         '''write header (fits.setval fails, but would do the same thing)'''
 
-        hdul = fits.open(self.oriname, mode = 'update', memmap = False):
+        hdul = fits.open(self.oriname, mode = 'update', memmap = False)
+        hdul[0].verify('fix+ignore')
         hdul[0].header[keyword] = value
         hdul.flush(output_verify = True)
         hdul.close()
