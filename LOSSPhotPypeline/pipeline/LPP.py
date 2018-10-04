@@ -1045,6 +1045,6 @@ class LPP(object):
         '''create a series of Phot instances from input image list (also a series)'''
 
         if mode != 'quiet':
-            return image_list.progress_apply(Phot, radec = self.radec, idl = self.idl)
+            return image_list.progress_apply(Phot, radec = self.radec)#, idl = self.idl)
         else:
-            return image_list.apply(Phot, radec = self.radec, idl = self.idl)
+            return image_list.apply(Phot, radec = self.radec)#, idl = self.idl)

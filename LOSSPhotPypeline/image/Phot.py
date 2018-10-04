@@ -4,7 +4,9 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 import os
-import pidly
+import shlex
+import subprocess
+#import pidly
 
 # internal imports
 from LOSSPhotPypeline.image.FileNames import FileNames
@@ -12,7 +14,7 @@ from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
 class Phot(FitsInfo):
 
-    def __init__(self, name, radecfile = None, radec = None, quiet_idl = True, idl = None):
+    def __init__(self, name, radecfile = None, radec = None)#, quiet_idl = True, idl = None):
 
         FitsInfo.__init__(self, name)
 
@@ -23,13 +25,13 @@ class Phot(FitsInfo):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
         # setup idl
-        if type(idl) is pidly.IDL:
-            self.idl = idl
-        else:
-            self.idl = pidly.IDL()
-            if quiet_idl:
-                self.idl('!quiet = 1')
-                self.idl('!except = 0')
+        #if type(idl) is pidly.IDL:
+        #    self.idl = idl
+        #else:
+        #    self.idl = pidly.IDL()
+        #    if quiet_idl:
+        #        self.idl('!quiet = 1')
+        #        self.idl('!except = 0')
 
     def gen_obj_fl(self):
         '''generates obj file'''
@@ -48,11 +50,22 @@ class Phot(FitsInfo):
         self.get_fwhm()
         self.gen_obj_fl()
 
-        # run idl photometry routine
-        if not photsub:
-            self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, output = True)
+        # formulate and run idl command
+        if photsub is False:
+            ps = ''
         else:
-            self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, photsub = True, output = True)
+            ps = '/PHOTSUB, '
+        idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, ps, self.exptime)
+        p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        if log is not None:
+            log.debug(p.communicate())
+        del p
+
+        # run idl photometry routine
+        #if not photsub:
+        #    self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, output = True)
+        #else:
+        #    self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, photsub = True, output = True)
 
         # get sky value as post-step
         self.get_sky()
@@ -66,7 +79,10 @@ class Phot(FitsInfo):
             return
 
         # execute idl commmand
-        self.idl.pro(cmd, self.cimg, template_images[self.filter], output = True)
+        idl_cmd = '''idl -e "{}, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[self.filter])
+        p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        del p
+        #self.idl.pro(cmd, self.cimg, template_images[self.filter], output = True)
 
         # might want to add interactivity here to check the subtraction
 
