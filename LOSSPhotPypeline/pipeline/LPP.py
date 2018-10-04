@@ -588,7 +588,7 @@ class LPP(object):
                 self.idl.pro('lpp_cal_instrumag', fl, img.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
                               photsub = do_photsub, output = True)
                 # also get zero value
-                img.get_zero()
+                img.get_zeromag()
 
             # check for success
             if os.path.exists(img.psfdat) is False:
