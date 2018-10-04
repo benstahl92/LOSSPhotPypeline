@@ -63,7 +63,7 @@ class FitsImage(object):
         self.corner4Dec=0.0
 
         # color term
-        self.color term
+        self.color_term = None
 
         self.extract_info()
         self.get_color_term()
@@ -309,9 +309,9 @@ class FitsImage(object):
         elif self.telescope == 'Nickel':
             tel = 'nickel'
             if self.mjd < 54845.0: # mjd of 2009-01-14
-                tel += 1
+                tel += '1'
             else:
-                tel += 2
+                tel += '2'
         else:
             tel = None
 

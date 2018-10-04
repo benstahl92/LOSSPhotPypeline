@@ -90,6 +90,17 @@ class LPP(object):
         self.calfile_use=''
         self.force_color_term = force_color_term
 
+        # calibration variables
+        self.calibration_dir = 'calibration'
+        if not os.path.isdir(self.calibration_dir):
+            os.makedirs(self.calibration_dir)
+        self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
+        #self.color_term = LPPu.get_color_term(self.refname)
+        # keep track of counts of color terms
+        self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
+                            'nickel1': 0, 'nickel2': 0,
+                            'Landolt': 0}
+
         # load configuration file
         loaded = False
         while not loaded:
@@ -104,17 +115,6 @@ class LPP(object):
                     return
                 else:
                     self.config_file = response
-
-        # calibration variables
-        self.calibration_dir = 'calibration'
-        if not os.path.isdir(self.calibration_dir):
-            os.makedirs(self.calibration_dir)
-        self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
-        #self.color_term = LPPu.get_color_term(self.refname)
-        # keep track of counts of color terms
-        self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
-                            'nickel1': 0, 'nickel2':,
-                            'Landolt': 0}
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
@@ -540,6 +540,9 @@ class LPP(object):
         else:
             self.log.info('using argument supplied image list')
 
+        # reset color term counts
+        self.color_terms = {key: 0 for key in self.color_terms.keys()}
+
         # check for calibration data and download if it doesn't exist yet
         if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
@@ -728,7 +731,7 @@ class LPP(object):
 
         self.log.info('full calibration sequence completed')
 
-    def generate_raw_lcs(self, color_term, photsub_mode = False, color_term = None):
+    def generate_raw_lcs(self, photsub_mode = False, color_term = None):
         '''builds raw light curve files from calibrated results'''
 
         self.log.info('generating raw lightcurve(s)')
@@ -748,8 +751,8 @@ class LPP(object):
 
             img = self.phot_instances.loc[idx]
 
-            # immediately skip if not the appropriate color term
-            if (color_term != None) and (color_term != img.color_term):
+            # immediately skip if not the appropriate color term unless being forced
+            if (color_term != None) and (color_term != img.color_term) and (self.force_color_term is False):
                 continue
 
             # skip failed images (some checks here should be redundant)
@@ -850,14 +853,14 @@ class LPP(object):
 
         self.log.info('grouped light curve(s) generated')
 
-    def generate_final_lc(self, color_term = None, lc_table = None):
+    def generate_final_lc(self, color_term, lc_table = None):
         '''wraps IDL routine to convert to natural system'''
 
         if lc_table is None:
             lc_table = self.lc_group
 
         with redirect_stdout(self.log):
-            self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc, output = True)
+            self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, color_term, outfile = self.lc, output = True)
             if self.photsub is True:
                 self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, color_term, outfile = self.lc_sub, output = True)
 
@@ -872,15 +875,15 @@ class LPP(object):
         self.lc_base = os.path.join(self.lc_dir, 'lightcurve_{}_'.format(self.targetname))
 
         # run through all lc routines for all apertures, with all color terms used
-        for ct in {key: self.color_terms[key] for in self.color_terms.keys() if self.color_terms[key] > 0}:
+        for ct in {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}:
             self.generate_raw_lcs(color_term = ct)
             if self.photsub is True:
-                self.generate_raw_lcs(photsub_mode = Truecolor_term = ct)
+                self.generate_raw_lcs(photsub_mode = True, color_term = ct)
             for m in self.photmethod:
                 self.lc_raw = self.lc_base + ct + '_' + m + '_natural_raw.dat'
                 self.lc_bin = self.lc_base + ct + '_' + m + '_natural_bin.dat'
                 self.lc_group = self.lc_base + ct + '_' + m + '_natural_group.dat'
-                self.lc = self.lc_base + m + ct + '_' + '_standard.dat'
+                self.lc = self.lc_base + ct + '_' + m + '_standard.dat'
                 if self.photsub is True:
                     self.lc_raw_sub = self.lc_base + ct + '_' + m + '_natural_raw_sub.dat'
                     self.lc_bin_sub = self.lc_base + ct + '_' + m + '_natural_bin_sub.dat'

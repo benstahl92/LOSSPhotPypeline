@@ -35,7 +35,7 @@ class Phot(FitsInfo):
         '''generates obj file'''
 
         # convert to pixel coordinates in current image and save
-        cs = WCS(header = self.hdulist[0].header)
+        cs = WCS(header = self.header)
         imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1)
         pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
 
