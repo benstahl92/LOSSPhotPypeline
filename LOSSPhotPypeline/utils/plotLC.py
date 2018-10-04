@@ -179,9 +179,7 @@ class plotLC:
             should either be a "raw" or "standard" file for LOSSPhotPypeline
         '''
 
-        if 'cut' in lc_file: # checked first b/c others will appear with
-            self._load_cut(lc_file)
-        elif 'standard' in lc_file:
+        if 'standard' in lc_file:
             self._load_standard(lc_file)
         elif 'raw' in lc_file:
             self._load_raw(lc_file)
@@ -241,7 +239,8 @@ class plotLC:
             ax.set_title(self.lc_file)
         return fig, ax
 
-    def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False, magerr_cut = 2, fname = None):
+    def plot_lc(self, lc = None, style = None, context = None, return_fig = False, icut = False, magerr_cut = 2,
+                fname = None, extensions = ['.png']):
         '''
         Plots light curve.
 
@@ -261,6 +260,8 @@ class plotLC:
             cutoff on magnitude error above which points are cut (forced if icut is False, proposed otherwise)
         fname : str, optional, default: None
             name of file to write plot to
+        extensions : list, optional: default: ['.png']
+            extensions to write image files
         '''
 
         # set plot attributes
@@ -329,7 +330,7 @@ class plotLC:
         if icut is True:
             self._drop_lc_points(drop_dict)
             self.write_cut_lc()
-            self.plot_lc(lc = self.lc_cut, fname = self.lc_file.replace('.dat', '_cut.ps'), magerr_cut = False)
+            self.plot_lc(lc = self.lc_cut, magerr_cut = False, extensions = ['_cut{}'.format(ext) for ext in extensions])
         else:
             # workaround for bugs with the legend
             handles, labels = ax.get_legend_handles_labels()
@@ -339,7 +340,10 @@ class plotLC:
                 return fig, ax
             else:
                 if fname is None:
-                    fname = self.lc_file.replace('.dat', '.ps')
-                plt.savefig(fname, bbox_inches = 'tight')
+                    for ext in extensions:
+                        fname = self.lc_file.replace('.dat', ext)
+                        plt.savefig(fname, bbox_inches = 'tight')
+                else:
+                    plt.savefig(fname, bbox_inches = 'tight')
                 plt.clf()
                 plt.close()

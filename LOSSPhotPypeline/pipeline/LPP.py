@@ -270,6 +270,7 @@ class LPP(object):
             print('\nadditional options:')
             print('n  --- add new image(s) by filename(s)')
             print('nf --- add new images from file of names')
+            print('p  --- plot light curve from file')
             print('c  --- cut points from specific light curve')
             print('cr --- cut points from raw light curves')
             print('cs --- cut points from standard light curves')
@@ -285,6 +286,9 @@ class LPP(object):
             elif 'nf' == resp:
                 new_image_file = input('enter name of new image file > ')
                 self.process_new_images(new_image_file = new_image_file)
+            elif 'p' == resp:
+                lc_file = input('enter light curve file (including relative path) to plot > ')
+                self.plot_lc([lc_file])
             elif 'c' == resp:
                 lc_file = input('enter light curve file (including relative path) to cut points from > ')
                 self.cut_lc_points([lc_file])
@@ -803,7 +807,7 @@ class LPP(object):
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
-            p.plot_lc()
+            p.plot_lc(extensions = ['.ps', '.png'])
 
         self.log.info('raw light curves generated')
 
@@ -872,10 +876,10 @@ class LPP(object):
             self.generate_group_lc()
             self.generate_final_lc()
             p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m)
-            p.plot_lc()
+            p.plot_lc(extensions = ['.ps', '.png'])
             if self.photsub is True:
                 p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m)
-                p.plot_lc()
+                p.plot_lc(extensions = ['.ps', '.png'])
 
     ###################################################################################################
     #          Utility Methods
@@ -1034,7 +1038,15 @@ class LPP(object):
         for fl in lc_list:
             self.log.info('working on {}'.format(fl))
             p = LPPu.plotLC(lc_file = fl)
-            p.plot_lc(icut = True)
+            p.plot_lc(icut = True, extensions = ['.ps', '.png'])
+
+    def plot_lc(self, lc_list):
+        '''plots each light curve from the input list'''
+
+        for fl in lc_list:
+            self.log.info('plotting {}'.format(fl))
+            p = LPPu.plotLC(lc_file = fl)
+            p.plot_lc(extensions = ['.ps', '.png'])
 
     def _force_calfit(self, calfit):
         '''sets instance attributes appropriatetly to force use of a specified calibration .fit fil'''
