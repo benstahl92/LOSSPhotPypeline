@@ -62,7 +62,11 @@ class FitsImage(object):
         self.corner4Ra=0.0
         self.corner4Dec=0.0
 
+        # color term
+        self.color term
+
         self.extract_info()
+        self.get_color_term()
 
     def extract_info(self):
         '''extract basic fits information'''
@@ -287,6 +291,31 @@ class FitsImage(object):
         else :
             print('This method has not been developed yet, please do it!!!')
             return
+
+    def get_color_term(self):
+        '''determine the the color term appropriate for the image'''
+
+        # select color term based on telescope and date
+        if self.telescope == 'kait':
+            tel = 'kait'
+            if self.mjd < 51229.0: # mjd of 1999-02-20
+                tel += '1'
+            elif self.mjd < 52163.0: # mjd of 2001-09-11
+                tel += '2'
+            elif self.mjd < 54232.0: # mjd of 2007-05-12
+                tel += '3'
+            else:
+                tel += '4'
+        elif self.telescope == 'Nickel':
+            tel = 'nickel'
+            if self.mjd < 54845.0: # mjd of 2009-01-14
+                tel += 1
+            else:
+                tel += 2
+        else:
+            tel = None
+
+        self.color_term = tel
 
 class FitsInfo(FitsImage, FileNames):
     '''measure quantities from fits images'''

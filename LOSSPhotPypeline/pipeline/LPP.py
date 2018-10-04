@@ -36,7 +36,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20, force_calfit_file = False):
+    def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20, force_color_term = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -88,10 +88,7 @@ class LPP(object):
         self.cal_source = 'auto'
         self.calfile=''
         self.calfile_use=''
-        self.cal_nat_fit=''
-        self.force_calfit_file = force_calfit_file
-        if force_calfit_file is not False:
-            self._force_calfit(force_calfit_file)
+        self.force_color_term = force_color_term
 
         # load configuration file
         loaded = False
@@ -113,7 +110,11 @@ class LPP(object):
         if not os.path.isdir(self.calibration_dir):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
-        self.color_term = LPPu.get_color_term(self.refname)
+        #self.color_term = LPPu.get_color_term(self.refname)
+        # keep track of counts of color terms
+        self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
+                            'nickel1': 0, 'nickel2':,
+                            'Landolt': 0}
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
@@ -198,8 +199,8 @@ class LPP(object):
         self.refname = conf['refname']
         self.photlistfile = conf['photlistfile']
 
-        if '.fit' in conf['forcecalfit']:
-            self._force_calfit(conf['forcecalfit'])
+        if conf['forcecolorterm'].strip() in self.color_terms.keys():
+            self.force_color_term = conf['forcecolorterm'].strip()
 
         self.log.info('{} loaded'.format(self.config_file))
 
@@ -571,13 +572,14 @@ class LPP(object):
             img = self.phot_instances.loc[idx]
 
             # get color term and enforce only one color term per run if not forced
-            if self.force_calfit_file is False:
-                tel = LPPu.get_color_term(fl)
-                if self.color_term is not None:
-                    assert self.color_term == tel
-                self.color_term = tel
-                base = self.calfile.split('.')[0]
-                self.cal_nat_fit = base + '_{}_natural.fit'.format(self.color_term)
+            if self.force_color_term is False:
+                #tel = LPPu.get_color_term(fl)
+                #if self.color_term is not None:
+                #   assert self.color_term == tel
+                #self.color_term = tel
+                self.color_terms[img.color_term] += 1
+            else:
+                self.color_terms[self.force_color_term] += 1
 
             # execute idl calibration procedure
             with redirect_stdout(self.log):
@@ -585,7 +587,7 @@ class LPP(object):
                 do_photsub = self.photsub
                 if (self.photsub is True) and (fl in self.phot_sub_failed):
                     do_photsub = False
-                self.idl.pro('lpp_cal_instrumag', fl, img.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self.cal_nat_fit),
+                self.idl.pro('lpp_cal_instrumag', fl, img.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self._ct2cf(img.color_term)),
                               photsub = do_photsub, output = True)
                 # also get zero value
                 img.get_zeromag()
@@ -658,7 +660,10 @@ class LPP(object):
         # compute summary results, thereby allowing for cuts to be made
         # also include calibration magnitudes and differences
 
-        im = fits.open(os.path.join(self.calibration_dir, self.cal_nat_fit.replace('_{}_'.format(self.cal_source), '_{}_use_'.format(self.cal_source))))
+        # use "use" calfit file with color term that represents the most images
+        ct = max(self.color_terms, key = lambda k: self.color_terms[k])
+        cf = self._ct2cf(ct, use = True)
+        im = fits.open(os.path.join(self.calibration_dir, cf))
         accept_tol = False
         while not accept_tol:
             summary_results = {}
@@ -723,7 +728,7 @@ class LPP(object):
 
         self.log.info('full calibration sequence completed')
 
-    def generate_raw_lcs(self, photsub_mode = False):
+    def generate_raw_lcs(self, color_term, photsub_mode = False, color_term = None):
         '''builds raw light curve files from calibrated results'''
 
         self.log.info('generating raw lightcurve(s)')
@@ -733,8 +738,19 @@ class LPP(object):
         lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
         has_filt = np.array([False] * len(self.filter_set_ref))
 
+        if color_term is None:
+            iter_len = len(self.image_list)
+        else:
+            iter_len = self.color_terms[color_term]
+
         # iterate through files and extract LC information
-        for idx, fl in tqdm(self.image_list.iteritems(), total = len(self.image_list)):
+        for idx, fl in tqdm(self.image_list.iteritems(), total = iter_len):
+
+            img = self.phot_instances.loc[idx]
+
+            # immediately skip if not the appropriate color term
+            if (color_term != None) and (color_term != img.color_term):
+                continue
 
             # skip failed images (some checks here should be redundant)
             if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
@@ -746,14 +762,7 @@ class LPP(object):
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            img = self.phot_instances.loc[idx]
             img.calc_limmag()
-
-            # read info and calculate limiting magnitude 
-            #with open(img.skytxt, 'r') as f:
-            #    sky = float(f.read())
-            #with open(img.zerotxt, 'r') as f:
-            #    zero = float(f.read())
 
             # read photometry results
             cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.photmethod), ())
@@ -798,11 +807,15 @@ class LPP(object):
             self.filter_set_sub = tmp
 
         for m in self.photmethod:
+            if color_term is None:
+                comp = ''
+            else:
+                comp = color_term + '_'
             if photsub_mode is False:
-                lc_raw_name = self.lc_base + m + '_natural_raw.dat'
+                lc_raw_name = self.lc_base + comp + m + '_natural_raw.dat'
                 filter_set = self.filter_set
             else:
-                lc_raw_name = self.lc_base + m + '_natural_raw_sub.dat'
+                lc_raw_name = self.lc_base + comp + m + '_natural_raw_sub.dat'
                 filter_set = self.filter_set_sub
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
@@ -837,7 +850,7 @@ class LPP(object):
 
         self.log.info('grouped light curve(s) generated')
 
-    def generate_final_lc(self, lc_table = None):
+    def generate_final_lc(self, color_term = None, lc_table = None):
         '''wraps IDL routine to convert to natural system'''
 
         if lc_table is None:
@@ -846,7 +859,7 @@ class LPP(object):
         with redirect_stdout(self.log):
             self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, self.color_term, outfile = self.lc, output = True)
             if self.photsub is True:
-                self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, self.color_term, outfile = self.lc_sub, output = True)
+                self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, color_term, outfile = self.lc_sub, output = True)
 
         self.log.info('final light curve(s) generated')
 
@@ -858,28 +871,29 @@ class LPP(object):
             os.makedirs(self.lc_dir)
         self.lc_base = os.path.join(self.lc_dir, 'lightcurve_{}_'.format(self.targetname))
 
-        # run through all routines
-        self.generate_raw_lcs()
-        if self.photsub is True:
-            self.generate_raw_lcs(photsub_mode = True)
-        for m in self.photmethod:
-            self.lc_raw = self.lc_base + m + '_natural_raw.dat'
-            self.lc_bin = self.lc_base + m + '_natural_bin.dat'
-            self.lc_group = self.lc_base + m + '_natural_group.dat'
-            self.lc = self.lc_base + m + '_standard.dat'
+        # run through all lc routines for all apertures, with all color terms used
+        for ct in {key: self.color_terms[key] for in self.color_terms.keys() if self.color_terms[key] > 0}:
+            self.generate_raw_lcs(color_term = ct)
             if self.photsub is True:
-                self.lc_raw_sub = self.lc_base + m + '_natural_raw_sub.dat'
-                self.lc_bin_sub = self.lc_base + m + '_natural_bin_sub.dat'
-                self.lc_group_sub = self.lc_base + m + '_natural_group_sub.dat'
-                self.lc_sub = self.lc_base + m + '_standard_sub.dat'
-            self.generate_bin_lc()
-            self.generate_group_lc()
-            self.generate_final_lc()
-            p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m)
-            p.plot_lc(extensions = ['.ps', '.png'])
-            if self.photsub is True:
-                p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m)
+                self.generate_raw_lcs(photsub_mode = Truecolor_term = ct)
+            for m in self.photmethod:
+                self.lc_raw = self.lc_base + ct + '_' + m + '_natural_raw.dat'
+                self.lc_bin = self.lc_base + ct + '_' + m + '_natural_bin.dat'
+                self.lc_group = self.lc_base + ct + '_' + m + '_natural_group.dat'
+                self.lc = self.lc_base + m + ct + '_' + '_standard.dat'
+                if self.photsub is True:
+                    self.lc_raw_sub = self.lc_base + ct + '_' + m + '_natural_raw_sub.dat'
+                    self.lc_bin_sub = self.lc_base + ct + '_' + m + '_natural_bin_sub.dat'
+                    self.lc_group_sub = self.lc_base + ct + '_' + m + '_natural_group_sub.dat'
+                    self.lc_sub = self.lc_base + ct + '_' + m + '_standard_sub.dat'
+                self.generate_bin_lc()
+                self.generate_group_lc()
+                self.generate_final_lc(ct)
+                p = LPPu.plotLC(lc_file = self.lc, name = self.targetname, photmethod = m)
                 p.plot_lc(extensions = ['.ps', '.png'])
+                if self.photsub is True:
+                    p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m)
+                    p.plot_lc(extensions = ['.ps', '.png'])
 
     ###################################################################################################
     #          Utility Methods
@@ -1048,10 +1062,18 @@ class LPP(object):
             p = LPPu.plotLC(lc_file = fl)
             p.plot_lc(extensions = ['.ps', '.png'])
 
-    def _force_calfit(self, calfit):
-        '''sets instance attributes appropriatetly to force use of a specified calibration .fit fil'''
-        self.force_calfit_file = calfit
-        self.cal_nat_fit = self.force_calfit_file
+    def _ct2cf(self, color_term, use = False):
+        '''return "calfit" filename associated with input color term'''
+
+        base = self.calfile.split('.')[0]
+        if color_term != 'Landolt':
+            cal_nat_fit = base + '_{}_natural.fit'.format(color_term)
+        else:
+            cal_nat_fit = base + '_Landolt_standard.fit'
+        if use is False:
+            return cal_nat_fit
+        else:
+            return cal_nat_fit.replace('_{}_'.format(self.cal_source), '_{}_use_'.format(self.cal_source))
 
     def _im2inst(self, image_list, mode = 'progress'):
         '''create a series of Phot instances from input image list (also a series)'''
