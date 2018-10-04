@@ -942,6 +942,7 @@ class LPP(object):
 
         # iterate through filters to determine the best template for each
         for idx, filt in cand['filter'].drop_duplicates().iteritems():
+            filt = filt.upper()
             tmp = cand[cand['filter'].str.upper() == filt]
             if len(tmp) == 0:
                 msg = 'No suitable indidates in the {} band. Schedule an observation:\n{}'.format(filt, radecmsg)
