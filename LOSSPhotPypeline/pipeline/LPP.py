@@ -832,9 +832,11 @@ class LPP(object):
             os.makedirs(self.lc_dir)
         self.lc_base = os.path.join(self.lc_dir, 'lightcurve_{}_'.format(self.targetname))
 
+        used_color_terms = {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}
+
         # run through all lc routines for all apertures, with all color terms used
-        for ct in tqdm({key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}.keys()):
-            self.log.info('working on color term: {}'.format(ct))
+        self.log.info('working on color terms: {}'.format(used_color_terms.keys()))
+        for ct in tqdm(used_color_terms.keys()):
             self.generate_raw_lcs(color_term = ct)
             if self.photsub is True:
                 self.generate_raw_lcs(photsub_mode = True, color_term = ct)
