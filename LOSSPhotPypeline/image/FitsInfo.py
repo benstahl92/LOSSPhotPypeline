@@ -378,7 +378,7 @@ class FitsInfo(FitsImage, FileNames):
         '''calculate limiting magnitude'''
 
         if (self.zero != 0) and (self.sky != 0):
-           self.limmag = -2.5*np.log10(3*sky.sky) + sky.zero
+           self.limmag = -2.5*np.log10(3*self.sky) + self.zero
         else:
             print('zero and sky are not yet determined, cannot calculate limiting mag')
 
