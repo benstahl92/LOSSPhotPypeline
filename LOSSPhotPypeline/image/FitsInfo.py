@@ -1,7 +1,6 @@
 # standard imports
 from astropy.io import fits
 from astropy.time import Time
-from astropy import wcs
 import numpy as np
 import os
 import re
@@ -65,6 +64,7 @@ class FitsImage(object):
         # color term
         self.color_term = None
 
+        # get needed info
         self.extract_info()
         self.get_color_term()
 
@@ -228,9 +228,6 @@ class FitsImage(object):
         self.mjd=timetmp.mjd
         self.jd=timetmp.jd
 
-        # extract WCS info
-        self.extract_wcsinfo()
-
         # standardize naming
         self.basename=self.object+'_'+self.year+self.month+self.day+'_'+self.hour+self.minute+self.second+'_'+self.idname+'_'+self.telescope+'_'+self.filter
         if self.WCSED == 'T' :
@@ -239,58 +236,6 @@ class FitsImage(object):
         else :
             self.savepath=self.telescope+'/'+self.telescope+'_'+'image_calib_failed/'+self.year+self.month+self.day+'/'
             self.uniformname=self.basename+'.fit'
-
-    def extract_wcsinfo(self):
-        '''extract WCS information, if no keyword "WCSED"'''
-
-        header = self.header
-
-        if not 'WCSED' in header:
-          #print('Warning: this image is not WCSed, no WCSED keyword')
-          return
-        self.WCSED='T'
-
-        try:
-            wcstmp=wcs.WCS(header)
-        except wcs._wcs.InvalidTransformError:
-            return
-
-        xtmp=[(self.Xsize-1.0)/2.0,0.0,0.0,self.Xsize-1.0,self.Xsize-1.0]
-        ytmp=[(self.Ysize-1.0)/2.0,0.0,self.Ysize-1.0,self.Ysize-1.0,0.0]
-        ratmp, dectmp=wcstmp.wcs_pix2world(xtmp, ytmp, 1)
-        self.centerRa=ratmp[0]
-        self.centerDec=dectmp[0]
-        self.corner1Ra=ratmp[1]
-        self.corner1Dec=dectmp[1]
-        self.corner2Ra=ratmp[2]
-        self.corner2Dec=dectmp[2]
-        self.corner3Ra=ratmp[3]
-        self.corner3Dec=dectmp[3]
-        self.corner4Ra=ratmp[4]
-        self.corner4Dec=dectmp[4]
-
-    def find_wcs_solution(self):
-        '''determine WCS solution, it it has not been found already'''
-
-        # rewrite to not need shell scripts...
-        header=self.header
-        if 'WCSED' in header :
-          #print('This image is alread WCSed, no need to do again')
-          return
-        ##not wcsed, do it
-        if self.telescope == 'kait' :
-            command="Ssolve-field-kait {0}".format(self.oriname)
-            #print(command)
-            os.system(command)
-            return
-        elif self.telescope == 'Nickel' :
-            command="Ssolve-field-Nickel {0}".format(self.oriname)
-            #print(command)
-            os.system(command)
-            return
-        else :
-            print('This method has not been developed yet, please do it!!!')
-            return
 
     def get_color_term(self):
         '''determine the the color term appropriate for the image'''

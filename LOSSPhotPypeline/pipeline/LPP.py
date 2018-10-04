@@ -71,8 +71,8 @@ class LPP(object):
 
         # general variables
         self.filter_set_ref = ['B', 'V', 'R', 'I', 'CLEAR']
-        self.filter_set = None
-        self.filter_set_sub = None
+        #self.filter_set = None
+        #self.filter_set_sub = None
         self.first_obs = None
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.calmethod = 'psf' # can be set to any key in phot_cols, but recommended is 'psf'
@@ -504,14 +504,10 @@ class LPP(object):
             self.log.info('using argument supplied image list')
 
         # iterate through image list and perform photometry on each
-        # also determine date of first observation since already touching each file
-        first_obs = None
         for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
             img = self.phot_instances.loc[idx]
             with redirect_stdout(self.log):
                 img.do_photometry(photsub = self.photsub, log = self.log)
-            if (first_obs is None) or (img.mjd < first_obs):
-                first_obs = img.mjd
             # check for success
             if os.path.exists(img.psf) is False:
                 self.log.warn('photometry failed --- {} not generated'.format(img.psf))
@@ -519,8 +515,6 @@ class LPP(object):
             if (self.photsub is True) and (os.path.exists(img.psfsub) is False):
                 self.log.warn('photometry (sub) failed --- {} not generated'.format(img.psfsub))
                 self.phot_sub_failed.append(fl)
-        if self.first_obs is None:
-            self.first_obs = first_obs
 
         # remove failures from image list where possible
         if self.photsub is False:
@@ -576,10 +570,6 @@ class LPP(object):
 
             # get color term and enforce only one color term per run if not forced
             if self.force_color_term is False:
-                #tel = LPPu.get_color_term(fl)
-                #if self.color_term is not None:
-                #   assert self.color_term == tel
-                #self.color_term = tel
                 self.color_terms[img.color_term] += 1
             else:
                 self.color_terms[self.force_color_term] += 1
@@ -654,11 +644,11 @@ class LPP(object):
                     else:
                         results[filt][idx].append(row[self.calmethod])
 
-        tmp = list(results.keys()).sort(key = lambda x: self.filter_set_ref.index(x))
-        if photsub_mode is False:
-            self.filter_set = tmp
-        else:
-            self.filter_set_sub = tmp
+        #tmp = list(results.keys()).sort(key = lambda x: self.filter_set_ref.index(x))
+        #if photsub_mode is False:
+        #    self.filter_set = tmp
+        #else:
+        #    self.filter_set_sub = tmp
 
         # compute summary results, thereby allowing for cuts to be made
         # also include calibration magnitudes and differences
@@ -734,12 +724,10 @@ class LPP(object):
     def generate_raw_lcs(self, photsub_mode = False, color_term = None):
         '''builds raw light curve files from calibrated results'''
 
-        self.log.info('generating raw lightcurve(s)')
-
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
         lc = {name: [] for name in columns}
         lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
-        has_filt = np.array([False] * len(self.filter_set_ref))
+        #has_filt = np.array([False] * len(self.filter_set_ref))
 
         if color_term is None:
             iter_len = len(self.image_list)
@@ -784,8 +772,8 @@ class LPP(object):
                     self.no_obj.append(fl)
                 else:
                     self.no_obj_sub.append(fl)
-            else:
-                has_filt[np.array(self.filter_set_ref) == img.filter.upper()] = True
+            #else:
+            #    has_filt[np.array(self.filter_set_ref) == img.filter.upper()] = True
 
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(img.mjd, 6))
@@ -803,11 +791,11 @@ class LPP(object):
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
 
-        tmp = list(np.array(self.filter_set_ref)[has_filt])
-        if photsub_mode is False:
-            self.filter_set = tmp
-        else:
-            self.filter_set_sub = tmp
+        #tmp = list(np.array(self.filter_set_ref)[has_filt])
+        #if photsub_mode is False:
+        #    self.filter_set = tmp
+        #else:
+        #    self.filter_set_sub = tmp
 
         for m in self.photmethod:
             if color_term is None:
@@ -816,16 +804,14 @@ class LPP(object):
                 comp = color_term + '_'
             if photsub_mode is False:
                 lc_raw_name = self.lc_base + comp + m + '_natural_raw.dat'
-                filter_set = self.filter_set
+                #filter_set = self.filter_set
             else:
                 lc_raw_name = self.lc_base + comp + m + '_natural_raw_sub.dat'
-                filter_set = self.filter_set_sub
+                #filter_set = self.filter_set_sub
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
-
-        self.log.info('raw light curves generated')
 
     def generate_bin_lc(self, lc_file = None):
         '''wraps IDL lightcurve binning routine'''
@@ -838,8 +824,6 @@ class LPP(object):
             if self.photsub is True:
                 self.idl.pro('lpp_dat_res_bin', self.lc_raw_sub, self.lc_bin_sub, outfile = self.lc_bin_sub, output = True)
 
-        self.log.info('binned light curve(s) generated')
-
     def generate_group_lc(self, lc_file = None):
         '''wraps IDL lightcurve grouping routine'''
 
@@ -850,8 +834,6 @@ class LPP(object):
             self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
             if self.photsub is True:
                 self.idl.pro('lpp_dat_res_group', self.lc_bin_sub, self.lc_group_sub, outfile = self.lc_group_sub)
-
-        self.log.info('grouped light curve(s) generated')
 
     def generate_final_lc(self, color_term, lc_table = None):
         '''wraps IDL routine to convert to natural system'''
@@ -864,10 +846,10 @@ class LPP(object):
             if self.photsub is True:
                 self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, color_term, outfile = self.lc_sub, output = True)
 
-        self.log.info('final light curve(s) generated')
-
     def generate_lc(self):
         '''performs all functions to transform image photometry into calibrated light curve of target'''
+
+        self.log.info('generating and plotting light curves')
 
         # set up file system
         if not os.path.isdir(self.lc_dir):
@@ -897,6 +879,8 @@ class LPP(object):
                 if self.photsub is True:
                     p = LPPu.plotLC(lc_file = self.lc_sub, name = self.targetname, photmethod = m)
                     p.plot_lc(extensions = ['.ps', '.png'])
+
+        self.log.info('done with light curves')
 
     ###################################################################################################
     #          Utility Methods
@@ -961,7 +945,6 @@ class LPP(object):
 
         base_dir = storelocation
 
-        # is this a good choice for the radius?
         cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
 
         # select only candidates that are before the first observation or at least one year later
@@ -978,7 +961,7 @@ class LPP(object):
                 f.write(get_templ_fl_msg)
             return
 
-        self.template_images = {filt: None for filt in self.filter_set}
+        self.template_images = {filt: None for filt in self.filter_set_ref}
 
         # iterate through filters to determine the best template for each
         for idx, filt in cand['filter'].drop_duplicates().iteritems():

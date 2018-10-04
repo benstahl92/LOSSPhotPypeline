@@ -32,49 +32,20 @@ def genconf(object = None, targetname = None, config_file = None):
         f.write('{:<20}all\n'.format('photmethod'))
         f.write('{:<20}\n'.format('refname'))
         f.write('{:<20}{}.photlist\n'.format('photlistfile', targetname))
-        f.write('{:<20}none\n'.format('forcecalfit'))
+        f.write('{:<20}none\n'.format('forcecolorterm'))
 
-def get_first_obs_date(object):
+def get_first_obs_date(obj):
     '''
-    Finds earliest image file (determined automatically if LPP pipeline is run from beginning).
+    Finds earliest image file.
 
     Parameters
     ----------
-    object : LPP instance, optional, default: None
+    obj : LPP instance, optional, default: None
         instance of LPP class from LOSSPhotPypeline.pipeline 
     '''
     
     first_obs = None
-    for fl in object.image_list:
-        c = Phot(fl, object.radecfile)
-        if (first_obs is None) or (c.mjd < first_obs):
-            first_obs = c.mjd
+    for instance in obj.phot_instances:
+        if (first_obs is None) or (instance.mjd < first_obs):
+            first_obs = instance.mjd
     return first_obs
-
-def get_color_term(fl):
-    '''given an image file from kait or nickel, returns the color term'''
-
-    # instantiate file object
-    fl_obj = Phot(fl)
-
-    # select color term based on telescope and date
-    if fl_obj.telescope == 'kait':
-        tel = 'kait'
-        if fl_obj.mjd < 51229.0: # mjd of 1999-02-20
-            tel += '1'
-        elif fl_obj.mjd < 52163.0: # mjd of 2001-09-11
-            tel += '2'
-        elif fl_obj.mjd < 54232.0: # mjd of 2007-05-12
-            tel += '3'
-        else:
-            tel += '4'
-    elif fl_obj.telescope == 'Nickel':
-        tel = 'nickel'
-        if fl_obj.mjd < 54845.0: # mjd of 2009-01-14
-            tel += 1
-        else:
-            tel += 2
-    else:
-        tel = None
-
-    return tel
