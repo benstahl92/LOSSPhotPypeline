@@ -71,8 +71,6 @@ class LPP(object):
 
         # general variables
         self.filter_set_ref = ['B', 'V', 'R', 'I', 'CLEAR']
-        #self.filter_set = None
-        #self.filter_set_sub = None
         self.first_obs = None
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.calmethod = 'psf' # can be set to any key in phot_cols, but recommended is 'psf'
@@ -95,7 +93,7 @@ class LPP(object):
         if not os.path.isdir(self.calibration_dir):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
-        #self.color_term = LPPu.get_color_term(self.refname)
+
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
                             'nickel1': 0, 'nickel2': 0,
@@ -644,12 +642,6 @@ class LPP(object):
                     else:
                         results[filt][idx].append(row[self.calmethod])
 
-        #tmp = list(results.keys()).sort(key = lambda x: self.filter_set_ref.index(x))
-        #if photsub_mode is False:
-        #    self.filter_set = tmp
-        #else:
-        #    self.filter_set_sub = tmp
-
         # compute summary results, thereby allowing for cuts to be made
         # also include calibration magnitudes and differences
 
@@ -727,15 +719,9 @@ class LPP(object):
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
         lc = {name: [] for name in columns}
         lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
-        #has_filt = np.array([False] * len(self.filter_set_ref))
-
-        if color_term is None:
-            iter_len = len(self.image_list)
-        else:
-            iter_len = self.color_terms[color_term]
 
         # iterate through files and extract LC information
-        for idx, fl in tqdm(self.image_list.iteritems(), total = iter_len):
+        for idx, fl in self.image_list.iteritems():
 
             img = self.phot_instances.loc[idx]
 
@@ -772,8 +758,6 @@ class LPP(object):
                     self.no_obj.append(fl)
                 else:
                     self.no_obj_sub.append(fl)
-            #else:
-            #    has_filt[np.array(self.filter_set_ref) == img.filter.upper()] = True
 
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(img.mjd, 6))
@@ -791,12 +775,6 @@ class LPP(object):
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
 
-        #tmp = list(np.array(self.filter_set_ref)[has_filt])
-        #if photsub_mode is False:
-        #    self.filter_set = tmp
-        #else:
-        #    self.filter_set_sub = tmp
-
         for m in self.photmethod:
             if color_term is None:
                 comp = ''
@@ -804,10 +782,8 @@ class LPP(object):
                 comp = color_term + '_'
             if photsub_mode is False:
                 lc_raw_name = self.lc_base + comp + m + '_natural_raw.dat'
-                #filter_set = self.filter_set
             else:
                 lc_raw_name = self.lc_base + comp + m + '_natural_raw_sub.dat'
-                #filter_set = self.filter_set_sub
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
@@ -857,7 +833,8 @@ class LPP(object):
         self.lc_base = os.path.join(self.lc_dir, 'lightcurve_{}_'.format(self.targetname))
 
         # run through all lc routines for all apertures, with all color terms used
-        for ct in {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}:
+        for ct in tqdm({key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}.keys()):
+            self.log.info('working on color term: {}'.format(ct))
             self.generate_raw_lcs(color_term = ct)
             if self.photsub is True:
                 self.generate_raw_lcs(photsub_mode = True, color_term = ct)
@@ -965,7 +942,7 @@ class LPP(object):
 
         # iterate through filters to determine the best template for each
         for idx, filt in cand['filter'].drop_duplicates().iteritems():
-            tmp = cand[cand['filter'] == filt]
+            tmp = cand[cand['filter'].str.upper() == filt]
             if len(tmp) == 0:
                 msg = 'No suitable indidates in the {} band. Schedule an observation:\n{}'.format(filt, radecmsg)
                 get_templ_fl_msg += msg + '\n'
