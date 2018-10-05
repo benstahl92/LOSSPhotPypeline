@@ -6,6 +6,7 @@ if n_params() ne 2 then begin
   return
 endif
 
+nochanges=0
 ;;see Mo's paper Table 4, observed color terms
 case system of
   'kait1' : begin
@@ -26,9 +27,14 @@ case system of
   'nickel2': begin
       color_term={C_B:0.041, C_V:0.082, C_R:0.092, C_I:-0.043}
   end
+  'Landolt': begin
+      color_term={C_B:0.000, C_V:0.000, C_R:0.000, C_I:0.000}
+      nochanges=1
+  end
   else     : begin
-      print,'Could not recognize the system, please check!'
-      return
+      print,'Could not recognize the system, Using color term 0'
+      color_term={C_B:0.000, C_V:0.000, C_R:0.000, C_I:0.000}
+      nochanges=1
   end
 endcase
 
@@ -90,6 +96,12 @@ if keyword_set(output) then begin
   print,''
   print,'!!!Note, only BVIR filter mags will be transformed to standard system!!!!'
   print,''
+endif
+
+if nochanges eq 1 then begin
+  print,'According to the system, no changes to input!'
+  print,''
+  stand_st=natural_st
 endif
 
 ;;this is for 2 filters, which is the minimum
