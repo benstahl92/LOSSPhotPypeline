@@ -1,0 +1,5 @@
+# Dir
+/__pycache__
+
+# Formats
+*.pyc
