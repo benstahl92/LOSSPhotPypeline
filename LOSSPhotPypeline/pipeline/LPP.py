@@ -1064,11 +1064,11 @@ class LPP(object):
         '''create a series of Phot instances from input image list (also a series)'''
 
         if mode != 'quiet':
-            return image_list.progress_apply(Phot, radec = self.radec)#, idl = self.idl)
+            return image_list.progress_apply(Phot, radec = self.radec)
         else:
-            return image_list.apply(Phot, radec = self.radec)#, idl = self.idl)
+            return image_list.apply(Phot, radec = self.radec)
 
-    def _set_im_list(self, image_list)
+    def _set_im_list(self, image_list):
         '''returns instance image list if the input image list is None, otherwise passes through'''
 
         if image_list is None:
