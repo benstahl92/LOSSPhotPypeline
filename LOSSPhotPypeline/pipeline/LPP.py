@@ -74,7 +74,7 @@ class LPP(object):
         self.photlistfile=''
 
         # check if config file exists -- if not then generate template
-        if not os.path.isfile(self.config_file):
+        if not os.path.exists(self.config_file):
             self.log.warn('No configuration file detected, complete template ({}) before proceeding.'.format(self.config_file + '.template'))
             LPPu.genconf(targetname = self.targetname, config_file = self.config_file + '.template')
             return
@@ -321,7 +321,6 @@ class LPP(object):
         vs.pop('steps')
         vs.pop('idl')
         vs.pop('log')
-        #vs.pop('phot_instances')
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
         self.log.info('{} written'.format(self.savefile))
@@ -335,7 +334,6 @@ class LPP(object):
         for v in vs.keys():
             s = 'self.{} = vs["{}"]'.format(v, v)
             exec(s)
-        #self.phot_instances = self._im2inst(self.image_list, mode = 'quiet')
         self.log.info('{} loaded'.format(savefile))
         self.summary()
 
@@ -391,14 +389,10 @@ class LPP(object):
     ###################################################################################################
 
     def find_ref_stars(self):
-        '''
-        identifies all suitable stars in reference image
-        computes ra & dec positions
-        writes radecfile and loads into memory
-        '''
+        '''identify all suitable stars in ref image, compute ra & dec, write radecfile, store in instance'''
 
-        # if radecfile already exist, no need to do it
-        if os.path.isfile(self.radecfile):
+        # if radecfile already exists, no need to do it
+        if os.path.exists(self.radecfile):
             self.log.info('radecfile already exists, loading only')
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
             return
@@ -407,7 +401,7 @@ class LPP(object):
             return
 
         # instantiate object to manage names
-        nametmp=FileNames(self.refname)
+        ref = Phot(self.refname)
 
         # use sextractor to extract all stars to be used as refstars
         sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
@@ -420,27 +414,30 @@ class LPP(object):
                     '-PARAMETERS_NAME', par,
                     '-FILTER_NAME', filt,
                     '-STARNNW_NAME', star, 
-                    '-CATALOG_NAME', nametmp.sobj,
-                    '-CHECKIMAGE_NAME', nametmp.skyfit]
+                    '-CATALOG_NAME', ref.sobj,
+                    '-CHECKIMAGE_NAME', ref.skyfit]
         p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        p.wait()
         self.log.debug(p.communicate())
+        del p
 
         # make sure process succeeded
-        if not os.path.isfile(nametmp.sobj):
+        if not os.path.exists(ref.sobj):
             self.log.warn('SExtractor failed --- no sobj file generated, check!')
             return
 
         # read sobj file of X_IMAGE and Y_IMAGE columns, as well as MAG_APER for sort
-        with fits.open(nametmp.sobj) as hdul:
-            data=hdul[1].data
+        with fits.open(ref.sobj) as hdul:
+            data = hdul[1].data
         # sort according to magnitude, from small/bright to hight/faint
-        data.sort(order='MAG_APER')
-        imagex=data.X_IMAGE
-        imagey=data.Y_IMAGE
+        data.sort(order = 'MAG_APER')
+        imagex = data.X_IMAGE
+        imagey = data.Y_IMAGE
 
         # transform to RA and DEC using ref image header information
-        with fits.open(self.refname) as ref:
-            cs = WCS(header=ref[0].header)
+        #with fits.open(self.refname) as ref:
+        #    cs = WCS(header=ref[0].header)
+        cs = WCS(header = ref.header)
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
 
         # write radec file
@@ -452,6 +449,7 @@ class LPP(object):
             f.write('          RA          DEC\n')
             for i in range(len(imagera)):
                 f.write('   {:.7f}  {:.7f}\n'.format(imagera[i], imagedec[i]))
+
         self.log.info('{} written'.format(self.radecfile))
         self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
@@ -481,10 +479,7 @@ class LPP(object):
 
         self.log.info('starting galaxy subtraction on all images')
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
-            self.log.info('using argument supplied image list')
+        image_list = _set_im_list(image_list)
 
         if self.template_images is None:
             self.get_template_images()
@@ -507,10 +502,7 @@ class LPP(object):
 
         self.log.info('starting photometry on all images (galsub: {})'.format(self.photsub))
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
-            self.log.info('using argument supplied image list')
+        image_list = _set_im_list(image_list)
 
         # set up for easy parallelization
         ps = self.photsub
@@ -537,17 +529,14 @@ class LPP(object):
         else:
             self.phot_sub_failed = self.image_list[~tmp['sub']]
             self.log.warn('photometry (sub) failed on {} out of {} images'.format(len(self.phot_sub_failed), len(tmp)))
-            self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed)) & ~self.image_list.isin(pd.Series(self.phot_failed))]
+            self.image_list = self.image_list[~self.image_list.isin(self.phot_failed) & ~self.image_list.isin(self.phot_failed)]
 
         self.log.info('photometry done')
 
     def get_sky_all_image(self, image_list = None):
         '''get and set sky value for every phot instance'''
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
-            self.log.info('using argument supplied image list')
+        image_list = _set_im_list(image_list)
 
         self.log.info('getting sky value for each image')
 
@@ -558,16 +547,13 @@ class LPP(object):
 
         self.log.info('commencing calibration (second pass: {})'.format(second_pass))
 
-        if image_list is None:
-            image_list = self.image_list
-        else:
-            self.log.info('using argument supplied image list')
+        image_list = _set_im_list(image_list)
 
         # reset color term counts
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
         # check for calibration data and download if it doesn't exist yet
-        if not second_pass and ((not os.path.isfile(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
+        if not second_pass and ((not os.path.exists(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
             with redirect_stdout(self.log):
@@ -1024,7 +1010,9 @@ class LPP(object):
             shutil.copy2(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1]))
             self.template_images[filt] = os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])
             if decomp:
-                subprocess.Popen(['gzip', '-d', '-q', '-f', self.template_images[filt]])
+                p = subprocess.Popen(['gzip', '-d', '-q', '-f', self.template_images[filt]])
+                p.wait()
+                del p
                 self.template_images[filt] = self.template_images[filt][:-3]
 
         # rebin if needed
@@ -1079,3 +1067,13 @@ class LPP(object):
             return image_list.progress_apply(Phot, radec = self.radec)#, idl = self.idl)
         else:
             return image_list.apply(Phot, radec = self.radec)#, idl = self.idl)
+
+    def _set_im_list(self, image_list)
+        '''returns instance image list if the input image list is None, otherwise passes through'''
+
+        if image_list is None:
+            image_list = self.image_list
+        else:
+            self.log.info('using argument supplied image list')
+
+        return image_list
