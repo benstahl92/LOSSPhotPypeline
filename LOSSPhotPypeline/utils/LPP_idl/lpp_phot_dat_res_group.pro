@@ -1,7 +1,7 @@
 pro lpp_phot_dat_res_group,time,mag,filter,magerr=magerr,outst=outst,outfile=outfile,output=output
 
 if n_params() eq 0 then begin
-  print,'Syntax- zphot_dat_res_group,datafile,outst'
+  print,'Syntax- lpp_phot_dat_res_group,datafile,outst'
   return
 endif
 

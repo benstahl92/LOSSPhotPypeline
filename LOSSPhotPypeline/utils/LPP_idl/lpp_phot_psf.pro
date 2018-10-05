@@ -1,3 +1,6 @@
+!quiet = 1
+!except = 0
+
 pro lpp_phot_psf,image,fwhm=fwhm,exposures=exposures,savesky=savesky,ccdronoise=ccdronoise,ccdgain=ccdgain,photsub=photsub,output=output
 
 if n_params() eq 0 then begin
