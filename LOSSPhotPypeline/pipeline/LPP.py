@@ -321,7 +321,7 @@ class LPP(object):
         vs.pop('steps')
         vs.pop('idl')
         vs.pop('log')
-        vs.pop('phot_instances')
+        #vs.pop('phot_instances')
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
         self.log.info('{} written'.format(self.savefile))
@@ -335,7 +335,7 @@ class LPP(object):
         for v in vs.keys():
             s = 'self.{} = vs["{}"]'.format(v, v)
             exec(s)
-        self.phot_instances = self._im2inst(self.image_list, mode = 'quiet')
+        #self.phot_instances = self._im2inst(self.image_list, mode = 'quiet')
         self.log.info('{} loaded'.format(savefile))
         self.summary()
 
@@ -544,9 +544,14 @@ class LPP(object):
     def get_sky_all_image(self, image_list = None):
         '''get and set sky value for every phot instance'''
 
+        if image_list is None:
+            image_list = self.image_list
+        else:
+            self.log.info('using argument supplied image list')
+
         self.log.info('getting sky value for each image')
 
-        self.phot_instances.progress_apply(lambda img: img.get_sky())
+        self.phot_instances.loc[image_list.index].progress_apply(lambda img: img.get_sky())
 
     def calibrate(self, second_pass = False, image_list = None):
         '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
