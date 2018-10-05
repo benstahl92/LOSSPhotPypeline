@@ -18,7 +18,13 @@ from astropy.wcs import WCS
 from astropy.utils.exceptions import AstropyWarning
 warnings.simplefilter('ignore', category=AstropyWarning)
 
-# try for packages that may not be available
+try:
+    from p_tqdm import p_map
+    _parallel = True
+except ModuleNotFoundError:
+    print('package "p_tqdm" not installed, cannot do parallel processing')
+    _parallel = False
+
 try:
     from pyzaphotdb import zaphot_search_by_radec, storelocation
     haveDB = True
@@ -36,13 +42,17 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, quiet_idl = True, cal_diff_tol = 0.20, force_color_term = False):
+    def __init__(self, targetname, interactive = True, parallel = True,  quiet_idl = True, cal_diff_tol = 0.20, force_color_term = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
         self.targetname = targetname.lower().replace(' ', '')
         self.config_file = targetname + '.conf'
         self.interactive = interactive
+        if (parallel is True) and (_parallel) is True:
+            self.parallel = True
+        else:
+            self.parallel = False
         self.cal_diff_tol = cal_diff_tol
 
         # log file
@@ -136,6 +146,7 @@ class LPP(object):
                       self.get_images,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
+                      self.get_sky_all_image,
                       self.do_calibration,
                       self.generate_lc]
 
@@ -501,26 +512,41 @@ class LPP(object):
         else:
             self.log.info('using argument supplied image list')
 
-        # iterate through image list and perform photometry on each
-        for idx, fl in tqdm(image_list.iteritems(), total = len(image_list)):
-            img = self.phot_instances.loc[idx]
-            with redirect_stdout(self.log):
-                img.do_photometry(photsub = self.photsub, log = self.log)
-            # check for success
-            if os.path.exists(img.psf) is False:
-                self.log.warn('photometry failed --- {} not generated'.format(img.psf))
-                self.phot_failed.append(fl)
-            if (self.photsub is True) and (os.path.exists(img.psfsub) is False):
-                self.log.warn('photometry (sub) failed --- {} not generated'.format(img.psfsub))
-                self.phot_sub_failed.append(fl)
-
-        # remove failures from image list where possible
-        if self.photsub is False:
-            self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed))]
+        # set up for easy parallelization
+        ps = self.photsub
+        if self.parallel is True:
+            log = None
         else:
+            log = self.log
+        fn = lambda img: img.do_photometry(photsub = ps, log = log)
+
+        # do photometry in the appropriate mode
+        if self.parallel is True:
+            tmp = p_map(fn, self.phot_instances.loc[image_list.index].tolist())
+        else:
+            tmp = []
+            for img in tqdm(self.phot_instances.loc[image_list.index].tolist()):
+                tmp.append(fn(img))
+
+        # log, announce, and remove failures
+        tmp = pd.DataFrame(tmp, columns = ('unsub', 'sub'))
+        self.phot_failed = self.image_list.loc[~tmp['unsub']]
+        self.log.warn('photometry failed on {} out of {} images'.format(len(self.phot_failed), len(tmp)))
+        if self.photsub is False:
+            self.image_list = self.image_list[~self.image_list.isin(self.phot_failed)]
+        else:
+            self.phot_sub_failed = self.image_list[~tmp['sub']]
+            self.log.warn('photometry (sub) failed on {} out of {} images'.format(len(self.phot_sub_failed), len(tmp)))
             self.image_list = self.image_list[~self.image_list.isin(pd.Series(self.phot_failed)) & ~self.image_list.isin(pd.Series(self.phot_failed))]
 
         self.log.info('photometry done')
+
+    def get_sky_all_image(self, image_list = None):
+        '''get and set sky value for every phot instance'''
+
+        self.log.info('getting sky value for each image')
+
+        self.phot_instances.progress_apply(lambda img: img.get_sky())
 
     def calibrate(self, second_pass = False, image_list = None):
         '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''

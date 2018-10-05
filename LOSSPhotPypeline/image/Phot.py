@@ -6,7 +6,6 @@ from astropy.wcs import WCS
 import os
 import shlex
 import subprocess
-#import pidly
 
 # internal imports
 from LOSSPhotPypeline.image.FileNames import FileNames
@@ -14,7 +13,7 @@ from LOSSPhotPypeline.image.FitsInfo import FitsInfo
 
 class Phot(FitsInfo):
 
-    def __init__(self, name, radecfile = None, radec = None)#, quiet_idl = True, idl = None):
+    def __init__(self, name, radecfile = None, radec = None):
 
         FitsInfo.__init__(self, name)
 
@@ -24,14 +23,8 @@ class Phot(FitsInfo):
         if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
-        # setup idl
-        #if type(idl) is pidly.IDL:
-        #    self.idl = idl
-        #else:
-        #    self.idl = pidly.IDL()
-        #    if quiet_idl:
-        #        self.idl('!quiet = 1')
-        #        self.idl('!except = 0')
+        # get and set fwhm
+        self.get_fwhm()
 
     def gen_obj_fl(self):
         '''generates obj file'''
@@ -47,7 +40,6 @@ class Phot(FitsInfo):
         '''
 
         # do necessary pre-steps
-        self.get_fwhm()
         self.gen_obj_fl()
 
         # formulate and run idl command
@@ -55,20 +47,21 @@ class Phot(FitsInfo):
             ps = ''
         else:
             ps = '/PHOTSUB, '
-        idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, ps, self.exptime)
+        idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, self.exptime, ps)
         p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        p.wait()
         if log is not None:
             log.debug(p.communicate())
         del p
 
-        # run idl photometry routine
-        #if not photsub:
-        #    self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, output = True)
-        #else:
-        #    self.idl.pro('lpp_phot_psf', self.cimg, fwhm = self.fwhm, exposures = self.exptime, savesky = True, photsub = True, output = True)
+        r1 = True
+        if os.path.exists(self.psf) is False:
+            r1 = False
+        r2 = False
+        if (photsub is True) and (os.path.exists(self.psfsub) is True):
+            r2 = True
 
-        # get sky value as post-step
-        self.get_sky()
+        return r1, r2
 
     def galaxy_subtract(self, template_images):
 
