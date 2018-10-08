@@ -72,13 +72,12 @@ class Phot(FitsInfo):
             return
 
         # execute idl commmand
-        idl_cmd = '''idl -e "{}, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[self.filter])
+        idl_cmd = '''idl -e "{}, '{}', '{}', /OUTPUT"'''.format(cmd, self.cimg, template_images[self.filter.upper()])
         p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         p.wait()
         if log is not None:
             log.debug(p.communicate())
         del p
-        #self.idl.pro(cmd, self.cimg, template_images[self.filter], output = True)
 
         # might want to add interactivity here to check the subtraction
 

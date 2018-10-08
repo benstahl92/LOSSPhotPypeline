@@ -1,5 +1,8 @@
 pro lpp_kait_photsub,cobjlist,ref,subreg=subreg,output=output
 
+!quiet = 1
+!except = 0
+
 if n_params() eq 0 then begin
   print,'syntax - lpp_kait_photsub,cobjlist,ref,subreg=subreg'
   print,'subreg = 1: percent, say 0.9'

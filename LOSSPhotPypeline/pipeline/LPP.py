@@ -491,23 +491,18 @@ class LPP(object):
         # set up for parallelization
         ti = self.template_images
         if self.parallel is True:
+            self.log.debug('logging is not performed in parallel mode')
             log = None
-        else log = self.log
+        else:
+            log = self.log
         fn = lambda img: img.galaxy_subtract(ti, log = log)
 
         # do galaxy subtraction in the appropriate mode
         if self.parallel is True:
-            _ = p_map(fn, self.phot_instances.loc[image_list.index].tolist())
+            p_map(fn, self.phot_instances.loc[image_list.index].tolist())
         else:
             for img in tqdm(self.phot_instances.loc[image_list.index].tolist()):
-                _ = tmp.append(fn(img))
-
-        # iterate through image list and perform galaxy subtraction on each
-        #for fl in tqdm(image_list):
-            #c = Phot(fl)
-            #with redirect_stdout(self.log):
-        #        if self.photsub:
-        #            c.galaxy_subtract(self.template_images)
+                fn(img)
 
         self.log.info('galaxy subtraction done')
 
@@ -521,6 +516,7 @@ class LPP(object):
         # set up for parallelization
         ps = self.photsub
         if self.parallel is True:
+            self.log.debug('logging is not performed in parallel mode')
             log = None
         else:
             log = self.log
