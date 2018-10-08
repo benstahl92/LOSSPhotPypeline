@@ -477,7 +477,7 @@ class LPP(object):
             self.log.warn('not in photsub mode, skipping galaxy subtraction')
             return
 
-        self.log.info('starting galaxy subtraction on all images')
+        self.log.info('starting galaxy subtraction')
 
         image_list = self._set_im_list(image_list)
 
@@ -488,23 +488,37 @@ class LPP(object):
                 self.photsub = False
                 return
 
+        # set up for parallelization
+        ti = self.template_images
+        if self.parallel is True:
+            log = None
+        else log = self.log
+        fn = lambda img: img.galaxy_subtract(ti, log = log)
+
+        # do galaxy subtraction in the appropriate mode
+        if self.parallel is True:
+            _ = p_map(fn, self.phot_instances.loc[image_list.index].tolist())
+        else:
+            for img in tqdm(self.phot_instances.loc[image_list.index].tolist()):
+                _ = tmp.append(fn(img))
+
         # iterate through image list and perform galaxy subtraction on each
-        for fl in tqdm(image_list):
-            c = Phot(fl)
-            with redirect_stdout(self.log):
-                if self.photsub:
-                    c.galaxy_subtract(self.template_images)
+        #for fl in tqdm(image_list):
+            #c = Phot(fl)
+            #with redirect_stdout(self.log):
+        #        if self.photsub:
+        #            c.galaxy_subtract(self.template_images)
 
         self.log.info('galaxy subtraction done')
 
     def do_photometry_all_image(self, image_list = None):
         '''performs photometry on all selected image files'''
 
-        self.log.info('starting photometry on all images (galsub: {})'.format(self.photsub))
+        self.log.info('starting photometry (galsub: {})'.format(self.photsub))
 
         image_list = self._set_im_list(image_list)
 
-        # set up for easy parallelization
+        # set up for parallelization
         ps = self.photsub
         if self.parallel is True:
             log = None

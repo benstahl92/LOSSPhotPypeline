@@ -36,7 +36,7 @@ class Phot(FitsInfo):
 
     def do_photometry(self, photsub = False, log = None):
         '''
-        performs aperture/psf photometry by running shell scripts to generate needed files then wrapping an IDL procedure
+        performs photometry by wrapping an IDL procedure
         '''
 
         # do necessary pre-steps
@@ -63,7 +63,7 @@ class Phot(FitsInfo):
 
         return r1, r2
 
-    def galaxy_subtract(self, template_images):
+    def galaxy_subtract(self, template_images, log = None):
 
         if self.telescope.lower() == 'kait':
             cmd = 'lpp_kait_photsub'
@@ -74,6 +74,9 @@ class Phot(FitsInfo):
         # execute idl commmand
         idl_cmd = '''idl -e "{}, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[self.filter])
         p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        p.wait()
+        if log is not None:
+            log.debug(p.communicate())
         del p
         #self.idl.pro(cmd, self.cimg, template_images[self.filter], output = True)
 
