@@ -479,7 +479,7 @@ class LPP(object):
 
         self.log.info('starting galaxy subtraction on all images')
 
-        image_list = _set_im_list(image_list)
+        image_list = self._set_im_list(image_list)
 
         if self.template_images is None:
             self.get_template_images()
@@ -502,7 +502,7 @@ class LPP(object):
 
         self.log.info('starting photometry on all images (galsub: {})'.format(self.photsub))
 
-        image_list = _set_im_list(image_list)
+        image_list = self._set_im_list(image_list)
 
         # set up for easy parallelization
         ps = self.photsub
@@ -536,7 +536,7 @@ class LPP(object):
     def get_sky_all_image(self, image_list = None):
         '''get and set sky value for every phot instance'''
 
-        image_list = _set_im_list(image_list)
+        image_list = self._set_im_list(image_list)
 
         self.log.info('getting sky value for each image')
 
@@ -547,7 +547,7 @@ class LPP(object):
 
         self.log.info('commencing calibration (second pass: {})'.format(second_pass))
 
-        image_list = _set_im_list(image_list)
+        image_list = self._set_im_list(image_list)
 
         # reset color term counts
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
