@@ -126,15 +126,7 @@ class LPP(object):
 
         # lightcurve variables
         self.lc_dir = 'lightcurve'
-        self.lc_base = None
-        #self.lc_raw = None
-        #self.lc_raw_sub = None
-        #self.lc_bin = None
-        #self.lc_bin_sub = None
-        #self.lc_group = None
-        #self.lc_group_sub = None
-        #self.lc = None
-        #self.lc_sub = None
+        self.lc_base = os.path.join(self.lc_dir, 'lightcurve_{}_'.format(self.targetname))
         self.lc_ext = {'raw': '_natural_raw.dat',
                        'bin': '_natural_bin.dat',
                        'group': '_natural_group.dat',
@@ -152,6 +144,7 @@ class LPP(object):
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
                       self.do_calibration,
+                      self.get_limmag_all_image,
                       self.generate_lc]
 
         # save file
@@ -744,12 +737,21 @@ class LPP(object):
 
         self.log.info('full calibration sequence completed')
 
-    def generate_raw_lcs(self, photsub_mode = False, color_term = None):
+    def get_limmag_all_image(self, image_list = None):
+        '''get and set limiting mag for every phot instance'''
+
+        image_list = self._set_im_list(image_list)
+
+        self.log.info('getting limiting mag for each image')
+
+        self.phot_instances.loc[image_list.index].progress_apply(lambda img: img.calc_limmag())
+
+    def generate_raw_lcs(self, color_term, photsub_mode = False):
         '''builds raw light curve files from calibrated results'''
 
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
-        lc = {name: [] for name in columns}
-        lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
+        #lc = {name: [] for name in columns}
+        lcs = {}#{m: copy.deepcopy(lc) for m in self.photmethod}
 
         # iterate through files and extract LC information
         for idx, fl in self.image_list.iteritems():
@@ -757,7 +759,7 @@ class LPP(object):
             img = self.phot_instances.loc[idx]
 
             # immediately skip if not the appropriate color term unless being forced
-            if (color_term != None) and (color_term != img.color_term) and (self.force_color_term is False):
+            if (color_term != img.color_term) and (self.force_color_term is False):
                 continue
 
             # skip failed images (some checks here should be redundant)
@@ -770,19 +772,16 @@ class LPP(object):
             elif (fl in self.cal_sub_failed) and (photsub_mode is True):
                 continue
 
-            img.calc_limmag()
-
             # read photometry results
             cols = (0,) + sum(((self.phot_cols[m], self.phot_cols[m] + 1) for m in self.photmethod), ())
             col_names = ('ID',) + sum(((m + '_mag', m + '_err') for m in self.photmethod), ())
-
             if photsub_mode is False:
                 dat = img.psfdat
             else:
                 dat = img.psfsubdat
-
             d = pd.read_csv(dat, header = None, delim_whitespace = True, comment = ';', usecols=cols, names = col_names)
 
+            # detect if no target in file
             if 1 not in d['ID'].values:
                 self.log.warn('no object in calibrated photometry file: {}'.format(dat))
                 if photsub_mode is False:
@@ -790,7 +789,9 @@ class LPP(object):
                 else:
                     self.no_obj_sub.append(fl)
 
+            # setup columns for each raw file
             for m in self.photmethod:
+                lcs[m] = {name: [] for name in columns}
                 lcs[m][';; MJD'].append(round(img.mjd, 6))
                 lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
                 lcs[m]['filter'].append(img.filter)
@@ -806,15 +807,9 @@ class LPP(object):
                 lcs[m]['-emag'].append(round(mag - err,5))
                 lcs[m]['+emag'].append(round(mag + err,5))
 
+        # write raw lc files
         for m in self.photmethod:
-            if color_term is None:
-                comp = ''
-            else:
-                comp = color_term + '_'
-            if photsub_mode is False:
-                lc_raw_name = self.lc_base + comp + m + '_natural_raw.dat'
-            else:
-                lc_raw_name = self.lc_base + comp + m + '_natural_raw_sub.dat'
+            lc_raw_name = self._lc_fname(color_term, m, 'raw', sub = photsub_mode)
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
@@ -846,36 +841,28 @@ class LPP(object):
         # set up file system
         if not os.path.isdir(self.lc_dir):
             os.makedirs(self.lc_dir)
-        self.lc_base = os.path.join(self.lc_dir, 'lightcurve_{}_'.format(self.targetname))
 
         # select only colors terms that are used
         used_color_terms = {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}
 
         # run through all lc routines for all apertures, with all color terms used
-        self.log.info('working on color terms: {}'.format(used_color_terms.keys()))
+        self.log.info('working on color terms: {}'.format(', '.join(used_color_terms.keys())))
         for ct in tqdm(used_color_terms.keys()):
-            self.generate_raw_lcs(color_term = ct)
+            self.generate_raw_lcs(ct)
             if self.photsub is True:
-                self.generate_raw_lcs(photsub_mode = True, color_term = ct)
+                self.generate_raw_lcs(ct, photsub_mode = True)
             for m in self.photmethod:
-                lc_raw = self._lc_fname(ct, m, 'raw')
-                lc_bin = self._lc_fname(ct, m, 'bin')
-                lc_group = self._lc_fname(ct, m, 'group')
                 lc = self._lc_fname(ct, m, 'standard')
-                self.generate_bin_lc(lc_raw, lc_bin)
-                self.generate_group_lc(lc_bin, lc_group)
-                self.generate_final_lc(ct, lc_group, lc)
-                if self.photsub is True:
-                    lc_raw_sub = self.lc_base + ct + '_' + m + '_natural_raw_sub.dat'
-                    lc_bin_sub = self.lc_base + ct + '_' + m + '_natural_bin_sub.dat'
-                    lc_group_sub = self.lc_base + ct + '_' + m + '_natural_group_sub.dat'
-                    lc_sub = self.lc_base + ct + '_' + m + '_standard_sub.dat'
-                self.generate_bin_lc(lc_raw_sub, lc_bin_sub)
-                self.generate_group_lc(lc_bin_sub, lc_group_sub)
-                self.generate_final_lc(ct, lc_group_sub, lc_sub)
+                self.generate_bin_lc(self._lc_fname(ct, m, 'raw'), self._lc_fname(ct, m, 'bin'))
+                self.generate_group_lc(self._lc_fname(ct, m, 'bin'), self._lc_fname(ct, m, 'group'))
+                self.generate_final_lc(ct, self._lc_fname(ct, m, 'group'), lc)
                 p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
                 p.plot_lc(extensions = ['.ps', '.png'])
                 if self.photsub is True:
+                    lc_sub = self._lc_fname(ct, m, 'standard', sub = True)
+                    self.generate_bin_lc(self._lc_fname(ct, m, 'raw', sub = True), self._lc_fname(ct, m, 'bin', sub = True))
+                    self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = True), self._lc_fname(ct, m, 'group', sub = True))
+                    self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = True), lc_sub)
                     p = LPPu.plotLC(lc_file = lc_sub, name = self.targetname, photmethod = m)
                     p.plot_lc(extensions = ['.ps', '.png'])
 
