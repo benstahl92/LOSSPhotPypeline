@@ -127,14 +127,18 @@ class LPP(object):
         # lightcurve variables
         self.lc_dir = 'lightcurve'
         self.lc_base = None
-        self.lc_raw = None
-        self.lc_raw_sub = None
-        self.lc_bin = None
-        self.lc_bin_sub = None
-        self.lc_group = None
-        self.lc_group_sub = None
-        self.lc = None
-        self.lc_sub = None
+        #self.lc_raw = None
+        #self.lc_raw_sub = None
+        #self.lc_bin = None
+        #self.lc_bin_sub = None
+        #self.lc_group = None
+        #self.lc_group_sub = None
+        #self.lc = None
+        #self.lc_sub = None
+        self.lc_ext = {'raw': '_natural_raw.dat',
+                       'bin': '_natural_bin.dat',
+                       'group': '_natural_group.dat',
+                       'standard': '_standard.dat'}
 
         # galaxy subtraction variables
         self.template_images = None
@@ -816,47 +820,23 @@ class LPP(object):
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
 
-    def generate_bin_lc(self, infile, outfile)#lc_file = None):
+    def generate_bin_lc(self, infile, outfile):
         '''wraps IDL lightcurve binning routine'''
 
-        #do_sub = True
-        #if lc_file is None:
-        #    lc_file = self.lc_raw
-        #    do_sub = False
-
         with redirect_stdout(self.log):
-            #self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin, output = True)
             self.idl.pro('lpp_dat_res_bin', infile, outfile, outfile = outfile, output = True)
-            #if (self.photsub is True) and (do_sub is True):
-            #    self.idl.pro('lpp_dat_res_bin', self.lc_raw_sub, self.lc_bin_sub, outfile = self.lc_bin_sub, output = True)
 
-    def generate_group_lc(self, infile, outfile)#lc_file = None):
+    def generate_group_lc(self, infile, outfile):
         '''wraps IDL lightcurve grouping routine'''
 
-        #do_sub = True
-        #if lc_file is None:
-        #    lc_file = self.lc_bin
-        #    do_sub = False
-
         with redirect_stdout(self.log):
-            #self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
             self.idl.pro('lpp_dat_res_group', infile, outfile, outfile = outfile)
-            #if (self.photsub is True) and (do_sub is True):
-            #    self.idl.pro('lpp_dat_res_group', self.lc_bin_sub, self.lc_group_sub, outfile = self.lc_group_sub)
 
-    def generate_final_lc(self, color_term, infile, outfile)#lc_table = None):
+    def generate_final_lc(self, color_term, infile, outfile):
         '''wraps IDL routine to convert to natural system'''
 
-        #do_sub = True
-        #if lc_table is None:
-        #    lc_table = self.lc_group
-        #    do_sub = False
-
         with redirect_stdout(self.log):
-            #self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, color_term, outfile = self.lc, output = True)
             self.idl.pro('lpp_invert_natural_stand_objonly', infile, color_term, outfile = outfile, output = True)
-            #if (self.photsub is True) and (do_sub is True):
-            #    self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, color_term, outfile = self.lc_sub, output = True)
 
     def generate_lc(self):
         '''performs all functions to transform image photometry into calibrated light curve of target'''
@@ -878,10 +858,10 @@ class LPP(object):
             if self.photsub is True:
                 self.generate_raw_lcs(photsub_mode = True, color_term = ct)
             for m in self.photmethod:
-                lc_raw = self.lc_base + ct + '_' + m + '_natural_raw.dat'
-                lc_bin = self.lc_base + ct + '_' + m + '_natural_bin.dat'
-                lc_group = self.lc_base + ct + '_' + m + '_natural_group.dat'
-                lc = self.lc_base + ct + '_' + m + '_standard.dat'
+                lc_raw = self._lc_fname(ct, m, 'raw')
+                lc_bin = self._lc_fname(ct, m, 'bin')
+                lc_group = self._lc_fname(ct, m, 'group')
+                lc = self._lc_fname(ct, m, 'standard')
                 self.generate_bin_lc(lc_raw, lc_bin)
                 self.generate_group_lc(lc_bin, lc_group)
                 self.generate_final_lc(ct, lc_group, lc)
@@ -1100,3 +1080,17 @@ class LPP(object):
             self.log.info('using argument supplied image list')
 
         return image_list
+
+    def _lc_fname(self, cterm, pmethod, lc_type, sub = False):
+        '''return light curve filename'''
+
+        if self.lc_base is None:
+            print('set lc_base first')
+            return
+
+        full_base = self.lc_base + cterm + '_' + pmethod
+        lc_fname = full_base + self.lc_ext[lc_type]
+        if sub is True:
+            lc_fname.replace('.dat', '_sub.dat')
+
+        return lc_fname
