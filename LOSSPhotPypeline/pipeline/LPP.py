@@ -819,34 +819,40 @@ class LPP(object):
     def generate_bin_lc(self, lc_file = None):
         '''wraps IDL lightcurve binning routine'''
 
+        do_sub = True
         if lc_file is None:
             lc_file = self.lc_raw
+            do_sub = False
 
         with redirect_stdout(self.log):
             self.idl.pro('lpp_dat_res_bin', lc_file, self.lc_bin, outfile = self.lc_bin, output = True)
-            if self.photsub is True:
+            if (self.photsub is True) and (do_sub is True):
                 self.idl.pro('lpp_dat_res_bin', self.lc_raw_sub, self.lc_bin_sub, outfile = self.lc_bin_sub, output = True)
 
     def generate_group_lc(self, lc_file = None):
         '''wraps IDL lightcurve grouping routine'''
 
+        do_sub = True
         if lc_file is None:
             lc_file = self.lc_bin
+            do_sub = False
 
         with redirect_stdout(self.log):
             self.idl.pro('lpp_dat_res_group', lc_file, self.lc_group, outfile = self.lc_group)
-            if self.photsub is True:
+            if (self.photsub is True) and (do_sub is True):
                 self.idl.pro('lpp_dat_res_group', self.lc_bin_sub, self.lc_group_sub, outfile = self.lc_group_sub)
 
     def generate_final_lc(self, color_term, lc_table = None):
         '''wraps IDL routine to convert to natural system'''
 
+        do_sub = True
         if lc_table is None:
             lc_table = self.lc_group
+            do_sub = False
 
         with redirect_stdout(self.log):
             self.idl.pro('lpp_invert_natural_stand_objonly', lc_table, color_term, outfile = self.lc, output = True)
-            if self.photsub is True:
+            if (self.photsub is True) and (do_sub is True):
                 self.idl.pro('lpp_invert_natural_stand_objonly', self.lc_group_sub, color_term, outfile = self.lc_sub, output = True)
 
     def generate_lc(self):
