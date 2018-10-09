@@ -158,7 +158,6 @@ class plotLC:
         if 'standard' not in lc_file:
             print('{} must have "standard" in its name, exiting.'.format(lc_file))
             return
-        #cols = [1] + list(range(3, 2*len(self.filters) + 3)) # no longer used
         self.lc = pd.read_csv(lc_file, delim_whitespace = True)
 
     def _load_cut(self, lc_file):
