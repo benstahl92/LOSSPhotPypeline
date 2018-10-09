@@ -750,8 +750,8 @@ class LPP(object):
         '''builds raw light curve files from calibrated results'''
 
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
-        #lc = {name: [] for name in columns}
-        lcs = {}#{m: copy.deepcopy(lc) for m in self.photmethod}
+        lc = {name: [] for name in columns}
+        lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
 
         # iterate through files and extract LC information
         for idx, fl in self.image_list.iteritems():
@@ -791,7 +791,6 @@ class LPP(object):
 
             # setup columns for each raw file
             for m in self.photmethod:
-                lcs[m] = {name: [] for name in columns}
                 lcs[m][';; MJD'].append(round(img.mjd, 6))
                 lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
                 lcs[m]['filter'].append(img.filter)
@@ -1078,6 +1077,6 @@ class LPP(object):
         full_base = self.lc_base + cterm + '_' + pmethod
         lc_fname = full_base + self.lc_ext[lc_type]
         if sub is True:
-            lc_fname.replace('.dat', '_sub.dat')
+            lc_fname = lc_fname.replace('.dat', '_sub.dat')
 
         return lc_fname
