@@ -832,10 +832,10 @@ class LPP(object):
         with redirect_stdout(self.log):
             self.idl.pro('lpp_invert_natural_stand_objonly', infile, color_term, outfile = outfile, output = True)
 
-    def generate_lc(self):
+    def generate_lc(self, sub = False):
         '''performs all functions to transform image photometry into calibrated light curve of target'''
 
-        self.log.info('generating and plotting light curves')
+        self.log.info('generating and plotting light curves (sub mode: {})'.format(sub))
 
         # set up file system
         if not os.path.isdir(self.lc_dir):
@@ -844,50 +844,38 @@ class LPP(object):
         # select only colors terms that are used
         used_color_terms = {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}
 
-        # run through all lc routines for all apertures, with all color terms used
-        #self.log.info('working on color terms: {}'.format(', '.join(used_color_terms.keys())))
-
         # generate raw light curves
         self.log.info('generating raw light curves for the following color terms: {}'.format(', '.join(used_color_terms.keys())))
         for ct in tqdm(used_color_terms.keys()):
-            self.generate_raw_lcs(ct)
-            if self.photsub is True:
-                self.generate_raw_lcs(ct, photsub_mode = True)
+            self.generate_raw_lcs(ct, photsub_mode = sub)
 
         # generate intermediate and final light curves
         self.log.info('generating "standard" light curves')
         for m in tqdm(self.photmethod):
             all_tmp = []
-            all_sub_tmp = []
-            for ct in used_color_terms.keys()
-                lc = self._lc_fname(ct, m, 'standard')
-                self.generate_bin_lc(self._lc_fname(ct, m, 'raw'), self._lc_fname(ct, m, 'bin'))
-                self.generate_group_lc(self._lc_fname(ct, m, 'bin'), self._lc_fname(ct, m, 'group'))
-                self.generate_final_lc(ct, self._lc_fname(ct, m, 'group'), lc)
+            for ct in used_color_terms.keys():
+                lc = self._lc_fname(ct, m, 'standard', sub = sub)
+                self.generate_bin_lc(self._lc_fname(ct, m, 'raw', sub = sub), self._lc_fname(ct, m, 'bin', sub = sub))
+                self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = sub), self._lc_fname(ct, m, 'group', sub = sub))
+                self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = sub), lc)
                 p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
                 p.plot_lc(extensions = ['.ps', '.png'])
                 all_tmp.append(lc)
-                if self.photsub is True:
-                    lc_sub = self._lc_fname(ct, m, 'standard', sub = True)
-                    self.generate_bin_lc(self._lc_fname(ct, m, 'raw', sub = True), self._lc_fname(ct, m, 'bin', sub = True))
-                    self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = True), self._lc_fname(ct, m, 'group', sub = True))
-                    self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = True), lc_sub)
-                    p = LPPu.plotLC(lc_file = lc_sub, name = self.targetname, photmethod = m)
-                    p.plot_lc(extensions = ['.ps', '.png'])
-                    all_sub_tmp.append(lc_sub)
             # make "all" light curves
-            lc = self._lc_fname('all', m)
-            if len(all_tmp) == 1:
-                shutil.copy2(all_tmp[0], lc)
-            else:
-                concat_list = []
-                for fl in all_tmp:
-                    concat_list.append(pd.read_csv(fl, delim_whitespace = True))
-                pd.concat(concat_list).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
+            lc = self._lc_fname('all', m, 'standard', sub = sub)
+            concat_list = []
+            for fl in all_tmp:
+                concat_list.append(pd.read_csv(fl, delim_whitespace = True))
+            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
 
         self.log.info('done with light curves')
+
+        # use recursion to handle sub if needed
+        if (self.photsub is True) and (sub is False):
+            self.generate_lc(sub = True)
+
 
     ###################################################################################################
     #          Utility Methods
