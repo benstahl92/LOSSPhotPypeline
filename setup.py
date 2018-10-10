@@ -1,16 +1,15 @@
 '''
-This is a basic setup file that suggests modifications to path variables.
-
-It should be run once from the code's root directory and then the .bashrc file should be modified based on the suggestions
+This is a basic setup file that sets paths and suggests modifications to path variables.
+Run this once from the code's root directory and then modify your bash login file accordingly
 '''
 
 import os
 import shutil
 import sys
-from pexpect.exceptions import ExceptionPexpect
 
 try:
 	import pidly
+	from pexpect.exceptions import ExceptionPexpect
 except ModuleNotFoundError:
 	sys.exit('Please install the python package "pIDLy" before proceeding.')
 
@@ -24,7 +23,7 @@ except ExceptionPexpect:
 	sys.exit('IDL executable not found. Make sure it is set appropriately in your .bashrc file')
 
 # check that required executables can be found
-required_execs = ['ds9, sextractor']
+required_execs = ['ds9, sex']
 for ex in required_execs:
 	s = shutil.which(ex)
 	if s == '':
@@ -42,10 +41,9 @@ with open(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_idl', 'get_lo
 
 print('\nNB: local_sky_sub.so is compiled from local_sky_sub.c --- you will likely need to recompile on your machine.')
 
-print('\nEnsure that the following IDL packages are installed:')
-print('\tAstrolib')
-
 print('\nAdd the following to your .bashrc file (and then source it!):\n')
 print('export PATH="{}:$PATH"'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_bin')))
 print('export IDL_PATH=+{}:$IDL_PATH'.format(os.path.join(root_dir, 'LOSSPhotPypeline', 'utils', 'LPP_idl')))
 print('export PYTHONPATH={}:$PYTHONPATH'.format(root_dir))
+
+print('\nDone!')
