@@ -90,7 +90,7 @@ While full documentation is (someday) on its way, an example of a typical workfl
 
    ```python
    >>> import LOSSPhotPypeline.pipeline as lpp
-   >>> sn = sn = lpp.start_pipeline('sntest')
+   >>> sn = lpp.start_pipeline('sntest')
    ```
 
    A welcome message will be printed and then (assuming this is the first time running the pipeline in this directory) a template configuration file will be made.
@@ -107,7 +107,7 @@ While full documentation is (someday) on its way, an example of a typical workfl
    calsource           auto
    photmethod          all
    refname
-   photlistfile         sntest.photlist
+   photlistfile        sntest.photlist
    forcecolorterm      none
    ```
 
@@ -128,7 +128,7 @@ While full documentation is (someday) on its way, an example of a typical workfl
    Re-initialize and run the pipeline:
 
    ```python
-   >>> sn = sn = lpp.start_pipeline('sntest')
+   >>> sn = lpp.start_pipeline('sntest')
    >>> sn.run()
    ```
 
