@@ -43,7 +43,7 @@ def get_first_obs_date(obj):
     obj : LPP instance, optional, default: None
         instance of LPP class from LOSSPhotPypeline.pipeline 
     '''
-    
+
     first_obs = None
     for instance in obj.phot_instances:
         if (first_obs is None) or (instance.mjd < first_obs):
@@ -53,7 +53,7 @@ def get_first_obs_date(obj):
 def idl(idl_cmd, log = None):
     '''execute a given IDL command and do logging as needed'''
 
-    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
     p.wait()
     if log is not None:
         log.debug('running IDL command: {}'.format(idl_cmd))

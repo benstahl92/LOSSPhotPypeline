@@ -405,9 +405,11 @@ class LPP(object):
                     '-STARNNW_NAME', star, 
                     '-CATALOG_NAME', ref.sobj,
                     '-CHECKIMAGE_NAME', ref.skyfit]
-        p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
         p.wait()
-        self.log.debug(p.communicate())
+        stdout, stderr = p.communicate()
+        self.log.debug(stdout)
+        self.log.debug(stderr)
         del p
 
         # make sure process succeeded
@@ -578,10 +580,10 @@ class LPP(object):
             elif (fl in self.phot_failed) and (self.photsub is False):
                 continue
 
-            # instantiate file object
+            # extract instance
             img = self.phot_instances.loc[idx]
 
-            # get color term and enforce only one color term per run if not forced
+            # count usage of color terms
             if self.force_color_term is False:
                 self.color_terms[img.color_term] += 1
             else:
