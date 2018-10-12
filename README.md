@@ -156,7 +156,6 @@ Miscellaneous notes on running the pipeline
 
    ```python
    >>> sn.go_to()
-
    [...]
 
    Choose an option:
@@ -195,5 +194,4 @@ Miscellaneous notes on running the pipeline
    >>> sn.show_methods()
    [...]
    ```
-## References
 
