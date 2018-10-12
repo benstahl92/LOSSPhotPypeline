@@ -3,7 +3,6 @@ import os
 import shutil
 import inspect
 from pprint import pprint
-#import pidly
 import pickle as pkl
 import copy
 import pandas as pd
@@ -42,7 +41,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True,  quiet_idl = True, cal_diff_tol = 0.20, force_color_term = False):
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.20, force_color_term = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -58,12 +57,6 @@ class LPP(object):
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
         self.build_log()
-
-        # setup idl
-        #self.idl = pidly.IDL()
-        if quiet_idl:
-        #    self.idl('!quiet = 1')
-        #    self.idl('!except = 0')
 
         # to be sourced from configuration file
         self.targetra = None
@@ -316,7 +309,6 @@ class LPP(object):
         '''saves current state of pipeline'''
         vs = vars(self).copy()
         vs.pop('steps')
-        vs.pop('idl')
         vs.pop('log')
         with open(self.savefile, 'wb') as f:
             pkl.dump(vs, f)
@@ -597,19 +589,17 @@ class LPP(object):
                 self.color_terms[self.force_color_term] += 1
 
             # execute idl calibration procedure
-            #with redirect_stdout(self.log):
             # set photsub mode appropriately
             if self.photsub is False:
                 ps = ''
             elif (self.photsub is True) and (fl in self.phot_sub_failed):
                 ps = ''
             else:
-                ps = '/PHOTSUB'
+                ps = '/PHOTSUB, '
             idl_cmd = '''idl -e "lpp_cal_instrumag, '{}', '{}', '{}', '{}', {}/OUTPUT"'''.format(fl, img.filter.upper(), self.cal_source,
-                         os.path.join(self.calibration_dir, self._ct2cf(img.color_term)), ps)
+                     os.path.join(self.calibration_dir, self._ct2cf(img.color_term)), ps)
             LPPu.idl(idl_cmd, log = self.log)
-            #self.idl.pro('lpp_cal_instrumag', fl, img.filter.upper(), self.cal_source, os.path.join(self.calibration_dir, self._ct2cf(img.color_term)),
-            #              photsub = do_photsub, output = True)
+
             # also get zero value
             img.get_zeromag()
 
@@ -633,13 +623,10 @@ class LPP(object):
         self.calfile_use = self.calfile.replace('.dat', '_use.dat')
 
         # generate ordered calibration file
-        #with redirect_stdout(self.log):
-        idl_cmd = '''idl -e "lpp_pick_good refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
+        idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
         LPPu.idl(idl_cmd, log = self.log)
-        #self.idl.pro('lpp_pick_good_refstars', list(range(225)), self.radecfile, os.path.join(self.calibration_dir, self.calfile), output = True)
         idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
         LPPu.idl(idl_cmd, log = self.log)
-        #self.idl.pro('lpp_cal_dat2fit_{}'.format(self.cal_source.lower()), os.path.join(self.calibration_dir, self.calfile_use), output = True)
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
@@ -827,25 +814,19 @@ class LPP(object):
     def generate_bin_lc(self, infile, outfile):
         '''wraps IDL lightcurve binning routine'''
 
-        #with redirect_stdout(self.log):
-        #    self.idl.pro('lpp_dat_res_bin', infile, outfile, outfile = outfile, output = True)
         idl_cmd = '''idl -e "lpp_dat_res_bin, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, outfile, outfile)
         LPPu.idl(idl_cmd, log = self.log)
 
     def generate_group_lc(self, infile, outfile):
         '''wraps IDL lightcurve grouping routine'''
 
-        #with redirect_stdout(self.log):
-        #    self.idl.pro('lpp_dat_res_group', infile, outfile, outfile = outfile)
-        idl_cmd = '''idl -e "lpp_dat_res_group, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, outfile, outfile)
+        idl_cmd = '''idl -e "lpp_dat_res_group, '{}', '{}', OUTFILE='{}'"'''.format(infile, outfile, outfile)
         LPPu.idl(idl_cmd, log = self.log)
 
     def generate_final_lc(self, color_term, infile, outfile):
         '''wraps IDL routine to convert to natural system'''
 
-        #with redirect_stdout(self.log):
-        #    self.idl.pro('lpp_invert_natural_stand_objonly', infile, color_term, outfile = outfile, output = True)
-        idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile, outfile)
+        idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile)
         LPPu.idl(idl_cmd, log = self.log)
 
     def generate_lc(self, sub = False):
@@ -1034,7 +1015,6 @@ class LPP(object):
         for filt in self.template_images.keys():
             fl_obj = FitsInfo(self.template_images[filt])
             if (fl_obj.telescope.lower() == 'nickel') and ('kait' in self.color_term):
-                #self.idl.pro('lpp_rebin_nickel2kait', self.template_images[filt], savefile = self.template_images[filt])
                 idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(self.template_images[filt], savefile = self.template_images[filt])
                 LPPu.idl(idl_cmd, log = self.log)
 

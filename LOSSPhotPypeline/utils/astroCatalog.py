@@ -1,10 +1,9 @@
 # standard package imports
-import requests 
+import requests
 import pandas as pd
 import numpy as np
 import os
 from astropy.io import ascii
-import pidly
 import warnings
 
 # filter warnings on import
@@ -19,6 +18,9 @@ try:
     apass = True
 except ModuleNotFoundError:
     apass = False
+
+# internal imports
+from LOSSPhotPypeline.utils.LPP_utils import idl
 
 class astroCatalog:
     '''
@@ -48,35 +50,35 @@ class astroCatalog:
         self.relative_path = relative_path
 
     def PS1_get_calib(self, rad_deg = 0.1, tmp_fl = 'ps1.csv',
-                      server='http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx'): 
-        '''        
+                      server='http://gsss.stsci.edu/webservices/vo/CatalogSearch.aspx'):
+        '''
         Parameters
         ----------
         rad_deg (optional, int or float) : search radius in decimal degrees
         tmp_fl (optional, str) : temporary filename for unprocessed search results
-        server (optional, str) : base url for search access   
-        
+        server (optional, str) : base url for search access
+
         Output
         ------
         file : writes processed calibration file and sets member variables
         '''
-        
+
         # formulate and execute query
-        params = {'RA': self.targetra, 'DEC': self.targetdec, 'SR': rad_deg, 
+        params = {'RA': self.targetra, 'DEC': self.targetdec, 'SR': rad_deg,
                   'FORMAT': 'csv', 'CAT': 'PS1V3OBJECTS'}
-        r = requests.get(server, params = params)    
-     
+        r = requests.get(server, params = params)
+
         # write results into temporary file
         with open(tmp_fl, 'w') as f:
             f.write(r.text)
-            
+
         # define structures for column name conversion and rounding
         in_cols = ['raMean', 'decMean', 'gMeanPSFMag', 'gMeanPSFMagErr', 'rMeanPSFMag','rMeanPSFMagErr',
                    'iMeanPSFMag', 'iMeanPSFMagErr', 'zMeanPSFMag', 'zMeanPSFMagErr',
                    'yMeanPSFMag', 'yMeanPSFMagErr']
         out_cols = ['ra', 'dec', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'y', 'yErr']
         decimals = pd.Series([7,7,3,3,3,3,3,3,3,3,3,3], index = out_cols)
-        
+
         # read desired columns in and format for calib file output, catch case where search fails
         try:
             data = pd.read_csv(tmp_fl, comment = '#', usecols = in_cols, na_values = -999)
@@ -87,7 +89,7 @@ class astroCatalog:
             print('Search of PS1 for calibration information failed...')
             os.system('rm {}'.format(tmp_fl)) # remove temp file
             return None
-        
+
         self.cal_source = 'PS1'
         self.cal_filename = 'cal_{}_{}.dat'.format(self.targetname, self.cal_source)
         data.round(decimals).to_csv(os.path.join(self.relative_path, self.cal_filename), sep = '\t', index = False, header = True)
@@ -178,25 +180,15 @@ class astroCatalog:
         elif method.lower() == 'apass':
             self.APASS_get_calib()
 
-    def to_natural(self, quiet_idl = True):
-        '''
-        wraps the appropriate IDL procedure to convert calibration to natural systems
-
-        Parameters
-        ----------
-        idl_dir (optional, str) : path to system IDL executable
-        '''
+    def to_natural(self):
+        '''wraps the appropriate IDL procedure to convert calibration to natural systems'''
 
         # select appropriate IDL procedure
         pro = 'lpp_cal_dat2fit_{}'.format(self.cal_source.lower())
 
         # run IDL procedure
-        idl = pidly.IDL()
-        if quiet_idl:
-            idl('!quiet = 1')
-            idl('!except = 0')
-        idl.pro(pro, os.path.join(self.relative_path, self.cal_filename))
-        idl.close()
+        idl_cmd = '''idl -e "{}, '{}'"'''.format(pro, os.path.join(self.relative_path, self.cal_filename))
+        idl(idl_cmd)
 
 # provide script functionality via
 # python astroCatalog_bs.py name ra dec
