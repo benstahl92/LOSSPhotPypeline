@@ -1,13 +1,17 @@
+# standard imports
+import subprocess
+import shlex
+
 # internal imports
 from LOSSPhotPypeline.image.Phot import Phot
 
-def genconf(object = None, targetname = None, config_file = None):
+def genconf(obj = None, targetname = None, config_file = None):
     '''
     Generates template configuration file in current directory.
 
     Parameters
     ----------
-    object : LPP instance, optional, default: None
+    obj : LPP instance, optional, default: None
         instance of LPP class from LOSSPhotPypeline.pipeline 
     targetname : str, optional, default: None
         name of sn
@@ -15,9 +19,9 @@ def genconf(object = None, targetname = None, config_file = None):
         name of configuration file to use
     '''
 
-    if object is not None:
-        targetname = object.targetname
-        config_file = object.config_file
+    if obj is not None:
+        targetname = obj.targetname
+        config_file = obj.config_file
     elif (targetname is None) or (config_file is None):
         print('must either pass LPP object or both target and configuration file names')
         return
@@ -48,3 +52,13 @@ def get_first_obs_date(obj):
         if (first_obs is None) or (instance.mjd < first_obs):
             first_obs = instance.mjd
     return first_obs
+
+def idl(idl_cmd, log = None):
+    '''execute a given IDL command and do logging as needed'''
+
+    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    p.wait()
+    if log is not None:
+        log.debug('ran IDL command: {}'.format(idl_cmd))
+        log.debug(p.communicate())
+    del p
