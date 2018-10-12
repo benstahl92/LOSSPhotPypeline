@@ -2,9 +2,6 @@
 import subprocess
 import shlex
 
-# internal imports
-from LOSSPhotPypeline.image.Phot import Phot
-
 def genconf(obj = None, targetname = None, config_file = None):
     '''
     Generates template configuration file in current directory.

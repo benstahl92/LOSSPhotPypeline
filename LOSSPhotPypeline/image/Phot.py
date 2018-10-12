@@ -4,8 +4,6 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 import os
-#import shlex
-#import subprocess
 
 # internal imports
 from LOSSPhotPypeline.image.FileNames import FileNames
@@ -50,11 +48,6 @@ class Phot(FitsInfo):
             ps = '/PHOTSUB, '
         idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, self.exptime, ps)
         LPPu.idl(idl_cmd, log = log)
-        #p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        #p.wait()
-        #if log is not None:
-        #    log.debug(p.communicate())
-        #del p
 
         r1 = True
         if os.path.exists(self.psf) is False:
@@ -76,11 +69,6 @@ class Phot(FitsInfo):
         # execute idl commmand
         idl_cmd = '''idl -e "{}, '{}', '{}', /OUTPUT"'''.format(cmd, self.cimg, template_images[self.filter.upper()])
         LPPu.idl(idl_cmd, log = log)
-        #p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-        #p.wait()
-        #if log is not None:
-        #    log.debug(p.communicate())
-        #del p
 
         # might want to add interactivity here to check the subtraction
 
