@@ -1,5 +1,8 @@
 pro lpp_cal_dat2fit_ps1,ps1_datfilename,output=output
 
+!quiet = 1
+!except = 0
+
 if n_params() eq 0 then begin
   print,'Syntax- LPP_cal_dat2fit_ps1,ps1_datfilename'
   return

@@ -552,11 +552,11 @@ class LPP(object):
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
         # check for calibration data and download if it doesn't exist yet
-        if not second_pass and ((not os.path.exists(self.calfile)) or (self.calfile == '') or (self.cal_source == '')):
+        if ((second_pass is False) and ((not os.path.exists(os.path.join(self.calibration_dir, self.calfile))) or 
+            (self.calfile == '') or (self.cal_source == ''))):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
-            with redirect_stdout(self.log):
-                catalog.to_natural()
+            catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
             self.log.info('calibration data sourced')
@@ -566,8 +566,7 @@ class LPP(object):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
-            with redirect_stdout(self.log):
-                catalog.to_natural()
+            catalog.to_natural()
             self.log.info('using edited calibration list')
 
         # iterate through image list and execute calibration script on each
@@ -597,7 +596,7 @@ class LPP(object):
             else:
                 ps = '/PHOTSUB, '
             idl_cmd = '''idl -e "lpp_cal_instrumag, '{}', '{}', '{}', '{}', {}/OUTPUT"'''.format(fl, img.filter.upper(), self.cal_source,
-                     os.path.join(self.calibration_dir, self._ct2cf(img.color_term)), ps)
+                     os.path.join(self.calibration_dir, self._ct2cf(img.color_term, use = second_pass)), ps)
             LPPu.idl(idl_cmd, log = self.log)
 
             # also get zero value

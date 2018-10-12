@@ -1,5 +1,8 @@
 pro lpp_dat_res_group,datafile,outst,outfile=outfile
 
+!quiet = 1
+!except = 0
+
 if n_params() eq 0 then begin
   print,'Syntax- LPP_dat_res_group,datafile,outst,outfile=outfile'
   return

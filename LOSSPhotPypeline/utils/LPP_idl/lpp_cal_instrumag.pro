@@ -1,5 +1,8 @@
 pro lpp_cal_instrumag,image,filter,cal_source,cal_file,photsub=photsub,output=output
 
+!quiet = 1
+!except = 0
+
 if n_params() eq 0 then begin
   print,'syntax - LPP_cal_instrumag,image,filter,cal_source,cal_file,photsub=photsub,output=output'
   return

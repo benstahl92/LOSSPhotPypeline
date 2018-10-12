@@ -1,5 +1,8 @@
 pro lpp_pick_good_refstars,starid,radecfile,calfile,output=output
 
+!quiet = 1
+!except = 0
+
 if n_params() eq 0 then begin
   print,'Syntax- LPP_pick_good_refstar,starid,radecfile,calfile'
   return

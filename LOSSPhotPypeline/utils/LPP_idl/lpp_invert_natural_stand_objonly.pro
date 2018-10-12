@@ -1,5 +1,8 @@
 pro lpp_invert_natural_stand_objonly,natural_data_file,system,outfile=outfile,output=output
 
+!quiet = 1
+!except = 0
+
 if n_params() ne 2 then begin
   print,'syntax- LPP_invert_natural_stand_objonly,natural_data_file,system'
   print,'system options: kait1, kait2, kait3, kait4, nickel1,nickel2'
