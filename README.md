@@ -22,7 +22,6 @@ This is the Lick Observatory Supernova Search Photometry Pipeline. It is designe
     * tqdm
     * AstroSQL (<https://github.com/ketozhang/astroSQL>)
     * p_tqdm (<https://github.com/swansonk14/p_tqdm>)
-    * pIDLy (<https://github.com/anthonyjsmith/pIDLy>)
     * pyzaphotdb (not publicly available yet, but not needed for bulk of features)
     * sewpy (<https://github.com/megalut/sewpy>)
 * IDL 8.5
@@ -157,7 +156,8 @@ Miscellaneous notes on running the pipeline
    ```python
    >>> sn.go_to()
    [...]
-
+   ```
+   ```
    Choose an option:
 
    primary reduction steps:
