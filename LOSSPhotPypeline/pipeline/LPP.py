@@ -833,6 +833,7 @@ class LPP(object):
 
         # assign convenience variables
         tmp = infile.split('_')
+        ct = tmp[tmp.index('natural') - 2] # get color term
         m = tmp[tmp.index('natural') - 1] # get phot aperture
         binfile = infile.replace('raw', 'bin')
         groupfile = binfile.replace('bin', 'group')
