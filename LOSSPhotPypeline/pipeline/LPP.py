@@ -137,9 +137,8 @@ class LPP(object):
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
                       self.do_calibration,
-                      self.get_limmag_all_image,
-                      self.generate_raw_lc,
-                      self.generate_final_lc]
+                      self.get_limmag_all_image,,
+                      self.generate_lc]
 
         # save file
         self.savefile = self.targetname.lower().replace(' ', '') + '.sav'
@@ -835,12 +834,14 @@ class LPP(object):
         # assign convenience variables
         ct = color_term
         m = phot_method
-        lc = self._lc_fname(ct, m, 'standard', sub = sub)
+        binfile = infile.replace('raw', 'bin')
+        groupfile = binfile.replace('bin', 'group')
+        lc = groupfile.replace('natural_group', 'standard')
 
         # do intermediate light curve steps
-        self.generate_bin_lc(infile, self._lc_fname(ct, m, 'bin', sub = sub))
-        self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = sub), self._lc_fname(ct, m, 'group', sub = sub))
-        self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = sub), lc)
+        self.generate_bin_lc(infile, binfile)
+        self.generate_group_lc(binfile, groupfile)
+        self.generate_final_lc(ct, groupfile, lc)
 
         # plot
         p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
