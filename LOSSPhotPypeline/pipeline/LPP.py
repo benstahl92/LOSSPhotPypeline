@@ -828,12 +828,12 @@ class LPP(object):
         idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile)
         LPPu.idl(idl_cmd, log = self.log)
 
-    def raw2standard_lc(self, infile, color_term, phot_method, sub = False):
+    def raw2standard_lc(self, infile):
         '''wrap intermediate steps that transform light curves from "raw" to "standard"'''
 
         # assign convenience variables
-        ct = color_term
-        m = phot_method
+        tmp = infile.split('_')
+        m = tmp[tmp.index('natural') - 1] # get phot aperture
         binfile = infile.replace('raw', 'bin')
         groupfile = binfile.replace('bin', 'group')
         lc = groupfile.replace('natural_group', 'standard')
@@ -869,7 +869,7 @@ class LPP(object):
         for m in tqdm(self.photmethod):
             all_tmp = []
             for ct in used_color_terms.keys():
-                self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub), ct, m, sub = sub)
+                self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub))
                 all_tmp.append(self._lc_fname(ct, m, 'standard', sub = sub))
             # make "all" light curves
             lc = self._lc_fname('all', m, 'standard', sub = sub)
