@@ -137,7 +137,7 @@ class LPP(object):
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
                       self.do_calibration,
-                      self.get_limmag_all_image,,
+                      self.get_limmag_all_image,
                       self.generate_lc]
 
         # save file
@@ -870,13 +870,7 @@ class LPP(object):
             all_tmp = []
             for ct in used_color_terms.keys():
                 self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub), ct, m, sub = sub)
-                #lc = self._lc_fname(ct, m, 'standard', sub = sub)
-                #self.generate_bin_lc(self._lc_fname(ct, m, 'raw', sub = sub), self._lc_fname(ct, m, 'bin', sub = sub))
-                #self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = sub), self._lc_fname(ct, m, 'group', sub = sub))
-                #self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = sub), lc)
-                #p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
-                #p.plot_lc(extensions = ['.ps', '.png'])
-                all_tmp.append(lc)
+                all_tmp.append(self._lc_fname(ct, m, 'standard', sub = sub))
             # make "all" light curves
             lc = self._lc_fname('all', m, 'standard', sub = sub)
             concat_list = []
