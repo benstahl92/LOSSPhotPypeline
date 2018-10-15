@@ -138,7 +138,8 @@ class LPP(object):
                       self.get_sky_all_image,
                       self.do_calibration,
                       self.get_limmag_all_image,
-                      self.generate_lc]
+                      self.generate_raw_lc,
+                      self.generate_final_lc]
 
         # save file
         self.savefile = self.targetname.lower().replace(' ', '') + '.sav'
@@ -426,8 +427,6 @@ class LPP(object):
         imagey = data.Y_IMAGE
 
         # transform to RA and DEC using ref image header information
-        #with fits.open(self.refname) as ref:
-        #    cs = WCS(header=ref[0].header)
         cs = WCS(header = ref.header)
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
 
@@ -830,6 +829,23 @@ class LPP(object):
         idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile)
         LPPu.idl(idl_cmd, log = self.log)
 
+    def raw2standard_lc(self, infile, color_term, phot_method, sub = False):
+        '''wrap intermediate steps that transform light curves from "raw" to "standard"'''
+
+        # assign convenience variables
+        ct = color_term
+        m = phot_method
+        lc = self._lc_fname(ct, m, 'standard', sub = sub)
+
+        # do intermediate light curve steps
+        self.generate_bin_lc(infile, self._lc_fname(ct, m, 'bin', sub = sub))
+        self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = sub), self._lc_fname(ct, m, 'group', sub = sub))
+        self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = sub), lc)
+
+        # plot
+        p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
+        p.plot_lc(extensions = ['.ps', '.png'])
+
     def generate_lc(self, sub = False):
         '''performs all functions to transform image photometry into calibrated light curve of target'''
 
@@ -852,12 +868,13 @@ class LPP(object):
         for m in tqdm(self.photmethod):
             all_tmp = []
             for ct in used_color_terms.keys():
-                lc = self._lc_fname(ct, m, 'standard', sub = sub)
-                self.generate_bin_lc(self._lc_fname(ct, m, 'raw', sub = sub), self._lc_fname(ct, m, 'bin', sub = sub))
-                self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = sub), self._lc_fname(ct, m, 'group', sub = sub))
-                self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = sub), lc)
-                p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
-                p.plot_lc(extensions = ['.ps', '.png'])
+                self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub), ct, m, sub = sub)
+                #lc = self._lc_fname(ct, m, 'standard', sub = sub)
+                #self.generate_bin_lc(self._lc_fname(ct, m, 'raw', sub = sub), self._lc_fname(ct, m, 'bin', sub = sub))
+                #self.generate_group_lc(self._lc_fname(ct, m, 'bin', sub = sub), self._lc_fname(ct, m, 'group', sub = sub))
+                #self.generate_final_lc(ct, self._lc_fname(ct, m, 'group', sub = sub), lc)
+                #p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
+                #p.plot_lc(extensions = ['.ps', '.png'])
                 all_tmp.append(lc)
             # make "all" light curves
             lc = self._lc_fname('all', m, 'standard', sub = sub)
