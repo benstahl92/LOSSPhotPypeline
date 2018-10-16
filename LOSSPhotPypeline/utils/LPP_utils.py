@@ -25,12 +25,12 @@ def genconf(obj = None, targetname = None, config_file = None, ra = '', dec = ''
 
     with open(config_file, 'w') as f:
         f.write('{:<20}{}\n'.format('targetname', targetname))
-        f.write('{:<20}\n'.format('targetra'))
-        f.write('{:<20}\n'.format('targetdec'))
+        f.write('{:<20}{}\n'.format('targetra', ra))
+        f.write('{:<20}{}\n'.format('targetdec', dec))
         f.write('{:<20}yes\n'.format('photsub'))
         f.write('{:<20}auto\n'.format('calsource'))
         f.write('{:<20}all\n'.format('photmethod'))
-        f.write('{:<20}\n'.format('refname'))
+        f.write('{:<20}{}\n'.format('refname', refname))
         f.write('{:<20}{}.photlist\n'.format('photlistfile', targetname))
         f.write('{:<20}none\n'.format('forcecolorterm'))
 
