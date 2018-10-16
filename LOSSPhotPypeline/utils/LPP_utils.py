@@ -2,7 +2,7 @@
 import subprocess
 import shlex
 
-def genconf(obj = None, targetname = None, config_file = None):
+def genconf(obj = None, targetname = None, config_file = None, ra = '', dec = '', refname = ''):
     '''
     Generates template configuration file in current directory.
 
@@ -27,7 +27,7 @@ def genconf(obj = None, targetname = None, config_file = None):
         f.write('{:<20}{}\n'.format('targetname', targetname))
         f.write('{:<20}\n'.format('targetra'))
         f.write('{:<20}\n'.format('targetdec'))
-        f.write('{:<20}no\n'.format('photsub'))
+        f.write('{:<20}yes\n'.format('photsub'))
         f.write('{:<20}auto\n'.format('calsource'))
         f.write('{:<20}all\n'.format('photmethod'))
         f.write('{:<20}\n'.format('refname'))
