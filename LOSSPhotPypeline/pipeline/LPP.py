@@ -41,7 +41,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.20, force_color_term = False):
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.10, force_color_term = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -212,6 +212,10 @@ class LPP(object):
 
         self.log = logging.getLogger('LOSSPhotPypeline')
         self.log.setLevel(logging.DEBUG)
+
+        # don't duplicate entries
+        if self.log.hasHandlers():
+            self.log.handlers.clear()
 
         # internal logging
         fh = logging.FileHandler(self.logfile)
@@ -690,7 +694,10 @@ class LPP(object):
             cut_list = list(set(cut_list))
             full_list = list(set(full_list))
             if not self.interactive:
-                accept_tol = True
+                if len(full_list) - len(cut_list) < 5:
+                    self.cal_diff_tol += 0.05
+                else:
+                    accept_tol = True
             else:
                 print('\nCalibration Summary')
                 print('*'*60)
