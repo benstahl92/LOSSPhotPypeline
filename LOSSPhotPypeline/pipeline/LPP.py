@@ -905,14 +905,13 @@ class LPP(object):
         self.summary_file = self.targetname + '.summary'
         with open(self.summary_file, 'w') as f:
             f.write('{:<20}{}\n'.format('targetname', self.targetname))
-            f.write('{:<20}{}\n'.format('first obs', self.first_obs))
             f.write('{:<20}{}\n'.format('photsub', self.photsub))
-            f.write('{:<20}{}\n'.format('apertures', ', '.join(self.photmethod.keys())))
+            f.write('{:<20}{}\n'.format('apertures', ', '.join(self.photmethod)))
             f.write('{:<20}{}\n'.format('color_terms',', '.join(self.color_terms_used.keys())))
             f.write('{:<20}{}\n'.format('num images', len(self.phot_instances)))
             f.write('{:<20}{}\n'.format('num failures', len(self.phot_instances) - len(self.image_list)))
             f.write('{:<20}{}\n'.format('cal source', self.cal_source))
-            f.write('{:<20}{}\n'.format('cal tolerance', self.cal_diff_tol))
+            f.write('{:<20}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
 
     ###################################################################################################
     #          Utility Methods
