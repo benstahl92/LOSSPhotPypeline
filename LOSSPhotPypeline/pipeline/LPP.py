@@ -41,7 +41,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.10, force_color_term = False):
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -138,7 +138,8 @@ class LPP(object):
                       self.get_sky_all_image,
                       self.do_calibration,
                       self.get_limmag_all_image,
-                      self.generate_lc]
+                      self.generate_lc,
+                      self.write_summary]
 
         # save file
         self.savefile = self.targetname.lower().replace(' ', '') + '.sav'
@@ -865,18 +866,18 @@ class LPP(object):
             os.makedirs(self.lc_dir)
 
         # select only colors terms that are used
-        used_color_terms = {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}
+        self.color_terms_used = {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}
 
         # generate raw light curves
-        self.log.info('generating raw light curves for the following color terms: {}'.format(', '.join(used_color_terms.keys())))
-        for ct in tqdm(used_color_terms.keys()):
+        self.log.info('generating raw light curves for the following color terms: {}'.format(', '.join(self.color_terms_used.keys())))
+        for ct in tqdm(self.color_terms_used.keys()):
             self.generate_raw_lcs(ct, photsub_mode = sub)
 
         # generate intermediate and final light curves
         self.log.info('generating "standard" light curves')
         for m in tqdm(self.photmethod):
             all_tmp = []
-            for ct in used_color_terms.keys():
+            for ct in self.color_terms_used.keys():
                 self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub))
                 all_tmp.append(self._lc_fname(ct, m, 'standard', sub = sub))
             # make "all" light curves
@@ -894,6 +895,24 @@ class LPP(object):
         if (self.photsub is True) and (sub is False):
             self.generate_lc(sub = True)
 
+    def write_summary(self):
+        '''write summary file'''
+
+        if self.current_step != 8:
+            print('processing must be done before summary can be written')
+            return
+
+        self.summary_file = self.targetname + '.summary'
+        with open(self.summary_file, 'w') as f:
+            f.write('{:<20}{}\n'.format('targetname', self.targetname))
+            f.write('{:<20}{}\n'.format('first obs', self.first_obs))
+            f.write('{:<20}{}\n'.format('photsub', self.photsub))
+            f.write('{:<20}{}\n'.format('apertures', ', '.join(self.photmethod.keys())))
+            f.write('{:<20}{}\n'.format('color_terms',', '.join(self.color_terms_used.keys())))
+            f.write('{:<20}{}\n'.format('num images', len(self.phot_instances)))
+            f.write('{:<20}{}\n'.format('num failures', len(self.phot_instances) - len(self.image_list)))
+            f.write('{:<20}{}\n'.format('cal source', self.cal_source))
+            f.write('{:<20}{}\n'.format('cal tolerance', self.cal_diff_tol))
 
     ###################################################################################################
     #          Utility Methods
