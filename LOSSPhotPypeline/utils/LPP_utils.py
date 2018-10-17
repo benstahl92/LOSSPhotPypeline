@@ -54,10 +54,10 @@ def idl(idl_cmd, log = None):
     '''execute a given IDL command and do logging as needed'''
 
     p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
-    p.wait()
     if log is not None:
         log.debug('running IDL command: {}'.format(idl_cmd))
         stdout, stderr = p.communicate()
         log.debug(stdout)
         log.debug(stderr)
+    p.wait()
     del p
