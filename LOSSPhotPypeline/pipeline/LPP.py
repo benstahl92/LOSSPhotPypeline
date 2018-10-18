@@ -930,10 +930,13 @@ class LPP(object):
         # remove any images from new list that have already been processed
         new_image_list = new_image_list[~new_image_list.isin(self.image_list)]
 
-        # update image list to include everything
+        # update image list to include everything, and update phot_instances
+        self.log.info('loading new images')
         self.image_list = self.image_list.append(new_image_list, ignore_index = True)
+        self.phot_instances = self._im2inst(self.image_list)
 
-        # perform photometry on new images
+        # perform galaxy_subtraction photometry on new images
+        self.do_galaxy_subtraction_all_image(image_list = new_image_list)
         self.do_photometry_all_image(image_list = new_image_list)
 
         # perform calibration
@@ -945,7 +948,7 @@ class LPP(object):
         if full_cal:
             self.current_step = self.steps.index(self.do_photometry_all_image)
         else:
-            self.calibrate(second_pass = False, image_list = new_image_list)
+            self.calibrate(second_pass = True, image_list = new_image_list)
             self.current_step = self.steps.index(self.generate_lc)
 
         # run program after calibration has been completed
@@ -1006,7 +1009,7 @@ class LPP(object):
         self.photsub = False
         self.get_template_candidates()
 
-    def get_template_candidates(self, late_time_begin = 3):
+    def get_template_candidates(self, late_time_begin = 365):
         '''searches database to identify candidate template images for galaxy subtraction'''
 
         self.log.info('searching for galaxy subtraction template images')
@@ -1030,10 +1033,8 @@ class LPP(object):
 
         if len(cand['filter'].drop_duplicates()) < 4: # need at least one per pass band
             msg = 'no or not enough suitable candidates, schedule observations:\n{}'.format(radecmsg)
-            #get_templ_fl_msg += msg
             self.log.warn(msg)
             with open('GET.TEMPLATES', 'w') as f:
-                #f.write(get_templ_fl_msg)
                 f.write(msg)
             return
 
@@ -1046,45 +1047,6 @@ class LPP(object):
         cand.to_csv(os.path.join(cand_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
 
         # add interactive option in future?
-
-
-        #self.template_images = {filt: None for filt in self.filter_set_ref}
-
-        # iterate through filters to determine the best template for each
-        """
-        for idx, filt in cand['filter'].drop_duplicates().iteritems():
-            filt = filt.upper()
-            tmp = cand[cand['filter'].str.upper() == filt]
-            if len(tmp) == 0:
-                msg = 'No suitable indidates in the {} band. Schedule an observation:\n{}'.format(filt, radecmsg)
-                get_templ_fl_msg += msg + '\n'
-                self.log.warn(msg)
-            elif len(tmp) == 1:
-                self.log.info('Only one candidate found in the {} band'.format(filt))
-                if tmp.iloc[0]['telescope'].lower() != 'nickel':
-                    msg1 = 'Not a Nickel image.'
-                    msg2 = 'May want to schedule observation, but using in meantime.'
-                    get_templ_fl_msg += msg1 + '\n' + msg2 + '\n'
-                    self.log.warn('{}\n{}\n{}'.format(msg1, msg2, radecmsg))
-                self.template_images[filt] = base_dir + tmp.iloc[0]['savepath'] + tmp.iloc[0]['uniformname']
-            else:
-                tmp = tmp.sort_values('limitmag', ascending=False)
-                # compare the best two images
-                if (tmp['fwhm'].iloc[0] - tmp['fwhm'].iloc[1] > 0.3) and (tmp['limitmag'].iloc[0] - tmp['limitmag'].iloc[1] < 3):
-                    index_to_use = 1
-                else:
-                    index_to_use = 0
-                if tmp.iloc[index_to_use]['telescope'].lower() != 'nickel':
-                    msg1 = 'Best {} image is not from Nickel.'.format(filt)
-                    msg2 = 'May want to schedule observation, but using in meantime.'
-                    get_templ_fl_msg += msg1 + '\n' + msg2 + '\n'
-                    self.log.warn('{}\n{}\n{}'.format(msg1, msg2, radecmsg))
-                self.template_images[filt] = os.path.join(base_dir, tmp.iloc[index_to_use]['savepath'], tmp.iloc[index_to_use]['uniformname'])
-
-        with open('GET.TEMPLATES', 'w') as f:
-            f.write(get_templ_fl_msg)
-            f.write(radecmsg)
-        """
 
         '''
         # simple check for file existence and copy to templates dir
@@ -1107,14 +1069,6 @@ class LPP(object):
                 self.template_images[filt] = self.template_images[filt][:-3]
 
         '''
-        """
-        # rebin if needed
-        for filt in self.template_images.keys():
-            fl_obj = FitsInfo(self.template_images[filt])
-            if (fl_obj.telescope.lower() == 'nickel') and ('kait' in self.color_term):
-                idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(self.template_images[filt], savefile = self.template_images[filt])
-                LPPu.idl(idl_cmd, log = self.log)
-        """
 
         # optionally show template images
         '''
