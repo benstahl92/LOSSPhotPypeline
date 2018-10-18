@@ -128,9 +128,6 @@ class LPP(object):
         # galaxy subtraction variables
         self.template_images = None
         self.templates_dir = 'templates'
-        # expect to find template images in directory
-        if self.photsub:
-            self.load_templates()
 
         # steps in standard reduction procedure
         self.current_step = 0
@@ -977,12 +974,12 @@ class LPP(object):
             succ = False
             msg = 'no templates directory, cannot do photsub'
         else:
-            templates = [os.path.join(self.templates_dir, fl) for fl in os.listdir(self.templates_dir) if '.fit' in file]
+            templates = [os.path.join(self.templates_dir, fl) for fl in os.listdir(self.templates_dir) if '.fit' in fl]
 
         if succ is True:
-            if len(templates) < 5: # 5 passbands
+            if len(templates) < 4: # 5 passbands
                 succ = False
-                msg = 'no or not enough templates in directory, cannot do photsub'    
+                msg = 'no or not enough templates in directory, cannot do photsub'
             else:
                 for templ in templates:
                     ti = FitsInfo(templ)
@@ -1009,7 +1006,7 @@ class LPP(object):
         self.photsub = False
         self.get_template_candidates()
 
-    def get_template_candidates(self, late_time_begin = 365):
+    def get_template_candidates(self, late_time_begin = 3):
         '''searches database to identify candidate template images for galaxy subtraction'''
 
         self.log.info('searching for galaxy subtraction template images')
@@ -1031,7 +1028,7 @@ class LPP(object):
         get_templ_fl_msg = ''
         radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
 
-        if len(cand['filter'].drop_duplicates()) < 5: # need at least one per pass band
+        if len(cand['filter'].drop_duplicates()) < 4: # need at least one per pass band
             msg = 'no or not enough suitable candidates, schedule observations:\n{}'.format(radecmsg)
             #get_templ_fl_msg += msg
             self.log.warn(msg)
@@ -1044,7 +1041,7 @@ class LPP(object):
         cand_dir = self.templates_dir + '_candidates'
         if not os.path.isdir(cand_dir):
             os.makedirs(cand_dir)
-        cols = ['name','savepath','uniformname','mjd','telescope','filter','fwhm','zeromag','limitmag']
+        cols = ['savepath','uniformname','mjd','telescope','filter','fwhm','zeromag','limitmag']
         cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
         cand.to_csv(os.path.join(cand_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
 
