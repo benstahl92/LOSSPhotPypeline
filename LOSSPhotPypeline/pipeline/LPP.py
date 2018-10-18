@@ -128,6 +128,9 @@ class LPP(object):
         # galaxy subtraction variables
         self.template_images = None
         self.templates_dir = 'templates'
+        # expect to find template images in directory
+        if self.photsub:
+            self.load_templates()
 
         # steps in standard reduction procedure
         self.current_step = 0
@@ -411,10 +414,10 @@ class LPP(object):
                     '-CATALOG_NAME', ref.sobj,
                     '-CHECKIMAGE_NAME', ref.skyfit]
         p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
-        p.wait()
         stdout, stderr = p.communicate()
         self.log.debug(stdout)
         self.log.debug(stderr)
+        p.wait()
         del p
 
         # make sure process succeeded
@@ -476,7 +479,7 @@ class LPP(object):
         image_list = self._set_im_list(image_list)
 
         if self.template_images is None:
-            self.get_template_images()
+            self.load_templates()
             if self.template_images is None:
                 self.log.warn('could not get suitable template images, running without galaxy subtraction')
                 self.photsub = False
@@ -964,8 +967,52 @@ class LPP(object):
 
         self.log.info('new images processed')
 
-    def get_template_images(self, late_time_begin = 365):
-        '''searches database to identify template images for galaxy subtraction'''
+    def load_templates(self):
+        '''search templates dir, setup, and convert formats as needed'''
+
+        succ = True
+        self.template_images = {'{}_{}'.format(f, tel): None for f in self.filter_set_ref for tel in ['kait', 'nickel']}
+
+        if os.path.exists(self.templates_dir) is False:
+            succ = False
+            msg = 'no templates directory, cannot do photsub'
+        else:
+            templates = [os.path.join(self.templates_dir, fl) for fl in os.listdir(self.templates_dir) if '.fit' in file]
+
+        if succ is True:
+            if len(templates) < 5: # 5 passbands
+                succ = False
+                msg = 'no or not enough templates in directory, cannot do photsub'    
+            else:
+                for templ in templates:
+                    ti = FitsInfo(templ)
+                    filt = ti.filter.upper()
+                    if ti.telescope.lower() == 'nickel':
+                        self.template_images['{}_nickel'.format(filt)] = ti.cimg
+                        # also rebin for kait
+                        self.template_images['{}_kait'.format(filt)] = ti.root + '_n2k.fit'
+                        idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, 
+                                    savefile = self.template_images['{}_kait'.format(filt)])
+                        LPPu.idl(idl_cmd, log = self.log)
+                    else:
+                        succ = False
+                        msg = 'need nickel templates, cannot do photsub'
+                        break
+
+        if succ is True:
+            self.log.info('templates loaded')
+            return
+
+        # otherwise process is not a success, search for candidates but proceed without photsub
+        self.log.warning(msg)
+        self.template_images = None
+        self.photsub = False
+        self.get_template_candidates()
+
+    def get_template_candidates(self, late_time_begin = 365):
+        '''searches database to identify candidate template images for galaxy subtraction'''
+
+        self.log.info('searching for galaxy subtraction template images')
 
         if not haveDB:
             self.log.warn('Database unavailable. Exiting.')
@@ -978,23 +1025,36 @@ class LPP(object):
 
         cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
 
-        # select only candidates that are before the first observation or at least one year later
-        cand = cand[(cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin))]
+        # select only candidates that are before the first observation or at least one year later AND are nickel images
+        cand = cand[((cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin))) & (cand.telescope.str.lower() == 'nickel')]
 
         get_templ_fl_msg = ''
         radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
 
-        if len(cand) == 0:
-            msg = 'No suitable candidates in any band. Schedule observations:\n{}'.format(radecmsg)
-            get_templ_fl_msg += msg
+        if len(cand['filter'].drop_duplicates()) < 5: # need at least one per pass band
+            msg = 'no or not enough suitable candidates, schedule observations:\n{}'.format(radecmsg)
+            #get_templ_fl_msg += msg
             self.log.warn(msg)
             with open('GET.TEMPLATES', 'w') as f:
-                f.write(get_templ_fl_msg)
+                #f.write(get_templ_fl_msg)
+                f.write(msg)
             return
 
-        self.template_images = {filt: None for filt in self.filter_set_ref}
+        # otherwise rank candidates, write to file
+        cand_dir = self.templates_dir + '_candidates'
+        if not os.path.isdir(cand_dir):
+            os.makedirs(cand_dir)
+        cols = ['name','savepath','uniformname','mjd','telescope','filter','fwhm','zeromag','limitmag']
+        cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
+        cand.to_csv(os.path.join(cand_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
+
+        # add interactive option in future?
+
+
+        #self.template_images = {filt: None for filt in self.filter_set_ref}
 
         # iterate through filters to determine the best template for each
+        """
         for idx, filt in cand['filter'].drop_duplicates().iteritems():
             filt = filt.upper()
             tmp = cand[cand['filter'].str.upper() == filt]
@@ -1027,10 +1087,9 @@ class LPP(object):
         with open('GET.TEMPLATES', 'w') as f:
             f.write(get_templ_fl_msg)
             f.write(radecmsg)
+        """
 
-        if not os.path.isdir(self.templates_dir):
-            os.makedirs(self.templates_dir)
-
+        '''
         # simple check for file existence and copy to templates dir
         for filt in self.template_images.keys():
             decomp = False
@@ -1050,20 +1109,25 @@ class LPP(object):
                 del p
                 self.template_images[filt] = self.template_images[filt][:-3]
 
+        '''
+        """
         # rebin if needed
         for filt in self.template_images.keys():
             fl_obj = FitsInfo(self.template_images[filt])
             if (fl_obj.telescope.lower() == 'nickel') and ('kait' in self.color_term):
                 idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(self.template_images[filt], savefile = self.template_images[filt])
                 LPPu.idl(idl_cmd, log = self.log)
+        """
 
         # optionally show template images
+        '''
         if self.interactive:
             resp = input('\ndisplay template images? (y/[n]) > ')
             if 'y' in resp.lower():
                 os.system('ds9 -zscale {} &'.format(' '.join([self.template_images[filt] for filt in self.template_images.keys()])))
+        '''
 
-        self.log.info('template images selected')
+        self.log.info('template candidates written')
 
     def cut_lc_points(self, lc_list):
         '''interactively cut points from each band in each lc file from the input list'''
