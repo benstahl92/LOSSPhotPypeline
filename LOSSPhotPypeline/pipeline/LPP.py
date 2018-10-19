@@ -466,7 +466,7 @@ class LPP(object):
         self.phot_instances = self._im2inst(self.image_list)
 
         # set indices
-        self.aIndex = self.image_list
+        self.aIndex = self.image_list.index
         self.wIndex = self.aIndex
 
     def do_galaxy_subtraction_all_image(self):
@@ -527,8 +527,6 @@ class LPP(object):
 
         # log, announce, and remove failures
         tmp = pd.DataFrame(tmp, columns = ('unsub', 'sub'), index = self.wIndex)
-        print(tmp)
-        print(self.wIndex)
         self.pfIndex = self.wIndex[~tmp['unsub']]
         self.log.warn('photometry failed on {} out of {} images'.format(len(self.pfIndex), len(self.wIndex)))
         if self.photsub is False:
@@ -747,14 +745,10 @@ class LPP(object):
             if (color_term != img.color_term) and (self.force_color_term is False):
                 continue
 
-            # skip failed images (some checks here should be redundant)
-            #if (idx in self.pfIndex) and (self.photsub is True) and (idx in self.psfIndex):
-            #    continue
-            #elif (idx in self.pfIndex) and (self.photsub is False):
-            #    continue
+            # skip failed images
             if (idx in self.cfIndex) and (photsub_mode is False):
                 continue
-            elif (idx in self.csfIndex) and (photsub_mode is True):
+            elif ((idx in self.psfIndex) or (idx in self.csfIndex)) and (photsub_mode is True):
                 continue
 
             # read photometry results
@@ -938,7 +932,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.generate_lc)
 
         # run program after calibration has been completed (on all images)
-        self.wIndex = tmp
+        self.wIndex = tmp.append(self.wIndex)
         self.run()
 
         # add to original image file and remove new file
