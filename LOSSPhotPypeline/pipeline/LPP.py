@@ -77,31 +77,22 @@ class LPP(object):
         self.first_obs = None
         self.phot_cols = {'3.5p': 3, '5p': 5, '7p': 7, '9p': 9, '1fh': 11, '1.5fh': 13, '2fh': 15, 'psf': 17}
         self.calmethod = 'psf' # can be set to any key in phot_cols, but recommended is 'psf'
-        self.image_list = []
-        self.phot_instances = []
-
+        self.image_list = [] # list of image file names
+        self.phot_instances = [] # Phot instance for each image
         self.aIndex = [] # indices of all images in phot_instances
-        self.wIndex = [] # subset aIndex indices to work on
-        self.pfIndex = []
-        self.psfIndex = []
-        self.cfIndex = []
-        self.csfIndex = []
+        self.wIndex = [] # subset of aIndex to work on
+        self.pfIndex = [] # indices of photometry failures
+        self.psfIndex = [] # indices of photometry (sub) failures
+        self.cfIndex = [] # indices of calibration failures
+        self.csfIndex = [] # indices of calibration (sub) failures
         self.noIndex = []
         self.nosIndex = []
 
-        #self.phot_failed = []
-        #self.phot_sub_failed = []
-        #self.cal_failed = []
-        #self.cal_sub_failed = []
-        #self.no_obj = []
-        #self.no_obj_sub = []
-
+        # calibration variables
         self.cal_source = 'auto'
         self.calfile=''
         self.calfile_use=''
         self.force_color_term = force_color_term
-
-        # calibration variables
         self.calibration_dir = 'calibration'
         if not os.path.isdir(self.calibration_dir):
             os.makedirs(self.calibration_dir)
@@ -458,7 +449,7 @@ class LPP(object):
         self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
     def get_images(self):
-        '''reads image list file to generate lists of file names and Phot instances'''
+        '''reads image list file to generate lists of image names and Phot instances'''
 
         self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
                                       comment = '#', squeeze = True)
@@ -474,10 +465,11 @@ class LPP(object):
         self.log.info('generating list of Phot instances from image list')
         self.phot_instances = self._im2inst(self.image_list)
 
-        self.aIndex = self.image_list.index
+        # set indices
+        self.aIndex = self.image_list
         self.wIndex = self.aIndex
 
-    def do_galaxy_subtraction_all_image(self):#, image_list = None):
+    def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
 
         if not self.photsub:
@@ -485,8 +477,6 @@ class LPP(object):
             return
 
         self.log.info('starting galaxy subtraction')
-
-        #image_list = self._set_im_list(image_list)
 
         if self.template_images is None:
             self.load_templates()
@@ -513,12 +503,10 @@ class LPP(object):
 
         self.log.info('galaxy subtraction done')
 
-    def do_photometry_all_image(self):#, image_list = None):
+    def do_photometry_all_image(self):
         '''performs photometry on all selected image files'''
 
         self.log.info('starting photometry (galsub: {})'.format(self.photsub))
-
-        #image_list = self._set_im_list(image_list)
 
         # set up for parallelization
         ps = self.photsub
@@ -552,21 +540,16 @@ class LPP(object):
 
         self.log.info('photometry done')
 
-    def get_sky_all_image(self):#, image_list = None):
+    def get_sky_all_image(self):
         '''get and set sky value for every phot instance'''
 
-        #image_list = self._set_im_list(image_list)
-
         self.log.info('getting sky value for each image')
-
         self.phot_instances.loc[self.wIndex].progress_apply(lambda img: img.get_sky())
 
-    def calibrate(self, second_pass = False):#, image_list = None):
+    def calibrate(self, second_pass = False):
         '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
 
         self.log.info('commencing calibration (second pass: {})'.format(second_pass))
-
-        #image_list = self._set_im_list(image_list)
 
         # reset color term counts
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
@@ -591,15 +574,6 @@ class LPP(object):
 
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
-
-            # skip if photometry has failed
-            #if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
-            #    continue
-            #elif (fl in self.phot_failed) and (self.photsub is False):
-            #    continue
-
-            # extract instance
-            #img = self.phot_instances.loc[idx]
 
             # count usage of color terms
             if self.force_color_term is False:
@@ -753,13 +727,10 @@ class LPP(object):
 
         self.log.info('full calibration sequence completed')
 
-    def get_limmag_all_image(self):#, image_list = None):
+    def get_limmag_all_image(self):
         '''get and set limiting mag for every phot instance'''
 
-        #image_list = self._set_im_list(image_list)
-
         self.log.info('getting limiting mag for each image')
-
         self.phot_instances.loc[self.wIndex].progress_apply(lambda img: img.calc_limmag())
 
     def generate_raw_lcs(self, color_term, photsub_mode = False):
@@ -770,22 +741,20 @@ class LPP(object):
         lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
 
         # iterate through files and extract LC information
-        for idx, fl in self.image_list.iteritems():
-
-            img = self.phot_instances.loc[idx]
+        for idx, img in self.phot_instances.loc[self.wIndex].iteritems():
 
             # immediately skip if not the appropriate color term unless being forced
             if (color_term != img.color_term) and (self.force_color_term is False):
                 continue
 
             # skip failed images (some checks here should be redundant)
-            if (fl in self.phot_failed) and (self.photsub is True) and (fl in self.phot_sub_failed):
+            #if (idx in self.pfIndex) and (self.photsub is True) and (idx in self.psfIndex):
+            #    continue
+            #elif (idx in self.pfIndex) and (self.photsub is False):
+            #    continue
+            if (idx in self.cfIndex) and (photsub_mode is False):
                 continue
-            elif (fl in self.phot_failed) and (self.photsub is False):
-                continue
-            if (fl in self.cal_failed) and (photsub_mode is False):
-                continue
-            elif (fl in self.cal_sub_failed) and (photsub_mode is True):
+            elif (idx in self.csfIndex) and (photsub_mode is True):
                 continue
 
             # read photometry results
@@ -801,16 +770,16 @@ class LPP(object):
             if 1 not in d['ID'].values:
                 self.log.warn('no object in calibrated photometry file: {}'.format(dat))
                 if photsub_mode is False:
-                    self.no_obj.append(fl)
+                    self.no_obj.append(idx)
                 else:
-                    self.no_obj_sub.append(fl)
+                    self.no_obj_sub.append(idx)
 
             # setup columns for each raw file
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(img.mjd, 6))
                 lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
                 lcs[m]['filter'].append(img.filter)
-                lcs[m]['imagename'].append(fl)
+                lcs[m]['imagename'].append(img.cimg)
                 lcs[m]['limmag'].append(round(img.limmag, 5))
                 if 1 not in d['ID'].values:
                     mag = np.nan
@@ -921,7 +890,7 @@ class LPP(object):
             f.write('{:<20}{}\n'.format('apertures', ', '.join(self.photmethod)))
             f.write('{:<20}{}\n'.format('color_terms',', '.join(self.color_terms_used.keys())))
             f.write('{:<20}{}\n'.format('num images', len(self.phot_instances)))
-            f.write('{:<20}{}\n'.format('num failures', len(self.phot_instances) - len(self.image_list)))
+            f.write('{:<20}{}\n'.format('num failures', len(self.aIndex) - len(self.wIndex)))
             f.write('{:<20}{}\n'.format('cal source', self.cal_source))
             f.write('{:<20}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
 
@@ -941,10 +910,7 @@ class LPP(object):
 
         # remove any images from new list that have already been processed
         new_image_list = new_image_list[~new_image_list.isin(self.image_list)]
-        print(new_image_list)
         offset = self.aIndex[-1] + 1
-        print(offset)
-        #new_image_list.index = pd.RangeIndex(start = offset, stop = offset + len(new_image_list))
         tmp = self.wIndex
         self.wIndex = pd.RangeIndex(start = offset, stop = offset + len(new_image_list))
 
@@ -953,9 +919,10 @@ class LPP(object):
         self.image_list = self.image_list.append(new_image_list, ignore_index = True)
         self.phot_instances = self.phot_instances.append(self._im2inst(new_image_list), ignore_index = True)
 
-        # perform galaxy_subtraction photometry on new images
-        self.do_galaxy_subtraction_all_image()#image_list = new_image_list)
-        self.do_photometry_all_image()#image_list = new_image_list)
+        # perform galaxy_subtraction and photometry on new images
+        self.do_galaxy_subtraction_all_image()
+        self.do_photometry_all_image()
+        self.get_sky_all_image()
 
         # perform calibration
         full_cal = False
@@ -964,12 +931,14 @@ class LPP(object):
             if 'y' in resp.lower():
                 full_cal = True
         if full_cal:
-            self.current_step = self.steps.index(self.do_photometry_all_image)
+            self.current_step = self.steps.index(self.do_calibration)
         else:
-            self.calibrate(second_pass = True)#, image_list = new_image_list)
+            self.calibrate(second_pass = True)
+            self.get_limmag_all_image()
             self.current_step = self.steps.index(self.generate_lc)
 
-        # run program after calibration has been completed
+        # run program after calibration has been completed (on all images)
+        self.wIndex = tmp
         self.run()
 
         # add to original image file and remove new file
@@ -1136,16 +1105,6 @@ class LPP(object):
             return image_list.progress_apply(Phot, radec = self.radec)
         else:
             return image_list.apply(Phot, radec = self.radec)
-
-    def _set_im_list(self, image_list):
-        '''returns instance image list if the input image list is None, otherwise passes through'''
-
-        if image_list is None:
-            image_list = self.image_list
-        else:
-            self.log.info('using argument supplied image list')
-
-        return image_list
 
     def _lc_fname(self, cterm, pmethod, lc_type, sub = False):
         '''return light curve filename'''
