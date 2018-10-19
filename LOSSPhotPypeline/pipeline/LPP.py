@@ -65,8 +65,8 @@ class LPP(object):
         self.targetdec = None
         self.photsub = False
         self.photmethod = 'all'
-        self.refname=''
-        self.photlistfile=''
+        self.refname = 'TBD'
+        self.photlistfile = 'TBD'
 
         # check if config file exists -- if not then generate template
         if not os.path.exists(self.config_file):
@@ -92,8 +92,8 @@ class LPP(object):
 
         # calibration variables
         self.cal_source = 'auto'
-        self.calfile=''
-        self.calfile_use=''
+        self.calfile = 'TBD'
+        self.calfile_use = 'TBD'
         self.force_color_term = force_color_term
         self.calibration_dir = 'calibration'
         if not os.path.isdir(self.calibration_dir):
@@ -569,15 +569,15 @@ class LPP(object):
         elif second_pass is False:
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
-            if os.path.exists(os.path.join(self.calibration_dir, self._ctcf('kait4'))) is False:
+            if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
                 catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
-        if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self.cafile_use)) is False):
+        if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
-            if os.path.exists(os.path.join(self.calibration_dir, self._ctcf('kait4', use = True))) is False:
+            if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4', use = True))) is False:
                 catalog.to_natural()
         self.log.info('calibration data sourced')
 
@@ -612,6 +612,7 @@ class LPP(object):
                 self.csfIndex.append(idx)
 
         if second_pass is False:
+            self.calfile_use = self.calfile.replace('.dat', '_use.dat')
             self.cfIndex = pd.Series(self.cfIndex)
             self.csfIndex = pd.Series(self.csfIndex)
             self.log.warn('calibration failed on {} out of {} images'.format(len(self.cfIndex), len(self.wIndex)))
@@ -627,8 +628,6 @@ class LPP(object):
         # underlying data structure for handling this will be dictionary keyed by filter
         # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
         results = {}
-
-        self.calfile_use = self.calfile.replace('.dat', '_use.dat')
 
         # generate ordered calibration file
         idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
@@ -736,6 +735,7 @@ class LPP(object):
         '''executes full calibration routine'''
 
         # if calfile_use exists, first pass and cuts have been done
+        print(os.path.join(self.calibration_dir, self.calfile_use))
         if os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False:
             self.calibrate()
             self.process_calibration()
