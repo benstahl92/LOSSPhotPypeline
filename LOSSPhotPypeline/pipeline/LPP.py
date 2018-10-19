@@ -601,6 +601,7 @@ class LPP(object):
                 self.csfIndex.append(idx)
 
         if second_pass is False:
+            self.get_cal_info()
             self.cfIndex = pd.Series(self.cfIndex)
             self.csfIndex = pd.Series(self.csfIndex)
             self.log.warn('calibration failed on {} out of {} images'.format(len(self.cfIndex), len(self.wIndex)))
