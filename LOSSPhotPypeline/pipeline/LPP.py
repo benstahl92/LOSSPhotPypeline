@@ -53,6 +53,8 @@ class LPP(object):
         else:
             self.parallel = False
         self.cal_diff_tol = cal_diff_tol
+        self.abs_cal_tol = 0.2 # do not proceed with the pipeline if in non-interactive mode and cal tol exceeds this
+        self.min_ref_num = 3 # minimum number of ref stars
 
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
@@ -102,6 +104,7 @@ class LPP(object):
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
                             'nickel1': 0, 'nickel2': 0,
                             'Landolt': 0}
+        self.color_terms_used = None
 
         # load configuration file
         loaded = False
@@ -679,8 +682,13 @@ class LPP(object):
             cut_list = list(set(cut_list))
             full_list = list(set(full_list))
             if not self.interactive:
-                if len(full_list) - len(cut_list) < 5:
+                if len(full_list) - len(cut_list) < self.min_ref_num:
                     self.cal_diff_tol += 0.05
+                    if self.cal_diff_tol > self.abs_cal_tol:
+                        self.log.warn('calibration tolerance exceeds {}, cannot proceed'.format(self.abs_cal_tol))
+                        self.current_step = self.steps.index(self.write_summary)
+                        self.run()
+                        return
                 else:
                     accept_tol = True
             else:
