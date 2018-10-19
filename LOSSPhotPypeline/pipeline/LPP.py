@@ -556,29 +556,18 @@ class LPP(object):
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
         # check if calibration files have been obtained and parse if so, otherwise generate
-        calfile = 'cal_{}_PS1.dat'.format(self.targetname)
-        if os.path.exists(os.path.join(self.calibration_dir, calfile)):
-            self.calfile = calfile
-            self.cal_source = 'PS1'
-        elif os.path.exists(os.path.join(self.calibration_dir, calfile.replace('PS1', 'SDSS'))):
-            self.calfile = calfile.replace('PS1', 'SDSS')
-            self.cal_source = 'SDSS'
-        elif os.path.exists(os.path.join(self.calibration_dir, calfile.replace('PS1', 'APASS'))):
-            self.calfile = calfile.replace('PS1', 'APASS')
-            self.cal_source = 'APASS'
-        elif second_pass is False:
+        if (second_pass is False) and (os.path.exists(os.path.join(self.calibration_dir, self.calfile)) is False):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
             if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
                 catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
-        if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False):
+        if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4', use = True))) is False):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
-            if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4', use = True))) is False:
-                catalog.to_natural()
+            catalog.to_natural()
         self.log.info('calibration data sourced')
 
         # iterate through image list and execute calibration script on each
@@ -612,7 +601,6 @@ class LPP(object):
                 self.csfIndex.append(idx)
 
         if second_pass is False:
-            self.calfile_use = self.calfile.replace('.dat', '_use.dat')
             self.cfIndex = pd.Series(self.cfIndex)
             self.csfIndex = pd.Series(self.csfIndex)
             self.log.warn('calibration failed on {} out of {} images'.format(len(self.cfIndex), len(self.wIndex)))
@@ -735,7 +723,7 @@ class LPP(object):
         '''executes full calibration routine'''
 
         # if calfile_use exists, first pass and cuts have been done
-        print(os.path.join(self.calibration_dir, self.calfile_use))
+        self.get_cal_info()
         if os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False:
             self.calibrate()
             self.process_calibration()
@@ -1085,6 +1073,21 @@ class LPP(object):
         '''
 
         self.log.info('template candidates written')
+
+    def get_cal_info(self):
+        '''checks for existence of calibration files and writes them if found'''
+
+        calfile = 'cal_{}_PS1.dat'.format(self.targetname)
+        if os.path.exists(os.path.join(self.calibration_dir, calfile)):
+            self.calfile = calfile
+            self.cal_source = 'PS1'
+        elif os.path.exists(os.path.join(self.calibration_dir, calfile.replace('PS1', 'SDSS'))):
+            self.calfile = calfile.replace('PS1', 'SDSS')
+            self.cal_source = 'SDSS'
+        elif os.path.exists(os.path.join(self.calibration_dir, calfile.replace('PS1', 'APASS'))):
+            self.calfile = calfile.replace('PS1', 'APASS')
+            self.cal_source = 'APASS'
+        self.calfile_use = self.calfile.replace('.dat', '_use.dat')
 
     def cut_lc_points(self, lc_list):
         '''interactively cut points from each band in each lc file from the input list'''
