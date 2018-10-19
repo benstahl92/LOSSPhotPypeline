@@ -952,7 +952,8 @@ class LPP(object):
         '''search templates dir, setup, and convert formats as needed'''
 
         succ = True
-        self.template_images = {'{}_{}'.format(f, tel): None for f in self.filter_set_ref for tel in ['kait', 'nickel']}
+        self.template_images = {'{}_{}'.format(f, tel): None for f in ['B', 'V', 'R', 'I'] for tel in ['kait', 'nickel']}
+        self.template_images['CLEAR_kait'] = None # no clear for Nickel
 
         if os.path.exists(self.templates_dir) is False:
             succ = False
@@ -961,23 +962,25 @@ class LPP(object):
             templates = [os.path.join(self.templates_dir, fl) for fl in os.listdir(self.templates_dir) if '.fit' in fl]
 
         if succ is True:
-            if len(templates) < 4: # 5 passbands
+            if len(templates) < 5: # 5 passbands
                 succ = False
                 msg = 'no or not enough templates in directory, cannot do photsub'
             else:
                 for templ in templates:
                     ti = FitsInfo(templ)
                     filt = ti.filter.upper()
-                    if ti.telescope.lower() == 'nickel':
+                    if (ti.telescope.lower() == 'nickel') and (filt != 'CLEAR'):
                         self.template_images['{}_nickel'.format(filt)] = ti.cimg
                         # also rebin for kait
                         self.template_images['{}_kait'.format(filt)] = ti.root + '_n2k.fit'
                         idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, 
                                     savefile = self.template_images['{}_kait'.format(filt)])
                         LPPu.idl(idl_cmd, log = self.log)
+                    elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR'):
+                        self.template_images['CLEAR_kait'] = ti.cimg
                     else:
                         succ = False
-                        msg = 'need nickel templates, cannot do photsub'
+                        msg = 'either BVRI templates are not from Nickel or CLEAR template is not from KAIT, cannnot do photsub'
                         break
 
         if succ is True:
@@ -986,6 +989,7 @@ class LPP(object):
 
         # otherwise process is not a success, search for candidates but proceed without photsub
         self.log.warning(msg)
+        self.log.warning('switching to non-subtraction mode, but searching for template candidates')
         self.template_images = None
         self.photsub = False
         self.get_template_candidates()
@@ -1006,13 +1010,16 @@ class LPP(object):
 
         cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
 
-        # select only candidates that are before the first observation or at least one year later AND are nickel images
-        cand = cand[((cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin))) & (cand.telescope.str.lower() == 'nickel')]
+        # select only candidates that are before the first observation or at least one year later
+        # further sub-select so that only condiering BVRI from Nickel and CLEAR from KAIT
+        cand = cand[((cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin)))]
+        cand = cand[((cand.telescope.str.lower() == 'kait') & cand['filter'].str.upper().isin(['CLEAR'])) | 
+                    ((cand.telescope.str.lower() == 'nickel') & cand['filter'].str.upper().isin(['B','V','R','I']))]
 
         get_templ_fl_msg = ''
         radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
 
-        if len(cand['filter'].drop_duplicates()) < 4: # need at least one per pass band
+        if len(cand['filter'].drop_duplicates()) < 5: # need at least one per pass band
             msg = 'no or not enough suitable candidates, schedule observations:\n{}'.format(radecmsg)
             self.log.warn(msg)
             with open('GET.TEMPLATES', 'w') as f:
