@@ -555,23 +555,29 @@ class LPP(object):
         # reset color term counts
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
-        # check for calibration data and download if it doesn't exist yet
-        if ((second_pass is False) and ((not os.path.exists(os.path.join(self.calibration_dir, self.calfile))) or 
-            (self.calfile == '') or (self.cal_source == ''))):
+        # check if calibration files have been obtained and parse if so, otherwise generate
+        calfile = 'cal_{}_PS1.dat'.format(self.obj)
+        if os.path.exists(os.path.join(self.calibration_dir, calfile)):
+            self.calfile = calfile
+            self.cal_source = 'PS1'
+        elif os.path.exists(os.path.join(self.calibration_dir, calfile.replace('PS1', 'SDSS'))):
+            self.calfile = calfile.replace('PS1', 'SDSS')
+            self.cal_source = 'SDSS'
+        elif os.path.exists(os.path.join(self.calibration_dir, calfile.replace('PS1', 'APASS'))):
+            self.calfile = calfile.replace('PS1', 'APASS')
+            self.cal_source = 'APASS'
+        elif second_pass is False:
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
             catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
-            self.log.info('calibration data sourced')
-
-        # otherwise if in second pass mode, perform second calibration using edited calibration list
-        elif second_pass is True:
+        if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self.cafile_use)) is False):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
             catalog.to_natural()
-            self.log.info('using edited calibration list')
+        self.log.info('calibration data sourced')
 
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
