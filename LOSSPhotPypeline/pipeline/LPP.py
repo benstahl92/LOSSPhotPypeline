@@ -556,7 +556,7 @@ class LPP(object):
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
         # check if calibration files have been obtained and parse if so, otherwise generate
-        calfile = 'cal_{}_PS1.dat'.format(self.obj)
+        calfile = 'cal_{}_PS1.dat'.format(self.targetname)
         if os.path.exists(os.path.join(self.calibration_dir, calfile)):
             self.calfile = calfile
             self.cal_source = 'PS1'
@@ -569,14 +569,16 @@ class LPP(object):
         elif second_pass is False:
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
-            catalog.to_natural()
+            if os.path.exists(os.path.join(self.calibration_dir, self._ctcf('kait4'))) is False:
+                catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
         if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self.cafile_use)) is False):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.cal_filename = self.calfile_use
             catalog.cal_source = self.cal_source
-            catalog.to_natural()
+            if os.path.exists(os.path.join(self.calibration_dir, self._ctcf('kait4', use = True))) is False:
+                catalog.to_natural()
         self.log.info('calibration data sourced')
 
         # iterate through image list and execute calibration script on each
