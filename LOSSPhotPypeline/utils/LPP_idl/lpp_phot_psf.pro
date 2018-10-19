@@ -426,7 +426,11 @@ if keyword_set(savesky) then begin
   openw,lun,imagest.sky,/get_lun
   ;;note here the skynoise was divided by exposures too, in order to make it
   ;;consistent with stars count for calculating the right magnitudes.
-  printf,lun,median(skynoise)/exposures
+  noise=median(skynoise)/exposures
+  if median(skynoise) eq 0 then begin
+    noise=0.000001
+  endif
+  printf,lun,noise
   close,lun
   free_lun,lun
 endif
