@@ -727,8 +727,10 @@ class LPP(object):
     def do_calibration(self):
         '''executes full calibration routine'''
 
-        self.calibrate()
-        self.process_calibration()
+        # if calfile_use exists, first pass and cuts have been done
+        if os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False:
+            self.calibrate()
+            self.process_calibration()
         self.calibrate(second_pass = True)
 
         self.log.info('full calibration sequence completed')

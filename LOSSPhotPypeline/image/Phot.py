@@ -34,9 +34,7 @@ class Phot(FitsInfo):
         pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
 
     def do_photometry(self, photsub = False, log = None):
-        '''
-        performs photometry by wrapping an IDL procedure
-        '''
+        '''performs photometry by wrapping IDL procedure'''
 
         # do necessary pre-steps
         self.gen_obj_fl()
@@ -59,15 +57,10 @@ class Phot(FitsInfo):
         return r1, r2
 
     def galaxy_subtract(self, template_images, log = None):
-
-        if self.telescope.lower() == 'kait':
-            cmd = 'lpp_kait_photsub'
-        else:
-            print('Telescope ({}) not implemented. Exiting.'.format(self.telescope))
-            return
+        '''perform galaxy subraction by wrapping IDL procedure'''
 
         # execute idl commmand
-        idl_cmd = '''idl -e "{}, '{}', '{}', /OUTPUT"'''.format(cmd, self.cimg, template_images[self.filter.upper()])
+        idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[self.filter.upper()])
         LPPu.idl(idl_cmd, log = log)
 
         # might want to add interactivity here to check the subtraction
