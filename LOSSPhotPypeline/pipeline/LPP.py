@@ -1017,8 +1017,6 @@ class LPP(object):
         if self.first_obs is None:
             self.first_obs = LPPu.get_first_obs_date(self)
 
-        base_dir = storelocation
-
         cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
 
         # select only candidates that are before the first observation or at least one year later
@@ -1046,7 +1044,8 @@ class LPP(object):
         cand_dir = self.templates_dir + '_candidates'
         if not os.path.isdir(cand_dir):
             os.makedirs(cand_dir)
-        cols = ['savepath','uniformname','mjd','telescope','filter','fwhm','zeromag','limitmag']
+        cand['fullpath'] = storelocation + cand['savepath'] + cand['unifornmname']
+        cols = ['fullpath','mjd','telescope','filter','fwhm','zeromag','limitmag']
         cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
         cand.to_csv(os.path.join(cand_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
 
