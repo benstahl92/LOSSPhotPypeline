@@ -506,7 +506,7 @@ class LPP(object):
                 tmp.append(fn(img))
 
         if False in tmp:
-            self.log.warn('photsub failed, running without galaxy subtraction')
+            self.log.warn('photsub failed (possibly b/c of missing templates), running without galaxy subtraction')
 
         self.log.info('galaxy subtraction done')
 
@@ -986,8 +986,7 @@ class LPP(object):
                         self.template_images['{}_nickel'.format(filt)] = ti.cimg
                         # also rebin for kait
                         self.template_images['{}_kait'.format(filt)] = ti.root + '_n2k.fit'
-                        idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, 
-                                    savefile = self.template_images['{}_kait'.format(filt)])
+                        idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
                         LPPu.idl(idl_cmd, log = self.log)
                     elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR'):
                         self.template_images['CLEAR_kait'] = ti.cimg
