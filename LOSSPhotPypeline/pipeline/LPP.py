@@ -1043,7 +1043,7 @@ class LPP(object):
         # rank candidates, write to file
         if not os.path.isdir(self.templates_dir):
             os.makedirs(self.templates_dir)
-        cand['fullpath'] = storelocation + cand['savepath'] + cand['unifornmname']
+        cand['fullpath'] = storelocation + cand['savepath'] + cand['uniformname']
         cols = ['fullpath','mjd','telescope','filter','fwhm','zeromag','limitmag']
         cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
         cand.to_csv(os.path.join(self.templates_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
