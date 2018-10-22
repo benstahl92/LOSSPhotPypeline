@@ -1041,13 +1041,12 @@ class LPP(object):
                 f.write(msg)
 
         # rank candidates, write to file
-        cand_dir = self.templates_dir + '_candidates'
-        if not os.path.isdir(cand_dir):
-            os.makedirs(cand_dir)
+        if not os.path.isdir(self.templates_dir):
+            os.makedirs(self.templates_dir)
         cand['fullpath'] = storelocation + cand['savepath'] + cand['unifornmname']
         cols = ['fullpath','mjd','telescope','filter','fwhm','zeromag','limitmag']
         cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
-        cand.to_csv(os.path.join(cand_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
+        cand.to_csv(os.path.join(self.templates_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
 
         # add interactive option in future?
 
