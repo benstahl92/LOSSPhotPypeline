@@ -971,6 +971,8 @@ class LPP(object):
             msg = 'no templates directory, cannot do photsub'
         else:
             templates = [os.path.join(self.templates_dir, fl) for fl in os.listdir(self.templates_dir) if '.fit' in fl]
+            if len(templates) == 0:
+                    succ = False
 
         if succ is True:
             if len(templates) < 5: # 5 passbands
