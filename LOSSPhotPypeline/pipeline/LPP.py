@@ -985,11 +985,13 @@ class LPP(object):
                     if (ti.telescope.lower() == 'nickel') and (filt != 'CLEAR') and ('_n2k.fit' not in templ):
                         self.template_images['{}_nickel'.format(filt)] = ti.cimg
                         # also rebin for kait
-                        self.template_images['{}_kait'.format(filt)] = ti.root + '_n2k.fit'
+                        self.template_images['{}_kait'.format(filt)] = ti.cimg.replace('.fit', '_n2k.fit')
                         idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
                         LPPu.idl(idl_cmd, log = self.log)
                     elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('_n2k.fit' not in templ):
                         self.template_images['CLEAR_kait'] = ti.cimg
+                    elif '_n2k.fit' in templ:
+                        pass
                     else:
                         succ = False
                         msg = 'either BVRI templates are not from Nickel or CLEAR template is not from KAIT, cannnot do photsub'
