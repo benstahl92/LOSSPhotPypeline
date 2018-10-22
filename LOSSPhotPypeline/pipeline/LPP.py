@@ -499,10 +499,14 @@ class LPP(object):
 
         # do galaxy subtraction in the appropriate mode
         if self.parallel is True:
-            p_map(fn, self.phot_instances.loc[self.wIndex].tolist())
+            tmp = p_map(fn, self.phot_instances.loc[self.wIndex].tolist())
         else:
+            tmp = []
             for img in tqdm(self.phot_instances.loc[self.wIndex].tolist()):
-                fn(img)
+                tmp.append(fn(img))
+
+        if False in tmp:
+            self.log.warn('photsub failed, running without galaxy subtraction')
 
         self.log.info('galaxy subtraction done')
 
@@ -970,8 +974,8 @@ class LPP(object):
 
         if succ is True:
             if len(templates) < 5: # 5 passbands
-                succ = False
-                msg = 'no or not enough templates in directory, cannot do photsub'
+                # warn if not enough templates found (but may be ok if not all needed)
+                msg = 'warning: did not find templates for every passband'
             else:
                 for templ in templates:
                     ti = FitsInfo(templ)
@@ -1026,14 +1030,19 @@ class LPP(object):
         get_templ_fl_msg = ''
         radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
 
-        if len(cand['filter'].drop_duplicates()) < 5: # need at least one per pass band
-            msg = 'no or not enough suitable candidates, schedule observations:\n{}'.format(radecmsg)
+        if len(cand['filter'].drop_duplicates()) == 0: # need at least one per pass band
+            msg = 'no suitable candidates, schedule observations:\n{}'.format(radecmsg)
             self.log.warn(msg)
             with open('GET.TEMPLATES', 'w') as f:
                 f.write(msg)
             return
+        elif len(cand['filter'].drop_duplicates()) < 5:
+            msg = 'not enough candidates (at least one per passband), schedule observations:\n{}'.format(radecmsg)
+            self.log.warn(msg)
+            with open('GET.TEMPLATES', 'w') as f:
+                f.write(msg)
 
-        # otherwise rank candidates, write to file
+        # rank candidates, write to file
         cand_dir = self.templates_dir + '_candidates'
         if not os.path.isdir(cand_dir):
             os.makedirs(cand_dir)

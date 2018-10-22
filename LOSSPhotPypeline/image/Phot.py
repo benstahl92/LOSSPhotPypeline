@@ -59,9 +59,15 @@ class Phot(FitsInfo):
     def galaxy_subtract(self, template_images, log = None):
         '''perform galaxy subraction by wrapping IDL procedure'''
 
-        # execute idl commmand
-        idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[self.filter.upper()])
-        LPPu.idl(idl_cmd, log = log)
+        selector = '{}_{}'.format(self.filter.upper(), self.telescope.lower())
+
+        # execute idl commmand if possible
+        if template_images[selector] is not None:
+            idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[selector])
+            LPPu.idl(idl_cmd, log = log)
+            return True
+        else:
+            return False
 
         # might want to add interactivity here to check the subtraction
 
