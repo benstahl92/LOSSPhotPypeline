@@ -1,0 +1,6 @@
+PWD /Users/benstahl/Dropbox/Filippenko_Research/phot_pipeline/LOSSPhotPypeline/LOSSPhotPypeline/pipeline
+INPUT /usr/local/texlive/2017/texmf.cnf
+INPUT /usr/local/texlive/2017/texmf-dist/web2c/texmf.cnf
+INPUT /usr/local/texlive/2017/texmf-var/web2c/pdftex/pdflatex.fmt
+INPUT /Users/benstahl/Dropbox/Filippenko_Research/phot_pipeline/LOSSPhotPypeline/LOSSPhotPypeline/pipeline/LPP.py
+OUTPUT /Users/benstahl/Dropbox/Filippenko_Research/phot_pipeline/LOSSPhotPypeline/LOSSPhotPypeline/pipeline/LPP.log

@@ -991,6 +991,8 @@ class LPP(object):
                         LPPu.idl(idl_cmd, log = self.log)
                     elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('_n2k.fit' not in templ):
                         self.template_images['CLEAR_kait'] = ti.cimg
+                    elif '_n2k.fit' in templ:
+                        pass
                     else:
                         succ = False
                         msg = 'either BVRI templates are not from Nickel or CLEAR template is not from KAIT, cannnot do photsub'
