@@ -983,15 +983,15 @@ class LPP(object):
                 for templ in templates:
                     ti = FitsInfo(templ)
                     filt = ti.filter.upper()
-                    if (ti.telescope.lower() == 'nickel') and (filt != 'CLEAR') and ('_n2k.fit' not in templ):
+                    if (ti.telescope.lower() == 'nickel') and (filt != 'CLEAR') and ('n2k_c.fit' not in templ):
                         self.template_images['{}_nickel'.format(filt)] = ti.cimg
                         # also rebin for kait
                         self.template_images['{}_kait'.format(filt)] = ti.cimg.replace('c.fit', 'n2k_c.fit')
                         idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
                         LPPu.idl(idl_cmd, log = self.log)
-                    elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('_n2k.fit' not in templ):
+                    elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('n2k_c.fit' not in templ):
                         self.template_images['CLEAR_kait'] = ti.cimg
-                    elif '_n2k.fit' in templ:
+                    elif 'n2k_c.fit' in templ:
                         pass
                     else:
                         succ = False
