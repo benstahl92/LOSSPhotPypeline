@@ -1,5 +1,6 @@
 # standard imports
 import os
+import glob
 import shutil
 import inspect
 from pprint import pprint
@@ -971,32 +972,32 @@ class LPP(object):
             succ = False
             msg = 'no templates directory, cannot do photsub'
         else:
-            templates = [os.path.join(self.templates_dir, fl) for fl in os.listdir(self.templates_dir) if '.fit' in fl]
+            templates = glob.glob('{}/*.fit'.format(self.templates_dir))
             if len(templates) == 0:
-                    succ = False
+                succ = False
 
         if succ is True:
             if len(templates) < 5: # 5 passbands
                 # warn if not enough templates found (but may be ok if not all needed)
                 msg = 'warning: did not find templates for every passband'
-            else:
-                for templ in templates:
-                    ti = FitsInfo(templ)
-                    filt = ti.filter.upper()
-                    if (ti.telescope.lower() == 'nickel') and (filt != 'CLEAR') and ('n2k_c.fit' not in templ):
-                        self.template_images['{}_nickel'.format(filt)] = ti.cimg
-                        # also rebin for kait
-                        self.template_images['{}_kait'.format(filt)] = ti.cimg.replace('c.fit', 'n2k_c.fit')
-                        idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
-                        LPPu.idl(idl_cmd, log = self.log)
-                    elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('n2k_c.fit' not in templ):
-                        self.template_images['CLEAR_kait'] = ti.cimg
-                    elif 'n2k_c.fit' in templ:
-                        pass
-                    else:
-                        succ = False
-                        msg = 'either BVRI templates are not from Nickel or CLEAR template is not from KAIT, cannnot do photsub'
-                        break
+
+            for templ in templates:
+                ti = FitsInfo(templ)
+                filt = ti.filter.upper()
+                if (ti.telescope.lower() == 'nickel') and (filt != 'CLEAR') and ('n2k_c.fit' not in templ):
+                    self.template_images['{}_nickel'.format(filt)] = ti.cimg
+                    # also rebin for kait
+                    self.template_images['{}_kait'.format(filt)] = ti.cimg.replace('c.fit', 'n2k_c.fit')
+                    idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
+                    LPPu.idl(idl_cmd, log = self.log)
+                elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('n2k_c.fit' not in templ):
+                    self.template_images['CLEAR_kait'] = ti.cimg
+                elif 'n2k_c.fit' in templ:
+                    pass
+                else:
+                    succ = False
+                    msg = 'either BVRI templates are not from Nickel or CLEAR template is not from KAIT, cannnot do photsub'
+                    break
 
         if succ is True:
             self.log.info('templates loaded')
