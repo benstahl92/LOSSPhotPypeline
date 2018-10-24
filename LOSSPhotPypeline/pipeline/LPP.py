@@ -25,12 +25,6 @@ except ModuleNotFoundError:
     print('package "p_tqdm" not installed, cannot do parallel processing')
     _parallel = False
 
-try:
-    from pyzaphotdb import zaphot_search_by_radec, storelocation
-    haveDB = True
-except ModuleNotFoundError:
-    haveDB = False
-
 # internal imports
 import LOSSPhotPypeline
 import LOSSPhotPypeline.utils as LPPu
@@ -68,6 +62,9 @@ class LPP(object):
         self.photmethod = 'all'
         self.refname = 'TBD'
         self.photlistfile = 'TBD'
+
+        # discovery date (mjd)
+        self.disc_date_mjd = None
 
         # check if config file exists -- if not then generate template
         if not os.path.exists(self.config_file):
@@ -508,7 +505,7 @@ class LPP(object):
 
         if False in tmp:
             self.log.warn('photsub failed (probably b/c of missing templates), running without galaxy subtraction')
-            self.get_template_candidates()
+            self._get_template_candidates()
 
         self.log.info('galaxy subtraction done')
 
@@ -1008,84 +1005,7 @@ class LPP(object):
         self.log.warning('switching to non-subtraction mode, but searching for template candidates')
         self.template_images = None
         self.photsub = False
-        self.get_template_candidates()
-
-    def get_template_candidates(self, late_time_begin = 365):
-        '''searches database to identify candidate template images for galaxy subtraction'''
-
-        self.log.info('searching for galaxy subtraction template images')
-
-        if not haveDB:
-            self.log.warn('Database unavailable. Exiting.')
-            return
-
-        if self.first_obs is None:
-            self.first_obs = LPPu.get_first_obs_date(self)
-
-        cand = pd.DataFrame(zaphot_search_by_radec(self.targetra, self.targetdec, 3))
-
-        # select only candidates that are before the first observation or at least one year later
-        # further sub-select so that only condiering BVRI from Nickel and CLEAR from KAIT
-        cand = cand[((cand.mjd < self.first_obs) | (cand.mjd > (self.first_obs + late_time_begin)))]
-        cand = cand[((cand.telescope.str.lower() == 'kait') & cand['filter'].str.upper().isin(['CLEAR'])) | 
-                    ((cand.telescope.str.lower() == 'nickel') & cand['filter'].str.upper().isin(['B','V','R','I']))]
-
-        get_templ_fl_msg = ''
-        radecmsg = 'RA: {} DEC: {}'.format(self.targetra, self.targetdec)
-
-        if len(cand['filter'].drop_duplicates()) == 0: # need at least one per pass band
-            msg = 'no suitable candidates, schedule observations:\n{}'.format(radecmsg)
-            self.log.warn(msg)
-            with open('GET.TEMPLATES', 'w') as f:
-                f.write(msg)
-            return
-        elif len(cand['filter'].drop_duplicates()) < 5:
-            msg = 'not enough candidates (at least one per passband), schedule observations:\n{}'.format(radecmsg)
-            self.log.warn(msg)
-            with open('GET.TEMPLATES', 'w') as f:
-                f.write(msg)
-
-        # rank candidates, write to file
-        if not os.path.isdir(self.templates_dir):
-            os.makedirs(self.templates_dir)
-        cand['fullpath'] = storelocation + cand['savepath'] + cand['uniformname']
-        cols = ['fullpath','mjd','telescope','filter','fwhm','zeromag','limitmag']
-        cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
-        cand.to_csv(os.path.join(self.templates_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
-
-        # add interactive option in future?
-
-        '''
-        # simple check for file existence and copy to templates dir
-        for filt in self.template_images.keys():
-            decomp = False
-            if os.path.exists(self.template_images[filt]):
-                pass
-            elif os.path.exists(self.template_images[filt] + '.gz'):
-                self.template_images[filt] += '.gz'
-                decomp = True
-            else:
-                print('file format not recognized')
-                return
-            shutil.copy2(self.template_images[filt], os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1]))
-            self.template_images[filt] = os.path.join(self.templates_dir,self.template_images[filt].split('/')[-1])
-            if decomp:
-                p = subprocess.Popen(['gzip', '-d', '-q', '-f', self.template_images[filt]])
-                p.wait()
-                del p
-                self.template_images[filt] = self.template_images[filt][:-3]
-
-        '''
-
-        # optionally show template images
-        '''
-        if self.interactive:
-            resp = input('\ndisplay template images? (y/[n]) > ')
-            if 'y' in resp.lower():
-                os.system('ds9 -zscale {} &'.format(' '.join([self.template_images[filt] for filt in self.template_images.keys()])))
-        '''
-
-        self.log.info('template candidates written')
+        self._get_template_candidates()
 
     def get_cal_info(self):
         '''checks for existence of calibration files and writes them if found'''
@@ -1154,3 +1074,19 @@ class LPP(object):
             lc_fname = lc_fname.replace('.dat', '_sub.dat')
 
         return lc_fname
+
+    def _get_template_candidates(self):
+        '''wrap LPPu function to get template candidates'''
+
+        self.log.info('searching for galaxy subtraction template images')
+
+        # fall back on first obs date if don't know discovery date
+        if self.disc_date_mjd is None:
+            if self.first_obs is None:
+                self.first_obs = LPPu.get_first_obs_date(self)
+            dt = first_obs
+        else:
+            dt = self.disc_date_mjd
+
+        result = LPPu.get_template_candidates(self.targetra, self.targetdec, dt, self.templates_dir)
+        self.log.info(result)

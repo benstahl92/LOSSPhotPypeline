@@ -2,6 +2,12 @@
 import subprocess
 import shlex
 
+try:
+    from pyzaphotdb import zaphot_search_by_radec, storelocation
+    haveDB = True
+except ModuleNotFoundError:
+    haveDB = False
+
 def genconf(obj = None, targetname = None, config_file = None, ra = '', dec = '', refname = ''):
     '''
     Generates template configuration file in current directory.
@@ -49,6 +55,45 @@ def get_first_obs_date(obj):
         if (first_obs is None) or (instance.mjd < first_obs):
             first_obs = instance.mjd
     return first_obs
+
+def get_template_candidates(targetra, targetdec, disc_date_mjd, templates_dir, late_time_begin = 365):
+    '''search database to identify candidate template images for galaxy subtraction'''
+
+    if not haveDB:
+        msg = 'Database unavailable. Exiting.'
+        return msg
+
+    cand = pd.DataFrame(zaphot_search_by_radec(targetra, targetdec, 3))
+
+    # select only candidates that are before the first observation or at least one year later
+    # further sub-select so that only condiering BVRI from Nickel and CLEAR from KAIT
+    cand = cand[((cand.mjd < disc_date_mjd) | (cand.mjd > (disc_date_mjd + late_time_begin)))]
+    cand = cand[((cand.telescope.str.lower() == 'kait') & cand['filter'].str.upper().isin(['CLEAR'])) | 
+                ((cand.telescope.str.lower() == 'nickel') & cand['filter'].str.upper().isin(['B','V','R','I']))]
+
+    get_templ_fl_msg = ''
+    radecmsg = 'RA: {} DEC: {}'.format(targetra, targetdec)
+
+    if len(cand['filter'].drop_duplicates()) == 0: # need at least one per pass band
+        msg = 'no suitable candidates, schedule observations:\n{}'.format(radecmsg)
+        with open('GET.TEMPLATES', 'w') as f:
+            f.write(msg)
+        return msg
+    elif len(cand['filter'].drop_duplicates()) < 5:
+        msg = 'not enough candidates (at least one per passband), schedule observations:\n{}'.format(radecmsg)
+        with open('GET.TEMPLATES', 'w') as f:
+            f.write(msg)
+
+    # rank candidates, write to file
+    if not os.path.isdir(templates_dir):
+        os.makedirs(templates_dir)
+    cand['fullpath'] = storelocation + cand['savepath'] + cand['uniformname']
+    cols = ['fullpath','mjd','telescope','filter','fwhm','zeromag','limitmag']
+    cand = cand[cols].sort_values(['filter', 'limitmag'], ascending = [True, False])
+    cand.to_csv(os.path.join(templates_dir, 'template.candidates'), sep = '\t', index = False, na_rep = 'None')
+    msg = 'template candidates written'
+
+    return msg
 
 def idl(idl_cmd, log = None):
     '''execute a given IDL command and do logging as needed'''
