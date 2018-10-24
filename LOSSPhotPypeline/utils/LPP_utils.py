@@ -1,6 +1,7 @@
 # standard imports
 import subprocess
 import shlex
+import pandas as pd
 
 try:
     from pyzaphotdb import zaphot_search_by_radec, storelocation
