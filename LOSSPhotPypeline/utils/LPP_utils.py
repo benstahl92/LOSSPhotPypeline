@@ -2,6 +2,7 @@
 import subprocess
 import shlex
 import pandas as pd
+import os
 
 try:
     from pyzaphotdb import zaphot_search_by_radec, storelocation
