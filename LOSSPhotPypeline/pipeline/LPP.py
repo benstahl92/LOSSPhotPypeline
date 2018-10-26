@@ -904,7 +904,7 @@ class LPP(object):
     def write_summary(self):
         '''write summary file'''
 
-        if self.current_step != 8:
+        if self.current_step != (len(self.steps) - 1):
             print('processing must be done before summary can be written')
             return
 
