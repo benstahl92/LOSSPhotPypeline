@@ -10,7 +10,6 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import logging
-from contextlib import redirect_stdout
 import subprocess
 import warnings
 from astropy.io import fits
@@ -81,6 +80,8 @@ class LPP(object):
         self.phot_instances = [] # Phot instance for each image
         self.aIndex = [] # indices of all images in phot_instances
         self.wIndex = [] # subset of aIndex to work on
+        self.bfIndex = [] # indices of images with unsupported filters
+        self.ucIndex = [] # indices of WCS fail images, even though _c
         self.pfIndex = [] # indices of photometry failures
         self.psfIndex = [] # indices of photometry (sub) failures
         self.cfIndex = [] # indices of calibration failures
@@ -134,7 +135,7 @@ class LPP(object):
         # steps in standard reduction procedure
         self.current_step = 0
         self.steps = [self.find_ref_stars,
-                      self.get_images,
+                      self.load_images,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
@@ -449,7 +450,7 @@ class LPP(object):
         self.log.info('{} written'.format(self.radecfile))
         self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
-    def get_images(self):
+    def load_images(self):
         '''reads image list file to generate lists of image names and Phot instances'''
 
         self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
@@ -469,6 +470,25 @@ class LPP(object):
         # set indices
         self.aIndex = self.image_list.index
         self.wIndex = self.aIndex
+
+    def check_images(self):
+        '''only keep images that are in a supported filter and without file format issues'''
+
+        # filter check
+        filter_check = lambda img: True if img.filter.upper() in self.filter_set_ref else False
+        self.log.info('checking filters')
+        bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(filter_check)
+        self.bfIndex = self.wIndex[~pd.Series(bool_idx)]
+        self.log.info('dropping {} images due to unsupported filter'.format(len(self.bfIndex)))
+        self.wIndex = self.wIndex.drop(self.bfIndex)
+
+        # uncal check
+        cal_check = lambda img: False if img.header['RADECSYS'] == '-999' else True
+        self.log.info('checking images for WCS')
+        bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(cal_check)
+        self.ucIndex = self.wIndex[~pd.Series(bool_idx)]
+        self.log.info('dropping {} images for failed WCS'.format(len(self.ucIndex)))
+        self.wIndex = self.wIndex.drop(self.ucIndex)
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
@@ -887,16 +907,24 @@ class LPP(object):
             print('processing must be done before summary can be written')
             return
 
+        # get filters used
+        self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
+
         self.summary_file = self.targetname + '.summary'
         with open(self.summary_file, 'w') as f:
             f.write('{:<20}{}\n'.format('targetname', self.targetname))
             f.write('{:<20}{}\n'.format('photsub', self.photsub))
+            f.write('{:<20}{}\n'.format('filters', ', '.join(self.filters)))
             f.write('{:<20}{}\n'.format('apertures', ', '.join(self.photmethod)))
             f.write('{:<20}{}\n'.format('color_terms',', '.join(self.color_terms_used.keys())))
             f.write('{:<20}{}\n'.format('num images', len(self.phot_instances)))
             f.write('{:<20}{}\n'.format('num failures', len(self.aIndex) - len(self.wIndex)))
+            f.write('{:<20}{}\n'.format('num images w/o supp. filter', len(self.bfIndex)))
+            f.write('{:<20}{}\n'.format('num images w/ bad WCS', len(self.ucIndex)))
             f.write('{:<20}{}\n'.format('cal source', self.cal_source))
             f.write('{:<20}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
+
+    self.log.info('pipeline complete, summary file written')
 
     ###################################################################################################
     #          Utility Methods
