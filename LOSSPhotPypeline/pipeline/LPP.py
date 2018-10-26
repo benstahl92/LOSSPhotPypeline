@@ -924,7 +924,8 @@ class LPP(object):
             f.write('{:<20}{}\n'.format('cal source', self.cal_source))
             f.write('{:<20}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
 
-    self.log.info('pipeline complete, summary file written')
+        self.log.info('pipeline complete, summary file written')
+        self.save()
 
     ###################################################################################################
     #          Utility Methods
