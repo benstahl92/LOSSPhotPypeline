@@ -136,6 +136,7 @@ class LPP(object):
         self.current_step = 0
         self.steps = [self.find_ref_stars,
                       self.load_images,
+                      self.check_images,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
@@ -483,7 +484,7 @@ class LPP(object):
         self.wIndex = self.wIndex.drop(self.bfIndex)
 
         # uncal check
-        cal_check = lambda img: False if img.header['RADECSYS'] == '-999' else True
+        cal_check = lambda img: True if ('RADECSYS' not in img.header) else (False if (img.header['RADECSYS'] == '-999') else True)
         self.log.info('checking images for WCS')
         bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(cal_check)
         self.ucIndex = self.wIndex[~pd.Series(bool_idx)]
