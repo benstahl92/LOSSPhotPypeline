@@ -15,6 +15,7 @@ import warnings
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.utils.exceptions import AstropyWarning
+warnings.simplefilter('ignore', AstropyWarning)
 
 try:
     from p_tqdm import p_map
@@ -1149,9 +1150,14 @@ if __name__ == '__main__':
     parser.add_argument('name', type = str, help = 'name of the object')
     parser.add_argument('-i', '--interactive', dest = 'interactive', action = 'store_const',
                         const = True, default = False, help = 'run in interactive mode')
+    parser.add_argument('-ct', '--force-color-term', dest = 'force_color_term', type = str, 
+                        default = False, help = 'force to use specified color term')
+    parser.add_argument('-dd', '--disc-date-mjd' dest = 'disc_date_mjd', type = float,
+                        default = None, help = 'mjd of discovery')
     args = parser.parse_args()
 
-    pipeline = LPP(args.name, interactive = args.interactive)
+    pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
+    pipeline.disc_date_mjd = args.disc_date_mjd
     pipeline.run()
 
 
