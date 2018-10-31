@@ -15,7 +15,6 @@ import warnings
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.utils.exceptions import AstropyWarning
-warnings.simplefilter('ignore', category=AstropyWarning)
 
 try:
     from p_tqdm import p_map
@@ -50,7 +49,7 @@ class LPP(object):
         self.abs_cal_tol = 0.2 # do not proceed with the pipeline if in non-interactive mode and cal tol exceeds this
         self.min_ref_num = 3 # minimum number of ref stars
         self.checks = ['filter', 'date'] # default checks to perform on image list
-        self.phase_limits = (-10, 3*365) # phase bounds in days relative to disc. date to keep if "date" check performed
+        self.phase_limits = (-10, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
 
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
@@ -1104,10 +1103,13 @@ class LPP(object):
     def _im2inst(self, image_list, mode = 'progress'):
         '''create a series of Phot instances from input image list (also a series)'''
 
-        if mode != 'quiet':
-            return image_list.progress_apply(Phot, radec = self.radec)
-        else:
-            return image_list.apply(Phot, radec = self.radec)
+        # hide astropy warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', AstropyWarning)
+            if mode != 'quiet':
+                return image_list.progress_apply(Phot, radec = self.radec)
+            else:
+                return image_list.apply(Phot, radec = self.radec)
 
     def _lc_fname(self, cterm, pmethod, lc_type, sub = False):
         '''return light curve filename'''
