@@ -49,6 +49,8 @@ class LPP(object):
         self.cal_diff_tol = cal_diff_tol
         self.abs_cal_tol = 0.2 # do not proceed with the pipeline if in non-interactive mode and cal tol exceeds this
         self.min_ref_num = 3 # minimum number of ref stars
+        self.checks = ['filter', 'date'] # default checks to perform on image list
+        self.phase_limits = (-10, 3*365) # phase bounds in days relative to disc. date to keep if "date" check performed
 
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
@@ -82,6 +84,7 @@ class LPP(object):
         self.wIndex = [] # subset of aIndex to work on
         self.bfIndex = [] # indices of images with unsupported filters
         self.ucIndex = [] # indices of WCS fail images, even though _c
+        self.bdIndex = [] # indices of images with dates outside of phase boundaries
         self.pfIndex = [] # indices of photometry failures
         self.psfIndex = [] # indices of photometry (sub) failures
         self.cfIndex = [] # indices of calibration failures
@@ -476,20 +479,34 @@ class LPP(object):
         '''only keep images that are in a supported filter and without file format issues'''
 
         # filter check
-        filter_check = lambda img: True if img.filter.upper() in self.filter_set_ref else False
-        self.log.info('checking filters')
-        bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(filter_check)
-        self.bfIndex = self.wIndex[~pd.Series(bool_idx)]
-        self.log.info('dropping {} images due to unsupported filter'.format(len(self.bfIndex)))
-        self.wIndex = self.wIndex.drop(self.bfIndex)
+        if 'filter' in self.checks:
+            filter_check = lambda img: True if img.filter.upper() in self.filter_set_ref else False
+            self.log.info('checking filters')
+            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(filter_check)
+            self.bfIndex = self.wIndex[~pd.Series(bool_idx)]
+            self.log.info('dropping {} images due to unsupported filter'.format(len(self.bfIndex)))
+            self.wIndex = self.wIndex.drop(self.bfIndex)
 
         # uncal check
-        cal_check = lambda img: True if ('RADECSYS' not in img.header) else (False if (img.header['RADECSYS'] == '-999') else True)
-        self.log.info('checking images for WCS')
-        bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(cal_check)
-        self.ucIndex = self.wIndex[~pd.Series(bool_idx)]
-        self.log.info('dropping {} images for failed WCS'.format(len(self.ucIndex)))
-        self.wIndex = self.wIndex.drop(self.ucIndex)
+        if 'uncal' in self.checks:
+            cal_check = lambda img: True if ('RADECSYS' not in img.header) else (False if (img.header['RADECSYS'] == '-999') else True)
+            self.log.info('checking images for WCS')
+            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(cal_check)
+            self.ucIndex = self.wIndex[~pd.Series(bool_idx)]
+            self.log.info('dropping {} images for failed WCS'.format(len(self.ucIndex)))
+            self.wIndex = self.wIndex.drop(self.ucIndex)
+
+        if 'date' in self.checks:
+            if self.disc_date_mjd is None:
+                self.log.warn('discovery date not set, cannot do date check')
+                return
+            date_check = lambda img: True if ((img.mjd >= (self.disc_date_mjd + self.phase_limits[0])) and 
+                         (img.mjd <= (self.disc_date_mjd + self.phase_limits[1]))) else False
+            self.log.info('checking phases')
+            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(date_check)
+            self.bdIndex = self.wIndex[~pd.Series(bool_idx)]
+            self.log.info('dropping {} images that are outside of phase bounds'.format(len(self.bdIndex)))
+            self.wIndex = self.wIndex.drop(self.bdIndex)
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
