@@ -52,7 +52,7 @@ This is the Lick Observatory Supernova Search Photometry Pipeline. It is designe
    The setup.py script sets paths in files where needed and does some basic checks to make sure needed packages and executables are installed appropriately. Note that this is **not** a normal python setup script. Once you have downloaded LOSSPhotPypeline and moved it where you'd like it live, run this script from LOSSPhotPypeline root directory.
 
    ```sh
-   # from within the LOSSPHotPypeline root directory
+   # from within the LOSSPhotPypeline root directory
    python setup.py
    ```
 

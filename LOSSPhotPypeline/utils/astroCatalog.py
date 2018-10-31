@@ -191,7 +191,7 @@ class astroCatalog:
         idl(idl_cmd)
 
 # provide script functionality via
-# python astroCatalog_bs.py name ra dec
+# python astroCatalog.py name ra dec
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
