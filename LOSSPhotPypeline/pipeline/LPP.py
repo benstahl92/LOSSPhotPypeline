@@ -1140,3 +1140,16 @@ class LPP(object):
 
         result = LPPu.get_template_candidates(self.targetra, self.targetdec, dt, self.templates_dir)
         self.log.info(result)
+
+# provide script functionality via
+# python LPP.py name
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('name', type=str, help='name of the object')
+    args = parser.parse_args()
+
+    pipeline = LPP(args.name, interactive = False)
+    pipeline.run()
+
+
