@@ -1146,10 +1146,12 @@ class LPP(object):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('name', type=str, help='name of the object')
+    parser.add_argument('name', type = str, help = 'name of the object')
+    parser.add_argument('-i', '--interactive', dest = 'interactive', action = 'store_const',
+                        const = True, default = False, help = 'run in interactive mode')
     args = parser.parse_args()
 
-    pipeline = LPP(args.name, interactive = False)
+    pipeline = LPP(args.name, interactive = args.interactive)
     pipeline.run()
 
 
