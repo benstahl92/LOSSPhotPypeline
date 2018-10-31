@@ -1152,7 +1152,7 @@ if __name__ == '__main__':
                         const = True, default = False, help = 'run in interactive mode')
     parser.add_argument('-ct', '--force-color-term', dest = 'force_color_term', type = str, 
                         default = False, help = 'force to use specified color term')
-    parser.add_argument('-dd', '--disc-date-mjd' dest = 'disc_date_mjd', type = float,
+    parser.add_argument('-dd', '--disc-date-mjd', dest = 'disc_date_mjd', type = float,
                         default = None, help = 'mjd of discovery')
     args = parser.parse_args()
 
