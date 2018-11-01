@@ -15,6 +15,11 @@ if fb lt 0 then begin
   return
 endif
 
+if fb eq 1 then begin
+  print,'Only one data porint is good, not doing group'
+  return
+endif
+
 photst=photst[ind]
 
 lpp_phot_dat_res_group,photst.time,photst.mag,photst.filter,magerr=photst.emag,outst=outst,outfile=outfile
