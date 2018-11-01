@@ -35,7 +35,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False):
+    def __init__(self, targetname, interactive = True, parallel = False, cal_diff_tol = 0.05, force_color_term = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
