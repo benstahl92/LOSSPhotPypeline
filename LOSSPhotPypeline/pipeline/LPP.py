@@ -421,8 +421,6 @@ class LPP(object):
         stdout, stderr = p.communicate()
         self.log.debug(stdout)
         self.log.debug(stderr)
-        p.wait()
-        del p
 
         # make sure process succeeded
         if not os.path.exists(ref.sobj):
@@ -526,22 +524,20 @@ class LPP(object):
 
         # set up for parallelization
         ti = self.template_images
-        if self.parallel is True:
-            self.log.debug('logging is not performed in parallel mode')
-            log = None
-        else:
-            log = self.log
-        fn = lambda img: img.galaxy_subtract(ti, log = log)
+        fn = lambda img: img.galaxy_subtract(ti)
 
         # do galaxy subtraction in the appropriate mode
         if self.parallel is True:
-            tmp = p_map(fn, self.phot_instances.loc[self.wIndex].tolist())
+            res = p_map(fn, self.phot_instances.loc[self.wIndex].tolist())
         else:
-            tmp = []
+            res = []
             for img in tqdm(self.phot_instances.loc[self.wIndex].tolist()):
-                tmp.append(fn(img))
+                res.append(fn(img))
 
-        if False in tmp:
+        # extract results, log, and determine if successful
+        res = pd.DataFrame(res, columns = ['success', 'log'])
+        res['log'].apply(lambda log_entry: self._log_idl(*log_entry))
+        if not res['success'].all():
             self.log.warn('photsub failed (probably b/c of missing templates), running without galaxy subtraction')
             self._get_template_candidates()
 
@@ -554,29 +550,25 @@ class LPP(object):
 
         # set up for parallelization
         ps = self.photsub
-        if self.parallel is True:
-            self.log.debug('logging is not performed in parallel mode')
-            log = None
-        else:
-            log = self.log
-        fn = lambda img: img.do_photometry(photsub = ps, log = log)
+        fn = lambda img: img.do_photometry(photsub = ps)
 
         # do photometry in the appropriate mode
         if self.parallel is True:
-            tmp = p_map(fn, self.phot_instances.loc[self.wIndex].tolist())
+            res = p_map(fn, self.phot_instances.loc[self.wIndex].tolist())
         else:
-            tmp = []
+            res = []
             for img in tqdm(self.phot_instances.loc[self.wIndex].tolist()):
-                tmp.append(fn(img))
+                res.append(fn(img))
 
-        # log, announce, and remove failures
-        tmp = pd.DataFrame(tmp, columns = ('unsub', 'sub'), index = self.wIndex)
-        self.pfIndex = self.wIndex[~tmp['unsub']]
+        # extract results, log, and remove failures
+        res = pd.DataFrame(res, columns = ['unsub', 'sub', 'log'])
+        res['log'].apply(lambda log_entry: self._log_idl(*log_entry))
+        self.pfIndex = self.wIndex[~res['unsub']]
         self.log.warn('photometry failed on {} out of {} images'.format(len(self.pfIndex), len(self.wIndex)))
         if self.photsub is False:
             self.wIndex = self.wIndex.drop(self.pfIndex)
         else:
-            self.psfIndex = self.wIndex[~tmp['sub']]
+            self.psfIndex = self.wIndex[~res['sub']]
             self.log.warn('photometry (sub) failed on {} out of {} images'.format(len(self.psfIndex), len(self.wIndex)))
             self.wIndex = self.wIndex.drop(self.pfIndex.intersection(self.psfIndex))
 
@@ -630,7 +622,8 @@ class LPP(object):
                 ps = '/PHOTSUB, '
             idl_cmd = '''idl -e "lpp_cal_instrumag, '{}', '{}', '{}', '{}', {}/OUTPUT"'''.format(img.cimg, img.filter.upper(), self.cal_source,
                      os.path.join(self.calibration_dir, self._ct2cf(img.color_term, use = second_pass)), ps)
-            LPPu.idl(idl_cmd, log = self.log)
+            stdout, stderr = LPPu.idl(idl_cmd)
+            self._log_idl(idl_cmd, stdout, stderr)
 
             # also get zero value
             img.get_zeromag()
@@ -661,9 +654,11 @@ class LPP(object):
 
         # generate ordered calibration file
         idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
-        LPPu.idl(idl_cmd, log = self.log)
+        stdout, stderr = LPPu.idl(idl_cmd)
+        self._log_idl(idl_cmd, stdout, stderr)
         idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
-        LPPu.idl(idl_cmd, log = self.log)
+        stdout, stderr = LPPu.idl(idl_cmd)
+        self._log_idl(idl_cmd, stdout, stderr)
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
@@ -845,19 +840,22 @@ class LPP(object):
         '''wraps IDL lightcurve binning routine'''
 
         idl_cmd = '''idl -e "lpp_dat_res_bin, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, outfile, outfile)
-        LPPu.idl(idl_cmd, log = self.log)
+        stdout, stderr = LPPu.idl(idl_cmd)
+        self._log_idl(idl_cmd, stdout, stderr)
 
     def generate_group_lc(self, infile, outfile):
         '''wraps IDL lightcurve grouping routine'''
 
         idl_cmd = '''idl -e "lpp_dat_res_group, '{}', '{}', OUTFILE='{}'"'''.format(infile, outfile, outfile)
-        LPPu.idl(idl_cmd, log = self.log)
+        stdout, stderr = LPPu.idl(idl_cmd)
+        self._log_idl(idl_cmd, stdout, stderr)
 
     def generate_final_lc(self, color_term, infile, outfile):
         '''wraps IDL routine to convert to natural system'''
 
         idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile)
-        LPPu.idl(idl_cmd, log = self.log)
+        stdout, stderr = LPPu.idl(idl_cmd)
+        self._log_idl(idl_cmd, stdout, stderr)
 
     def raw2standard_lc(self, infile):
         '''wrap intermediate steps that transform light curves from "raw" to "standard"'''
@@ -1034,7 +1032,8 @@ class LPP(object):
                     # also rebin for kait
                     self.template_images['{}_kait'.format(filt)] = ti.cimg.replace('c.fit', 'n2k_c.fit')
                     idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
-                    LPPu.idl(idl_cmd, log = self.log)
+                    stdout, stderr = LPPu.idl(idl_cmd)
+                    self._log_idl(idl_cmd, stdout, stderr)
                 elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('n2k_c.fit' not in templ):
                     self.template_images['CLEAR_kait'] = ti.cimg
                 elif 'n2k_c.fit' in templ:
@@ -1141,6 +1140,13 @@ class LPP(object):
 
         result = LPPu.get_template_candidates(self.targetra, self.targetdec, dt, self.templates_dir)
         self.log.info(result)
+
+    def _log_idl(self, idl_cmd, stdout, stderr):
+        '''log info regarding external idl calls'''
+
+        self.log.debug('output of IDL command: {}'.format(idl_cmd))
+        self.log.debug('STDOUT----\n{}'.format(stdout))
+        self.log.debug('STDERR----\n{}'.format(stderr))
 
 # provide script functionality via
 # python LPP.py name

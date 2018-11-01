@@ -97,15 +97,9 @@ def get_template_candidates(targetra, targetdec, disc_date_mjd, templates_dir, l
 
     return msg
 
-def idl(idl_cmd, log = None):
-    '''execute a given IDL command and do logging as needed'''
+def idl(idl_cmd):
+    '''execute a given IDL command and return outputs'''
 
-    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
+    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True, bufsize = -1)
     stdout, stderr = p.communicate()
-    if log is not None:
-        log.debug('running IDL command: {}'.format(idl_cmd))
-        #stdout, stderr = p.communicate()
-        log.debug(stdout)
-        log.debug(stderr)
-    p.wait()
-    del p
+    return stdout, stderr
