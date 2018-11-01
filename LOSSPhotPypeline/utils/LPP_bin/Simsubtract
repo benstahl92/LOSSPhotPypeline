@@ -37,9 +37,15 @@ then
   outconv=${HEAD}_cfcv.fit
 fi
 
-$ISISPATH/bin/mrj_phot $1 $2 > /dev/null 2>&1
+###make uniq temp directory
+mkdir ./$HEAD
+cd ./$HEAD
+$ISISPATH/bin/mrj_phot ../$1 ../$2 > /dev/null 2>&1
 
-mv conv0.fit $outconv
-mv conv.fit $outsub
+mv conv0.fit ../$outconv
+mv conv.fit ../$outsub
 rm -f kc_0*_c.fit
 rm -f kt_*_c.fit
+###delete this uniq temp directory
+cd ../
+rm -rf ./$HEAD
