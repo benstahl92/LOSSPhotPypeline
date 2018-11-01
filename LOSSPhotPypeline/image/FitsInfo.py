@@ -21,8 +21,8 @@ class FitsImage(object):
         self.oriname=name
         self.name=os.path.basename(name)
 
-        # open fits file        
-        hdulist=fits.open(self.oriname)
+        # open fits file
+        hdulist=fits.open(self.oriname, ignore_missing_end = True)
         hdulist[0].verify('fix+ignore')
         self.header = hdulist[0].header
         hdulist.close()
@@ -355,7 +355,7 @@ class FitsInfo(FitsImage, FileNames):
     def write_header(self, keyword, value):
         '''write header (fits.setval fails, but would do the same thing)'''
 
-        hdul = fits.open(self.oriname, mode = 'update', memmap = False)
+        hdul = fits.open(self.oriname, mode = 'update', memmap = False, ignore_missing_end = True)
         hdul[0].verify('fix+ignore')
         hdul[0].header[keyword] = value
         hdul.flush(output_verify = 'ignore')
