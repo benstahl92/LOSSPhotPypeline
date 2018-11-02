@@ -873,12 +873,14 @@ class LPP(object):
         self.generate_group_lc(binfile, groupfile)
         if not os.path.exists(groupfile):
             self.log.warn('no groupfile generated, skipping')
-            return
+            return False
         self.generate_final_lc(ct, groupfile, lc)
 
         # plot
         p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
         p.plot_lc(extensions = ['.ps', '.png'])
+
+        return True
 
     def generate_lc(self, sub = False):
         '''performs all functions to transform image photometry into calibrated light curve of target'''
@@ -902,8 +904,9 @@ class LPP(object):
         for m in tqdm(self.photmethod):
             all_tmp = []
             for ct in self.color_terms_used.keys():
-                self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub))
-                all_tmp.append(self._lc_fname(ct, m, 'standard', sub = sub))
+                succ = self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub))
+                if succ is True:
+                    all_tmp.append(self._lc_fname(ct, m, 'standard', sub = sub))
             # make "all" light curves
             lc = self._lc_fname('all', m, 'standard', sub = sub)
             concat_list = []
