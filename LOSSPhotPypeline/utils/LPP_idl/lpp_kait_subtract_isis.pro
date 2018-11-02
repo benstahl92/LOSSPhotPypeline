@@ -10,6 +10,10 @@ endif
 
 if not keyword_set(subreg) then subreg=0.9
 
+spawn,'pwd',workpath
+workpath=workpath+'/'
+image=workpath+image
+cfcvref=workpath+cfcvref
 lpp_image_name_trans,image,imagest
 
 fi=findfile(image)
@@ -24,7 +28,10 @@ if fr[0] eq '' then begin
   return
 endif
 
-cmd='Simsubtract '+cfcvref+' '+image+' '+imagest.CFSB+' '+imagest.CFCV
+cmd='mkdir '+imagest.root
+spawn,cmd
+
+cmd='Simsubtract '+imagest.root+' '+cfcvref+' '+image+' '+imagest.CFSB+' '+imagest.CFCV
 spawn,cmd
 
 im_sfsb=mrdfits(imagest.CFSB,0,head1,/fscale)
@@ -52,11 +59,11 @@ tmp_img=mrdfits(image,0,headtmp1,/fscale)
 tmp_img_ref=mrdfits(cfcvref,0,headtmp2,/fscale)
 bzero=sxpar(headtmp1,'BZERO')
 if bzero ne 0.0 then sxaddpar,headtmp1,'BZERO',0.0
-writefits,'tmp_img_isis_sub_c.fit',tmp_img[minx:maxx,miny:maxy],headtmp1
+writefits,imagest.root+'/'+'tmp_img_isis_sub_c.fit',tmp_img[minx:maxx,miny:maxy],headtmp1
 bzero=sxpar(headtmp2,'BZERO')
 if bzero ne 0.0 then sxaddpar,headtmp2,'BZERO',0.0
-writefits,'tmp_img_isis_sub_ref_c.fit',tmp_img_ref[minx:maxx,miny:maxy],headtmp2
-cmd='Simsubtract '+'tmp_img_isis_sub_ref_c.fit'+' '+'tmp_img_isis_sub_c.fit'+' '+imagest.CFSB+' '+imagest.CFCV
+writefits,imagest.root+'/'+'tmp_img_isis_sub_ref_c.fit',tmp_img_ref[minx:maxx,miny:maxy],headtmp2
+cmd='Simsubtract '+imagest.root+' '+workpath+imagest.root+'/'+'tmp_img_isis_sub_ref_c.fit'+' '+workpath+imagest.root+'/'+'tmp_img_isis_sub_c.fit'+' '+imagest.CFSB+' '+imagest.CFCV
 spawn,cmd
 im_sfsb[minx:maxx,miny:maxy]=mrdfits(imagest.CFSB,/fscale)
 im_sfcv[minx:maxx,miny:maxy]=mrdfits(imagest.CFCV,/fscale)
@@ -67,7 +74,8 @@ bzero=sxpar(head2,'BZERO')
 if bzero ne 0.0 then sxaddpar,head2,'BZERO',0.0
 writefits,imagest.CFCV,im_sfcv,head2
 
-cmd='rm -f '+'tmp_img_isis_sub_c.fit'+' '+'tmp_img_isis_sub_ref_c.fit'
+;cmd='rm -f '+'tmp_img_isis_sub_c.fit'+' '+'tmp_img_isis_sub_ref_c.fit'
+cmd='rm -rf '+imagest.root
 spawn,cmd
 
 end
