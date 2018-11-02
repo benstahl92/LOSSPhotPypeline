@@ -1,28 +1,35 @@
 #!/bin/sh
-if [ $# -lt 2 ]
+if [ $# -lt 3 ]
 then
-        echo "Usage:$0 templatename filename [outsub outconv]"
-        echo "$1 $2 $3 $4"
-        exit 0
-fi
-
-if [ ! -e $1 ]
-then
-        echo "File $1 not exit!"
+        echo "Usage:$0 tmpdirectory templatename filename [outsub outconv]"
+        echo "$1 $2 $3 $4 $5"
         exit 0
 fi
 
 if [ ! -e $2 ]
 then
-        echo "File $2 not exit!"
+        echo "File $2 not exist!"
         exit 0
 fi
 
+if [ ! -e $3 ]
+then
+        echo "File $3 not exist!"
+        exit 0
+fi
+
+if [ ! -e $1 ]
+then
+        echo "Ditectory $1 not exist, creating one"
+        mkdir $1
+fi
+
+workpath=`pwd`
 
 #for new idl style
-HEAD=`echo $2 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/_cfwp\.fit//' |  sed 's/_c\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
-outsub=$3
-outconv=$4
+HEAD=`echo $3 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/_cfwp\.fit//' |  sed 's/_c\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
+outsub=$4
+outconv=$5
 if [ "$outsub" = "" ]
 then
   outsub=${HEAD}_cfsb.fit
@@ -33,19 +40,17 @@ then
 fi
 
 ###make uniq temp directory
-mkdir ./$HEAD
-cd ./$HEAD
+cd $1
 if [ ! -e "default_config" ]
 then
 	echo "default_config not found, copy $ISISPATH/default_config to here"
 	cp $ISISPATH/default_config .
 fi
-$ISISPATH/bin/mrj_phot ../$1 ../$2 > /dev/null 2>&1
+$ISISPATH/bin/mrj_phot $2 $3 > /dev/null 2>&1
 
-mv conv0.fit ../$outconv
-mv conv.fit ../$outsub
+mv conv0.fit $outconv
+mv conv.fit $outsub
 rm -f kc_0*_c.fit
 rm -f kt_*_c.fit
-###delete this uniq temp directory
-cd ../
-rm -rf ./$HEAD
+
+cd $workpath
