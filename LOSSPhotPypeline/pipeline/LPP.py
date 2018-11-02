@@ -871,6 +871,9 @@ class LPP(object):
         # do intermediate light curve steps
         self.generate_bin_lc(infile, binfile)
         self.generate_group_lc(binfile, groupfile)
+        if not os.path.exists(groupfile):
+            self.log.warn('no groupfile generated, skipping')
+            return
         self.generate_final_lc(ct, groupfile, lc)
 
         # plot

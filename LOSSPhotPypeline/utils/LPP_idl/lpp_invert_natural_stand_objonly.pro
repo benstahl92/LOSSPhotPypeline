@@ -56,6 +56,7 @@ tagnumber=n_elements(tagnames)
 
 ;;dealing with different groups, minimum need B, and V
 
+filter=[]
 indtmp=where(tagnames eq 'CLEAR', nf)
 if nf ge 1 then begin 
   filter=['CLEAR']
