@@ -56,21 +56,46 @@ tagnumber=n_elements(tagnames)
 
 ;;dealing with different groups, minimum need B, and V
 
+indtmp=where(tagnames eq 'CLEAR', nf)
+if nf ge 1 then begin 
+  filter=['CLEAR']
+endif
 indtmp=where(tagnames eq 'B', nf)
-if nf eq 0 then begin
-  print,'B band mag is not in the input file, can not do the transformation, quiting ...'
-  return
+if nf ge 1 then begin 
+  filter=[filter,'B']
 endif
-
 indtmp=where(tagnames eq 'V', nf)
-if nf eq 0 then begin
-  print,'V band mag is not in the input file, can not do the transformation, quiting ...'
-  return
+if nf ge 1 then begin 
+  filter=[filter,'V']
+endif
+indtmp=where(tagnames eq 'R', nf)
+if nf ge 1 then begin 
+  filter=[filter,'R']
+endif
+indtmp=where(tagnames eq 'I', nf)
+if nf ge 1 then begin 
+  filter=[filter,'I']
 endif
 
-b_v=(natural_st.B-natural_st.V)/(1.0+color_term.C_B-color_term.C_V)
-stand_st.B=natural_st.B-color_term.C_B*b_v
-stand_st.V=natural_st.V-color_term.C_V*b_v
+if n_elements(filter) eq 1 and filter[0] eq 'CLEAR' then begin
+  nochanges=1
+endif else begin
+  indtmp=where(tagnames eq 'B', nf)
+  if nf eq 0 then begin
+    print,'B band mag is not in the input file, can not do the transformation, quiting ...'
+    return
+  endif
+  
+  indtmp=where(tagnames eq 'V', nf)
+  if nf eq 0 then begin
+    print,'V band mag is not in the input file, can not do the transformation, quiting ...'
+    return
+  endif
+
+  b_v=(natural_st.B-natural_st.V)/(1.0+color_term.C_B-color_term.C_V)
+  stand_st.B=natural_st.B-color_term.C_B*b_v
+  stand_st.V=natural_st.V-color_term.C_V*b_v
+endelse
 
 indtmp=where(tagnames eq 'R', nf)
 if nf ne 0 then begin
@@ -107,7 +132,29 @@ if nochanges eq 1 then begin
   stand_st=natural_st
 endif
 
-;;this is for 2 filters, which is the minimum
+;;this is for 1 filters, which is the minimum
+if tagnumber eq 5 and nochanges eq 1 then begin
+  if keyword_set(output) then begin
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a7,a9,a7,a9)'
+  endif
+  if keyword_set(outfile) then begin
+    openw, outlun, outfile, /get
+    printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a7,a9,a7,a9)'
+  endif
+  for i=0,n_elements(stand_st)-1 do begin
+    if keyword_set(output) then begin
+      print,stand_st[i].(0),stand_st[i].(1),stand_st[i].(2),stand_st[i].(3),stand_st[i].(4),format='(i6,f11.4,i5,f7.2,f9.2)'
+    endif
+    if keyword_set(outfile) then begin
+      printf,outlun,stand_st[i].(0),stand_st[i].(1),stand_st[i].(2),stand_st[i].(3),stand_st[i].(4),format='(i6,f11.4,i5,f7.2,f9.2)'
+    endif
+  endfor
+  if keyword_set(outfile) then begin
+    free_lun,outlun
+  endif
+endif
+
+;;this is for 2 filters
 if tagnumber eq 7 then begin
   if keyword_set(output) then begin
     print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9)'
