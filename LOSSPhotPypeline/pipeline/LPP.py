@@ -902,15 +902,26 @@ class LPP(object):
         # generate intermediate and final light curves
         self.log.info('generating "standard" light curves')
         for m in tqdm(self.photmethod):
-            all_tmp = []
+            all_nat = []
+            all_std = []
             for ct in self.color_terms_used.keys():
                 succ = self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub))
                 if succ is True:
-                    all_tmp.append(self._lc_fname(ct, m, 'standard', sub = sub))
+                    all_nat.append((ct, self._lc_fname(ct, m, 'group', sub = sub)))
+                    all_std.append(self._lc_fname(ct, m, 'standard', sub = sub))
             # make "all" light curves
+            lc_nat = self._lc_fname('all', m, 'group', sub = sub)
+            concat_list = []
+            for row in all_nat:
+                tmp = pd.read_csv(row[1], delim_whitespace = True)
+                tmp.insert(3, 'SYSTEM', row[0])
+                concat_list.append(tmp)
+            pd.concat(concat_list, sort = False).to_csv(lc_nat, sep = '\t', na_rep = 'NaN', index = False)
+            p = LPPu.plotLC(lc_file = lc_nat, name = self.targetname, photmethod = m)
+            p.plot_lc(extensions = ['.ps', '.png'])
             lc = self._lc_fname('all', m, 'standard', sub = sub)
             concat_list = []
-            for fl in all_tmp:
+            for fl in all_std:
                 concat_list.append(pd.read_csv(fl, delim_whitespace = True))
             pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
