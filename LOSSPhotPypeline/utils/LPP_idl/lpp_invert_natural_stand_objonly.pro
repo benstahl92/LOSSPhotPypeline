@@ -56,67 +56,105 @@ tagnumber=n_elements(tagnames)
 
 ;;dealing with different groups, minimum need B, and V
 
+hasB=0
+hasV=0
+hasR=0
+hasI=0
+hasU=0
+hasCLEAR=0
 filter=[]
 indtmp=where(tagnames eq 'CLEAR', nf)
 if nf ge 1 then begin 
   filter=['CLEAR']
+  hasCLEAR=1
 endif
 indtmp=where(tagnames eq 'B', nf)
 if nf ge 1 then begin 
   filter=[filter,'B']
+  hasB=1
 endif
 indtmp=where(tagnames eq 'V', nf)
 if nf ge 1 then begin 
   filter=[filter,'V']
+  hasV=1
 endif
 indtmp=where(tagnames eq 'R', nf)
 if nf ge 1 then begin 
   filter=[filter,'R']
+  hasR=1
 endif
 indtmp=where(tagnames eq 'I', nf)
 if nf ge 1 then begin 
   filter=[filter,'I']
+  hasI=1
+endif
+indtmp=where(tagnames eq 'U', nf)
+if nf ge 1 then begin 
+  filter=[filter,'I']
+  hasI=1
 endif
 
-if n_elements(filter) eq 1 and filter[0] eq 'CLEAR' then begin
-  nochanges=1
-endif else begin
-  indtmp=where(tagnames eq 'B', nf)
-  if nf eq 0 then begin
-    print,'B band mag is not in the input file, can not do the transformation, quiting ...'
-    return
-  endif
-  
-  indtmp=where(tagnames eq 'V', nf)
-  if nf eq 0 then begin
-    print,'V band mag is not in the input file, can not do the transformation, quiting ...'
-    return
-  endif
-
+if hasB eq 1 and hasV eq 1 then begin
   b_v=(natural_st.B-natural_st.V)/(1.0+color_term.C_B-color_term.C_V)
   stand_st.B=natural_st.B-color_term.C_B*b_v
   stand_st.V=natural_st.V-color_term.C_V*b_v
+
+  if hasR eq 1 then begin
+    stand_st.R=(natural_st.R-color_term.C_R*stand_st.V)/(1.0-color_term.C_R)
+  endif
+  
+  if hasI eq 1 then begin
+    stand_st.I=(natural_st.I-color_term.C_I*stand_st.R)/(1.0-color_term.C_I)
+  endif
+  
+  if hasU eq 1 then begin
+    print,'U band has no color term in build, just output the same value'
+  endif
+  if hasCLEAR eq 1 then begin
+    print,'CLEAR band has no color term in build, just output the same value'
+  endif
+endif else begin
+
+  if hasCLEAR eq 1 then begin
+    print,'CLEAR band has no color term in build, just output the same value'
+
+    if hasB eq 1 then begin
+      print,'Delete B data because can not do invert'
+      sttmp1=stand_st
+      remove_tags,sttmp1,'B',sttmp2
+      remove_tags,sttmp2,'EB',stand_st
+    endif
+    if hasV eq 1 then begin
+      print,'Delete V data because can not do invert'
+      sttmp1=stand_st
+      remove_tags,sttmp1,'V',sttmp2
+      remove_tags,sttmp2,'EV',stand_st
+    endif
+    if hasR eq 1 then begin
+      print,'Delete R data because can not do invert'
+      sttmp1=stand_st
+      remove_tags,sttmp1,'R',sttmp2
+      remove_tags,sttmp2,'ER',stand_st
+    endif
+    if hasI eq 1 then begin
+      print,'Delete I data because can not do invert'
+      sttmp1=stand_st
+      remove_tags,sttmp1,'I',sttmp2
+      remove_tags,sttmp2,'EI',stand_st
+    endif
+    if hasU eq 1 then begin
+      print,'Delete U data because can not do invert'
+      sttmp1=stand_st
+      remove_tags,sttmp1,'U',sttmp2
+      remove_tags,sttmp2,'EU',stand_st
+    endif
+  endif
+  tagnames=strtrim(tag_names(stand_st),2)
+  tagnumber=n_elements(tagnames)
+  ;print,tagnumber
+
 endelse
 
-indtmp=where(tagnames eq 'R', nf)
-if nf ne 0 then begin
-  stand_st.R=(natural_st.R-color_term.C_R*stand_st.V)/(1.0-color_term.C_R)
-endif
-
-indtmp=where(tagnames eq 'I', nf)
-if nf ne 0 then begin
-  stand_st.I=(natural_st.I-color_term.C_I*stand_st.R)/(1.0-color_term.C_I)
-endif
-
-indtmp=where(tagnames eq 'U', nf)
-if nf ne 0 then begin
-  print,'U band has no color term in build, just output the same value'
-endif
-
-indtmp=where(tagnames eq 'CLEAR', nf)
-if nf ne 0 then begin
-  print,'CLEAR band has no color term in build, just output the same value'
-endif
 
 ;;print out tags, this need update, casue different filter numbers have diffferent number of tag names
 ;;assuming the first 3 tags are GROUP, MJD, STAR
@@ -131,10 +169,13 @@ if nochanges eq 1 then begin
   print,'According to the system, no changes to input!'
   print,''
   stand_st=natural_st
+  tagnames=strtrim(tag_names(stand_st),2)
+  tagnumber=n_elements(tagnames)
+  ;print,tagnumber
 endif
 
 ;;this is for 1 filters, which is the minimum
-if tagnumber eq 5 and nochanges eq 1 then begin
+if tagnumber eq 5 then begin
   if keyword_set(output) then begin
     print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a7,a9,a7,a9)'
   endif
