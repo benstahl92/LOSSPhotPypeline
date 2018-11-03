@@ -154,7 +154,7 @@ class LPP(object):
             if self.interactive:
                 load = input('Load saved state from {}? ([y]/n) > '.format(self.savefile))
             else:
-                load = 'y'
+                load = 'n' # run fresh if in non-interactive mode
             if 'n' not in load.lower():
                 self.load()
 
@@ -807,9 +807,9 @@ class LPP(object):
             if 1 not in d['ID'].values:
                 self.log.warn('no object in calibrated photometry file: {}'.format(dat))
                 if photsub_mode is False:
-                    self.no_obj.append(idx)
+                    self.noIndex.append(idx)
                 else:
-                    self.no_obj_sub.append(idx)
+                    self.nosIndex.append(idx)
 
             # setup columns for each raw file
             for m in self.photmethod:
@@ -944,6 +944,9 @@ class LPP(object):
 
         # get filters used
         self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
+        ctu = self.color_terms_used
+        if ctu is not None:
+            ctu = ', '.join(ctu.keys())
 
         self.summary_file = self.targetname + '.summary'
         with open(self.summary_file, 'w') as f:
@@ -952,11 +955,14 @@ class LPP(object):
             f.write('{:<25}{}\n'.format('filters', ', '.join(self.filters)))
             f.write('{:<25}{}\n'.format('apertures', ', '.join(self.photmethod)))
             f.write('{:<25}{}\n'.format('calmethod', self.calmethod))
-            f.write('{:<25}{}\n'.format('color_terms',', '.join(self.color_terms_used.keys())))
+            f.write('{:<25}{}\n'.format('color_terms', ctu))
             f.write('{:<25}{}\n'.format('num images', len(self.phot_instances)))
             f.write('{:<25}{}\n'.format('num failures', len(self.aIndex) - len(self.wIndex)))
             f.write('{:<25}{}\n'.format('num non-sup. filt.', len(self.bfIndex)))
             f.write('{:<25}{}\n'.format('num excl. by date', len(self.bdIndex)))
+            f.write('{:<25}{}\n'.format('num phot failures', len(self.pfIndex)))
+            f.write('{:<25}{}\n'.format('num cal failures', len(self.cfIndex)))
+            f.write('{:<25}{}\n'.format('num no obj', len(self.noIndex)))
             f.write('{:<25}{}\n'.format('cal source', self.cal_source))
             f.write('{:<25}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
 

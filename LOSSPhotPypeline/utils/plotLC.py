@@ -332,7 +332,7 @@ class plotLC:
         else:
             # workaround for bugs with the legend
             handles, labels = ax.get_legend_handles_labels()
-            handles = [h for h in handles]
+            handles = [h[0] for h in handles]
             ax.legend(handles, labels, bbox_to_anchor = (1.01, 0.5), loc = 'center left')
             if return_fig:
                 return fig, ax
