@@ -103,10 +103,17 @@ if hasB eq 1 and hasV eq 1 then begin
     stand_st.R=(natural_st.R-color_term.C_R*stand_st.V)/(1.0-color_term.C_R)
   endif
   
-  if hasI eq 1 then begin
+  if hasR eq 1 and hasI eq 1 then begin
     stand_st.I=(natural_st.I-color_term.C_I*stand_st.R)/(1.0-color_term.C_I)
   endif
   
+  if hasR eq 0 and hasI eq 1 then begin
+    print,'Delete I data because can not do invert'
+    sttmp1=stand_st
+    remove_tags,sttmp1,'I',sttmp2
+    remove_tags,sttmp2,'EI',stand_st
+  endif
+
   if hasU eq 1 then begin
     print,'U band has no color term in build, just output the same value'
   endif
@@ -149,11 +156,10 @@ endif else begin
       remove_tags,sttmp2,'EU',stand_st
     endif
   endif
-  tagnames=strtrim(tag_names(stand_st),2)
-  tagnumber=n_elements(tagnames)
-  ;print,tagnumber
-
 endelse
+tagnames=strtrim(tag_names(stand_st),2)
+tagnumber=n_elements(tagnames)
+;print,tagnumber
 
 
 ;;print out tags, this need update, casue different filter numbers have diffferent number of tag names
