@@ -122,40 +122,43 @@ if hasB eq 1 and hasV eq 1 then begin
   endif
 endif else begin
 
+  if hasB eq 1 then begin
+    print,'Delete B data because can not do invert'
+    sttmp1=stand_st
+    remove_tags,sttmp1,'B',sttmp2
+    remove_tags,sttmp2,'EB',stand_st
+  endif
+  if hasV eq 1 then begin
+    print,'Delete V data because can not do invert'
+    sttmp1=stand_st
+    remove_tags,sttmp1,'V',sttmp2
+    remove_tags,sttmp2,'EV',stand_st
+  endif
+  if hasR eq 1 then begin
+    print,'Delete R data because can not do invert'
+    sttmp1=stand_st
+    remove_tags,sttmp1,'R',sttmp2
+    remove_tags,sttmp2,'ER',stand_st
+  endif
+  if hasI eq 1 then begin
+    print,'Delete I data because can not do invert'
+    sttmp1=stand_st
+    remove_tags,sttmp1,'I',sttmp2
+    remove_tags,sttmp2,'EI',stand_st
+  endif
+  if hasU eq 1 then begin
+    print,'Delete U data because can not do invert'
+    sttmp1=stand_st
+    remove_tags,sttmp1,'U',sttmp2
+    remove_tags,sttmp2,'EU',stand_st
+  endif
+
   if hasCLEAR eq 1 then begin
     print,'CLEAR band has no color term in build, just output the same value'
-
-    if hasB eq 1 then begin
-      print,'Delete B data because can not do invert'
-      sttmp1=stand_st
-      remove_tags,sttmp1,'B',sttmp2
-      remove_tags,sttmp2,'EB',stand_st
-    endif
-    if hasV eq 1 then begin
-      print,'Delete V data because can not do invert'
-      sttmp1=stand_st
-      remove_tags,sttmp1,'V',sttmp2
-      remove_tags,sttmp2,'EV',stand_st
-    endif
-    if hasR eq 1 then begin
-      print,'Delete R data because can not do invert'
-      sttmp1=stand_st
-      remove_tags,sttmp1,'R',sttmp2
-      remove_tags,sttmp2,'ER',stand_st
-    endif
-    if hasI eq 1 then begin
-      print,'Delete I data because can not do invert'
-      sttmp1=stand_st
-      remove_tags,sttmp1,'I',sttmp2
-      remove_tags,sttmp2,'EI',stand_st
-    endif
-    if hasU eq 1 then begin
-      print,'Delete U data because can not do invert'
-      sttmp1=stand_st
-      remove_tags,sttmp1,'U',sttmp2
-      remove_tags,sttmp2,'EU',stand_st
-    endif
-  endif
+  endif else begin
+    print,'Nothing left!'
+    return
+  endelse
 endelse
 tagnames=strtrim(tag_names(stand_st),2)
 tagnumber=n_elements(tagnames)
