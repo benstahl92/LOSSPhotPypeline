@@ -12,12 +12,13 @@ import LOSSPhotPypeline.utils as LPPu
 
 class Phot(FitsInfo):
 
-    def __init__(self, name, radecfile = None, radec = None):
+    def __init__(self, name, radecfile = None, radec = None, wdir = '.'):
 
         FitsInfo.__init__(self, name)
 
         self.radecfile = radecfile
         self.radec = radec
+        self.wdir = os.path.abspath(wdir)
 
         if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
@@ -31,7 +32,7 @@ class Phot(FitsInfo):
         # convert to pixel coordinates in current image and save
         cs = WCS(header = self.header)
         imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1)
-        pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(self.obj, sep = '\t', index=False, header = False, float_format='%9.4f')
+        pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(os.path.join(self.wdir, self.obj), sep = '\t', index=False, header = False, float_format='%9.4f')
 
     def do_photometry(self, photsub = False):
         '''performs photometry by wrapping IDL procedure'''
@@ -45,14 +46,14 @@ class Phot(FitsInfo):
         else:
             ps = '/PHOTSUB, '
         idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, self.exptime, ps)
-        stdout, stderr = LPPu.idl(idl_cmd)
+        stdout, stderr = LPPu.idl(idl_cmd, wdir = self.wdir)
         phot_idl = (idl_cmd, stdout, stderr)
 
         r1 = True
-        if os.path.exists(self.psf) is False:
+        if os.path.exists(os.path.join(self.wdir, self.psf)) is False:
             r1 = False
         r2 = False
-        if (photsub is True) and (os.path.exists(self.psfsub) is True):
+        if (photsub is True) and (os.path.exists(os.path.join(self.wdir, self.psfsub)) is True):
             r2 = True
 
         return r1, r2, phot_idl
@@ -65,11 +66,9 @@ class Phot(FitsInfo):
         # execute idl commmand if possible, then store results
         if template_images[selector] is not None:
             idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[selector])
-            stdout, stderr = LPPu.idl(idl_cmd)
+            stdout, stderr = LPPu.idl(idl_cmd, wdir = self.wdir)
             sub_idl = (idl_cmd, stdout, stderr)
             return True, sub_idl
         else:
-            return False, sub_idl
-
-        # might want to add interactivity here to check the subtraction
+            return False, ('no IDL cmd due to missing template', None, None)
 

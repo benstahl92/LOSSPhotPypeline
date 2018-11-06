@@ -25,7 +25,8 @@ then
 fi
 
 workpath=`pwd`
-
+echo Simsubtract starting in
+pwd
 #for new idl style
 HEAD=`echo $3 | sed 's/_warp\.fits//' | sed 's/_warp\.fit//' | sed 's/_cfwp\.fit//' |  sed 's/_c\.fit//' | sed 's/\.fits//' | sed 's/\.fit//' |  sed 's/\.imh//'`
 outsub=$4
@@ -41,6 +42,8 @@ fi
 
 ###make uniq temp directory
 cd $1
+echo Simsubtract working in
+pwd
 if [ ! -e "default_config" ]
 then
 	echo "default_config not found, copy $ISISPATH/default_config to here"
@@ -54,3 +57,5 @@ rm -f kc_0*_c.fit
 rm -f kt_*_c.fit
 
 cd $workpath
+echo Simsubtract back in
+pwd

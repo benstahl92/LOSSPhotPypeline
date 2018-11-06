@@ -39,7 +39,7 @@ for i=0,tnb-1 do begin
     print,'file : ',imagest.cfwp,' not found, quit!'
     return
   endif
-  
+
   lpp_kait_subtract_isis,imagest.cimg,imagest.cfwp,subreg=subreg
 endfor
 

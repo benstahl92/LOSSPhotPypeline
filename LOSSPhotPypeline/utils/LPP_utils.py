@@ -1,5 +1,6 @@
 # standard imports
 import subprocess
+from threading import Timer
 import shlex
 import pandas as pd
 import os
@@ -97,9 +98,14 @@ def get_template_candidates(targetra, targetdec, disc_date_mjd, templates_dir, l
 
     return msg
 
-def idl(idl_cmd):
+def idl(idl_cmd, wdir = None, timeout = 120):
     '''execute a given IDL command and return outputs'''
 
-    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True, bufsize = -1)
-    stdout, stderr = p.communicate()
+    p = subprocess.Popen(shlex.split(idl_cmd), stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True, bufsize = -1, cwd = wdir)
+    timer = Timer(timeout, p.kill)
+    try:
+        timer.start()
+        stdout, stderr = p.communicate()
+    finally:
+        timer.cancel()
     return stdout, stderr

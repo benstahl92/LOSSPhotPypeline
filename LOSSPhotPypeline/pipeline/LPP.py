@@ -35,13 +35,14 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False):
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False, wdir = '.'):
         '''Instantiation instructions'''
 
         # basics from instantiation
-        self.targetname = targetname.lower().replace(' ', '')
+        self.targetname = targetname.replace(' ', '')
         self.config_file = targetname + '.conf'
         self.interactive = interactive
+        self.wdir = os.path.abspath(wdir) # working directory for running (particularly idl code)
         if (parallel is True) and (_parallel) is True:
             self.parallel = True
         else:
@@ -91,6 +92,7 @@ class LPP(object):
         self.csfIndex = [] # indices of calibration (sub) failures
         self.noIndex = []
         self.nosIndex = []
+        self.run_success = False # track run success
 
         # calibration variables
         self.cal_source = 'auto'
@@ -506,6 +508,13 @@ class LPP(object):
             self.log.info('dropping {} images that are outside of phase bounds'.format(len(self.bdIndex)))
             self.wIndex = self.wIndex.drop(self.bdIndex)
 
+        # if there are none left, end pipeline
+        if len(self.wIndex) == 0:
+            self.log.warn('all images removed by checks --- cannot proceed')
+            self.run_success = False
+            self.current_step = self.steps.index(self.write_summary) - 1
+            return
+
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
 
@@ -540,6 +549,7 @@ class LPP(object):
         if not res['success'].all():
             self.log.warn('photsub failed (probably b/c of missing templates), running without galaxy subtraction')
             self._get_template_candidates()
+            self.photsub = False
 
         self.log.info('galaxy subtraction done')
 
@@ -664,6 +674,13 @@ class LPP(object):
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
         IDs = cal['starID'] + 2
 
+        # check for bad result and end if needed
+        if len(cal) < 3: # should have at least three good stars
+            self.log.warn('calibration file is bad --- is reference image good?')
+            self.run_success = False
+            self.current_step = self.steps.index(self.write_summary) - 1
+            return
+
         # iterate through files and store photometry into data structure
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
 
@@ -718,8 +735,8 @@ class LPP(object):
                     self.cal_diff_tol += 0.05
                     if self.cal_diff_tol > self.abs_cal_tol:
                         self.log.warn('calibration tolerance exceeds {}, cannot proceed'.format(self.abs_cal_tol))
-                        self.current_step = self.steps.index(self.write_summary)
-                        self.run()
+                        self.run_success = False
+                        self.current_step = self.steps.index(self.write_summary) - 1
                         return
                 else:
                     accept_tol = True
@@ -930,6 +947,7 @@ class LPP(object):
                 p.plot_lc(extensions = ['.ps', '.png'])
 
         self.log.info('done with light curves')
+        self.run_success = True
 
         # use recursion to handle sub if needed
         if (self.photsub is True) and (sub is False):
@@ -965,6 +983,7 @@ class LPP(object):
             f.write('{:<25}{}\n'.format('num no obj', len(self.noIndex)))
             f.write('{:<25}{}\n'.format('cal source', self.cal_source))
             f.write('{:<25}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
+            f.write('{:<25}{}\n'.format('run successful', self.run_success))
 
         self.log.info('pipeline complete, summary file written')
         self.save()
@@ -1133,9 +1152,9 @@ class LPP(object):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', AstropyWarning)
             if mode != 'quiet':
-                return image_list.progress_apply(Phot, radec = self.radec)
+                return image_list.progress_apply(Phot, radec = self.radec, wdir = self.wdir)
             else:
-                return image_list.apply(Phot, radec = self.radec)
+                return image_list.apply(Phot, radec = self.radec, wdir = self.wdir)
 
     def _lc_fname(self, cterm, pmethod, lc_type, sub = False):
         '''return light curve filename'''
