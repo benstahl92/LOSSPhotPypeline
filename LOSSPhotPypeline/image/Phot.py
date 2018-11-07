@@ -45,7 +45,8 @@ class Phot(FitsInfo):
             ps = ''
         else:
             ps = '/PHOTSUB, '
-        idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, self.exptime, ps)
+        # note: exposure time hardcoded to 1s (not self.exptime) to address bug in LPP_NSTAR (from astro IDL)
+        idl_cmd = '''idl -e "lpp_phot_psf, '{}', fwhm = {}, exposures = {}, /SAVESKY, {}/OUTPUT"'''.format(self.cimg, self.fwhm, 1, ps)
         stdout, stderr = LPPu.idl(idl_cmd, wdir = self.wdir)
         phot_idl = (idl_cmd, stdout, stderr)
 

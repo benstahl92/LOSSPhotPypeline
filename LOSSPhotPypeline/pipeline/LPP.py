@@ -893,6 +893,7 @@ class LPP(object):
             return False, False
         self.generate_final_lc(ct, groupfile, lc)
         if not os.path.exists(lc):
+            self.log.warn('no standard lc generated, skipping')
             return True, False
 
         # plot
