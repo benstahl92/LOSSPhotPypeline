@@ -653,7 +653,7 @@ class LPP(object):
             if self.photsub is True:
                 self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
 
-    def process_calibration(self):#, photsub_mode = False):
+    def process_calibration(self):
         '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
 
         self.log.info('processing calibration')
@@ -1203,6 +1203,8 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('name', type = str, help = 'name of the object')
+    parser.add_argument('-a', '--add-images(s)', dest = 'new', type = str, default = False,
+                        help = 'new image(s) or photlist to process')
     parser.add_argument('-i', '--interactive', dest = 'interactive', action = 'store_const',
                         const = True, default = False, help = 'run in interactive mode')
     parser.add_argument('-ct', '--force-color-term', dest = 'force_color_term', type = str, 
@@ -1213,6 +1215,11 @@ if __name__ == '__main__':
 
     pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
     pipeline.disc_date_mjd = args.disc_date_mjd
-    pipeline.run()
-
-
+    if args.new is False:
+        pipeline.run()
+    else:
+        if '_c.fit' in args.new:
+            new_images = [fl.strip() for fl in args.new.replace(',', ' ').split(' ')]
+            pipeline.process_new_images(new_image_list = new_images)
+        else: # otherwise it is a photlist
+            pipeline.process_new_images(new_image_file = args.new)
