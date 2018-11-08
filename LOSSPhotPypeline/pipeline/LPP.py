@@ -999,6 +999,8 @@ class LPP(object):
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''processes images obtained after initial processing'''
 
+        self.log.info('processing new images')
+
         # read in new images to list
         if (new_image_file is not None) and (new_image_list == []):
             new_image_list = pd.read_csv(new_image_file, header = None, delim_whitespace = True,
@@ -1218,6 +1220,7 @@ if __name__ == '__main__':
     if args.new is False:
         pipeline.run()
     else:
+        pipeline.load() # load from sav file
         if '_c.fit' in args.new:
             new_images = [fl.strip() for fl in args.new.replace(',', ' ').split(' ')]
             pipeline.process_new_images(new_image_list = new_images)
