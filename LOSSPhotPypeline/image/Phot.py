@@ -44,7 +44,7 @@ class Phot(FitsInfo):
         # do necessary pre-steps
         succ = self.gen_obj_fl()
         if succ is False:
-            return False, False, 'could not generate object file'
+            return False, False, ('could not generate object file', None, None)
 
         # formulate and run idl command, then store results
         if photsub is False:
