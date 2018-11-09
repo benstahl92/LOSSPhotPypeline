@@ -211,7 +211,7 @@ if fail eq 0 then begin
     psfstarskys=skys[w,0]
     inds=lindgen(nw)
     fail=0
-    getpsf_rphot,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
+    lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
       ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
     if fail ne 0 then begin
       if keyword_set(output) then print,'second trying making PSF failed too, can not do PSF phot, quiting'
