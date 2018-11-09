@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 from astropy.io import fits
-from astropy.wcs import WCS
+from astropy.wcs import WCS, InvalidTransformError
 import os
 
 # internal imports
@@ -30,15 +30,21 @@ class Phot(FitsInfo):
         '''generates obj file'''
 
         # convert to pixel coordinates in current image and save
-        cs = WCS(header = self.header)
-        imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1)
-        pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(os.path.join(self.wdir, self.obj), sep = '\t', index=False, header = False, float_format='%9.4f')
+        try:
+            cs = WCS(header = self.header)
+            imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1)
+            pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(os.path.join(self.wdir, self.obj), sep = '\t', index=False, header = False, float_format='%9.4f')
+            return True
+        except InvalidTransformError:
+            return False
 
     def do_photometry(self, photsub = False):
         '''performs photometry by wrapping IDL procedure'''
 
         # do necessary pre-steps
-        self.gen_obj_fl()
+        succ = self.gen_obj_fl()
+        if succ is False:
+            return False, False, 'could not generate object file'
 
         # formulate and run idl command, then store results
         if photsub is False:
