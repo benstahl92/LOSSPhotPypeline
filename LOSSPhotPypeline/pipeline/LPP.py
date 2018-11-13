@@ -1213,12 +1213,16 @@ if __name__ == '__main__':
                         default = False, help = 'force to use specified color term')
     parser.add_argument('-dd', '--disc-date-mjd', dest = 'disc_date_mjd', type = float,
                         default = None, help = 'mjd of discovery')
+    parser.add_argument('-c', '--cut-lc-points', dest = 'lc_file', type = str,
+                        default = None, help = 'light curve file to cut points from')
     args = parser.parse_args()
 
     pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
     pipeline.disc_date_mjd = args.disc_date_mjd
-    if args.new is False:
+    if (args.new is False) and (args.lc_file is None):
         pipeline.run()
+    elif(args.new is False) and (args.lc_file is not None):
+        pipeline.cut_lc_points([args.lc_file])
     else:
         pipeline.load() # load from sav file
         if '_c.fit' in args.new:
