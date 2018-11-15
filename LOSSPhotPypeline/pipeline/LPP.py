@@ -606,11 +606,7 @@ class LPP(object):
                 catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
-        if (second_pass is True) and (os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4', use = True))) is False):
-            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
-            catalog.cal_filename = self.calfile_use
-            catalog.cal_source = self.cal_source
-            catalog.to_natural()
+
         self.log.info('calibration data sourced')
 
         # iterate through image list and execute calibration script on each
@@ -760,7 +756,7 @@ class LPP(object):
         im.close()
         self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
 
-        # write new calibration file
+        # write new calibration file and regenerate .fit files
         os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
         with open('tmp.tmp', 'r') as infile:
             with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
@@ -772,6 +768,10 @@ class LPP(object):
                         if ID not in cut_list:
                             outfile.write(line)
         os.system('rm tmp.tmp')
+        catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+        catalog.cal_filename = self.calfile_use
+        catalog.cal_source = self.cal_source
+        catalog.to_natural()
 
     def do_calibration(self):
         '''executes full calibration routine'''
