@@ -58,7 +58,8 @@ objy=objy-1.0
 
 ;; first, find the image size
 ;imhdr=headfits(image)
-imagedata=mrdfits(image,0,imhdr,/silent)
+;imagedata=mrdfits(image,0,imhdr,/silent)
+imagedata=readfits(image,imhdr)
 maxX=float(sxpar(imhdr,'NAXIS1'))
 maxY=float(sxpar(imhdr,'NAXIS2'))
 ;print,maxX,maxY
@@ -97,9 +98,12 @@ for i=0,nphot-2 do begin
   LPP_get_aper_counts,imagedata,fwhm,objx,objy,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
   ;print,flux,eflux
   fluxall[*,i]=flux
+  print,'measured apt flux in ori image is (i, flux[i])',i,fluxall[0,i]
   fluxerrall[*,i]=eflux
   skys[*,i]=skytmp
   skynoise[i]=skynoisetmp
+  print,'skynoise is: ',skynoise[i]
+  print,'sky is: ',skys[0,i]
 end
 ;print,fluxall
 
@@ -196,7 +200,8 @@ if fail eq 0 then begin
   fitrad=1.0*fwhm
   radtol=0.95*fitrad
   ;;need to readin image data array
-  imagedata=mrdfits(image,0,/silent)
+  ;imagedata=mrdfits(image,0,/silent)
+  ;imagedata=readfits(image,imhdr)
   lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
     ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
   if fail ne 0 then begin
@@ -263,6 +268,7 @@ if fail eq 0 then begin
     endif else begin
         ;; psf
         fluxall[m1,nphot-1]=10.0^(-0.4*(magpsf[m2]-25))
+        print,'measured psf flux in ori image is: ',objx[m1[0]],objy[m1[0]],fluxall[m1[0],nphot-1]
         blah=10.0^(-0.4*(magpsf[m2]-psfmag))
         eblah=alog(10.0)/2.5*blah*magpsferr[m2]
         fluxerrall[m1,nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
@@ -307,7 +313,8 @@ if keyword_set(photsub) then begin
     submagall[*]=!values.d_nan
     submagerrall[*]=!values.d_nan
     ;;readin subimage data
-    subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
+    ;subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
+    subimagedata=readfits(image,imhdr)
     help,(subimagedata)
     ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
     xs=objx[0]
@@ -323,9 +330,12 @@ if keyword_set(photsub) then begin
       lpp_get_aper_counts,subimagedata,fwhm,xs,ys,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
       ;print,flux,eflux
       subfluxall[i]=flux
+      print,'measured apt flux in sub image is (i, flux[i])',xs,ys,i,subfluxall[i]
       subfluxerrall[i]=eflux
       subskynoise[i]=skynoisetmp
       subskys[i]=skytmp
+      print,'skynoise is: ',subskynoise[i]
+      print,'sky is: ',subskys[i]
     end
     subphotdid=1
     ;;transform count to mag, use zero point of 25.0
@@ -376,6 +386,7 @@ if keyword_set(photsub) then begin
             ;; psf
             ;help,subfluxall,submagpsf,psfmag,submagpsferr
             subfluxall[nphot-1]=10.0^(-0.4*(submagpsf-25))
+            print,'measured psf flux in sub image is: ',subfluxall[nphot-1]
             blah=10.0^(-0.4*(submagpsf-psfmag))
             eblah=alog(10.0)/2.5*blah*submagpsferr
             subfluxerrall[nphot-1]=10.0^(-0.4*(psfmag-25))*eblah
