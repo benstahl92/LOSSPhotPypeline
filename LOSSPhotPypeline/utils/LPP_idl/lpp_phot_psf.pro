@@ -314,7 +314,7 @@ if keyword_set(photsub) then begin
     submagerrall[*]=!values.d_nan
     ;;readin subimage data
     ;subimagedata=mrdfits(imagest.cfsb,0,imhdr,/silent)
-    subimagedata=readfits(image,imhdr)
+    subimagedata=readfits(imagest.cfsb,imhdr)
     help,(subimagedata)
     ;; do the aprature photometry to the sub image,only to the object, no need to do reference stars
     xs=objx[0]
