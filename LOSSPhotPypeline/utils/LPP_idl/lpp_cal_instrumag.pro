@@ -44,16 +44,22 @@ endif
 ;; read calibration file
 stars=MRDFITS(cal_file, 1, /SILENT)
 
-;; do cut (stricter if source is apass) to select good stars
-indtmp=where(stars.B le 18.0 and stars.V le 18.0 and stars.SG le 18.0 and stars.SR le 18.0 and stars.SI le 18.0, nf)
-if cal_source eq 'APASS' then begin
-  indtmp=where(stars.B le 16.0 and stars.V le 16.0 and stars.SG le 16.0 and stars.SR le 16.0 and stars.SI le 16.0, nf)
+;;; do cut (stricter if source is apass) to select good stars
+;indtmp=where(stars.B le 18.0 and stars.V le 18.0 and stars.SG le 18.0 and stars.SR le 18.0 and stars.SI le 18.0, nf)
+;if cal_source eq 'APASS' then begin
+;  indtmp=where(stars.B le 16.0 and stars.V le 16.0 and stars.SG le 16.0 and stars.SR le 16.0 and stars.SI le 16.0, nf)
+;endif
+;if nf le 0 then begin
+;  print,'No good calibration star, doing nothing, exiting ...'
+;  return
+;endif
+;;updated by WZ on 181120, select the brighest 30 stars here
+totalstar=n_elements(stars)
+if totalstar gt 40 then begin
+  indtmp=sort(stars.R)
+  stars=stars[indtmp[0:39]]
+  print,'Selected the 40 most bright stars for calibration out from the total of ',totalstar
 endif
-if nf le 0 then begin
-  print,'No good calibration star, doing nothing, exiting ...'
-  return
-endif
-stars=stars[indtmp]
 
 ;;need to do every photmag calibration
 ;;zeropointoffset=dblarr(8)+!values.d_nan
