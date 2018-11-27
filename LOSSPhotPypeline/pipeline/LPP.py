@@ -104,6 +104,7 @@ class LPP(object):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
         self.cal_cut_IDs = []
+        self.cal_redo_tol = 0.9 
 
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
@@ -711,6 +712,7 @@ class LPP(object):
         while not accept_tol:
             summary_results = {}
             cut_list = [] # store IDs that will be cut
+            urgent_cut_list = [] # IDs that will trigger recalibration
             full_list = []
             for filt in results.keys():
                 if filt not in summary_results.keys():
@@ -723,9 +725,15 @@ class LPP(object):
                         ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
                         diff = np.abs(obs - ref)
                         summary_results[filt][ID] = [ra, dec, obs, ref, diff]
-                        if diff > self.cal_diff_tol:
+                        if diff > self.cal_redo_tol:
+                            urgent_cut_list.append(ID - 2)
+                        elif diff > self.cal_diff_tol:
                             cut_list.append(ID - 2)
                         full_list.append(ID - 2)
+
+            urgent_cut_list = list(set(urgent_cut_list))
+            if len(urgent_cut_list) > 0:
+                break
 
             cut_list = list(set(cut_list))
             full_list = list(set(full_list))
@@ -757,11 +765,13 @@ class LPP(object):
                     self.cal_diff_tol = float(response)
                 else:
                     self.cal_cut_IDs = [int(i) for i in response.split(',')]
-                #else:
-                #    self.cal_diff_tol = float(response)
 
         im.close()
-        self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
+        if len(urgent_cut_list) > 0:
+            self.log.info('cutting and reprocessing {} IDs for exceeding {} mag tolerance'.format(len(urgent_cut_list), self.cal_redo_tol))
+            cut_list = urgent_cut_list
+        else:
+            self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
 
         # write new calibration file and regenerate .fit files
         os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
@@ -779,6 +789,11 @@ class LPP(object):
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
         catalog.to_natural()
+
+        # recurse if urgent cuts have been triggered
+        if len(urgent_cut_list) > 0:
+            self.calibrate(second_pass = True)
+            self.process_calibration()
 
     def do_calibration(self):
         '''executes full calibration routine'''
