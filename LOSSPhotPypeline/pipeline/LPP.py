@@ -715,7 +715,7 @@ class LPP(object):
                 if filt not in summary_results.keys():
                     summary_results[filt] = {}
                 for ID in results[filt].keys():
-                    if len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0:
+                    if (len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0) and (ID not in self.cal_cut_IDs):
                         ra = im[1].data['RA'][cal['starID'] == (ID - 2)].item()
                         dec = im[1].data['DEC'][cal['starID'] == (ID - 2)].item()
                         obs = np.median(results[filt][ID])
@@ -749,11 +749,15 @@ class LPP(object):
                 print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print('*'*60)
                 print([i + 2 for i in sorted(cut_list)])
-                response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance > '.format(self.cal_diff_tol))
+                response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
                 if (response == '') or ('y' in response.lower()):
                     accept_tol = True
-                else:
+                elif '.' in response:
                     self.cal_diff_tol = float(response)
+                else:
+                    self.cal_cut_IDs = [int(i) for i in response.split(',')]
+                #else:
+                #    self.cal_diff_tol = float(response)
 
         im.close()
         self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
