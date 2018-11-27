@@ -103,6 +103,7 @@ class LPP(object):
         if not os.path.isdir(self.calibration_dir):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
+        self.cal_cut_IDs = []
 
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
