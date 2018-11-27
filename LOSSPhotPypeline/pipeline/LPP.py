@@ -104,7 +104,7 @@ class LPP(object):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
         self.cal_cut_IDs = []
-        self.cal_redo_tol = 0.9 
+        self.cal_redo_tol = 0.8
 
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
@@ -651,7 +651,7 @@ class LPP(object):
             if self.photsub is True:
                 self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
 
-    def process_calibration(self):
+    def process_calibration(self, second_pass = False):
         '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
 
         self.log.info('processing calibration')
@@ -661,12 +661,13 @@ class LPP(object):
         results = {}
 
         # generate ordered calibration file
-        idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
-        stdout, stderr = LPPu.idl(idl_cmd)
-        self._log_idl(idl_cmd, stdout, stderr)
-        idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
-        stdout, stderr = LPPu.idl(idl_cmd)
-        self._log_idl(idl_cmd, stdout, stderr)
+        if second_pass is False:
+            idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
+            stdout, stderr = LPPu.idl(idl_cmd)
+            self._log_idl(idl_cmd, stdout, stderr)
+            idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
+            stdout, stderr = LPPu.idl(idl_cmd)
+            self._log_idl(idl_cmd, stdout, stderr)
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
@@ -731,12 +732,12 @@ class LPP(object):
                             cut_list.append(ID - 2)
                         full_list.append(ID - 2)
 
+            cut_list = list(set(cut_list))
             urgent_cut_list = list(set(urgent_cut_list))
+            full_list = list(set(full_list))
             if len(urgent_cut_list) > 0:
                 break
 
-            cut_list = list(set(cut_list))
-            full_list = list(set(full_list))
             if not self.interactive:
                 if len(full_list) - len(cut_list) < self.min_ref_num:
                     self.cal_diff_tol += 0.05
@@ -793,7 +794,7 @@ class LPP(object):
         # recurse if urgent cuts have been triggered
         if len(urgent_cut_list) > 0:
             self.calibrate(second_pass = True)
-            self.process_calibration()
+            self.process_calibration(second_pass = True)
 
     def do_calibration(self):
         '''executes full calibration routine'''
