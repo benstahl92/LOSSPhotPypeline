@@ -716,10 +716,12 @@ class LPP(object):
                     summary_results[filt] = {}
                 for ID in results[filt].keys():
                     if len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0:
+                        ra = im[1].data['RA'][cal['starID'] == (ID - 2)].item()
+                        dec = im[1].data['DEC'][cal['starID'] == (ID - 2)].item()
                         obs = np.median(results[filt][ID])
                         ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
                         diff = np.abs(obs - ref)
-                        summary_results[filt][ID] = [obs, ref, diff]
+                        summary_results[filt][ID] = [ra, dec, obs, ref, diff]
                         if diff > self.cal_diff_tol:
                             cut_list.append(ID - 2)
                         full_list.append(ID - 2)
@@ -742,7 +744,7 @@ class LPP(object):
                 for filt in summary_results.keys():
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
-                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['Obs Mag', 'Cal Mag', 'Diff']).sort_index())
+                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['RA', 'DEC', 'Obs Mag', 'Cal Mag', 'Diff']).sort_index().round(decimals = 4))
 
                 print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print('*'*60)
