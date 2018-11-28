@@ -1274,7 +1274,7 @@ if __name__ == '__main__':
 
     pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
     pipeline.disc_date_mjd = args.disc_date_mjd
-    if (args.new is False) and (args.lc_file is None):
+    if (args.new is False) and (args.lc_file is None) and (args.raw_lc_file is None):
         pipeline.run()
     elif (args.new is False) and (args.lc_file is not None):
         pipeline.cut_lc_points(args.lc_file)
