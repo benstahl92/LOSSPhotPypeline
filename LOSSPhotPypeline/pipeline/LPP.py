@@ -1174,7 +1174,7 @@ class LPP(object):
     def cut_lc_points(self, lc_file, regenerate = False):
         '''interactively cut points from each band in input lc file'''
 
-        if ('_all_' in lc_file) and ('_raw_' in lc_file):
+        if ('_all_' in lc_file) and ('_raw' in lc_file):
             self.cut_raw_all_lc_points(lc_file)
             return
 
@@ -1193,16 +1193,17 @@ class LPP(object):
         # assign convenience variables
         tmp = infile.split('_')
         m = tmp[tmp.index('natural') - 1] # get phot aperture
-        groupfile = infile.replace('bin', 'group')
+        groupfile = infile.replace('raw', 'group').replace('.dat', '_cut.dat')
         lc = groupfile.replace('natural_group', 'standard')
 
         all_nat = []
         all_std = []
-        for ct in self.color_terms_used.keys():
+        for ct in self.color_terms.keys():
             raw = infile.replace('all', ct)
-            self.cut_lc_points(raw, regenerate = True)
-            all_nat.append((ct, groupfile.replace('all', ct)))
-            all_std.append(lc.replace('all', ct))
+            if os.path.exists(raw):
+                self.cut_lc_points(raw, regenerate = True)
+                all_nat.append((ct, groupfile.replace('all', ct)))
+                all_std.append(lc.replace('all', ct))
         concat_list = []
         for row in all_nat:
             tmp = pd.read_csv(row[1], delim_whitespace = True)
