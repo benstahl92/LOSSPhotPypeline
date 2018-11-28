@@ -290,8 +290,7 @@ class LPP(object):
             print('nf --- add new images from file of names')
             print('p  --- plot light curve from file')
             print('c  --- cut points from specific light curve')
-            print('cr --- cut points from raw light curves')
-            print('cs --- cut points from standard light curves')
+            print('cr --- cut points from specific raw light curve and regenerate subsequent light curves')
             print('q  --- quit\n')
             resp = input('selection > ').lower()
             if 'n' == resp:
@@ -307,15 +306,12 @@ class LPP(object):
             elif 'p' == resp:
                 lc_file = input('enter light curve file (including relative path) to plot > ')
                 self.plot_lc([lc_file])
-            elif 'c' == resp:
+            elif (resp == 'c') or (resp == 'cr'):
                 lc_file = input('enter light curve file (including relative path) to cut points from > ')
-                self.cut_lc_points([lc_file])
-            elif 'cr' == resp:
-                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('raw' in fl) and ('cut' not in fl) and ('.dat' in fl)]
-                self.cut_lc_points(lc_list)
-            elif 'cs' == resp:
-                lc_list = [os.path.join(self.lc_dir, fl) for fl in os.listdir(self.lc_dir) if ('standard' in fl) and ('cut' not in fl) and ('.dat' in fl)]
-                self.cut_lc_points(lc_list)
+                regenerate = False
+                if resp == 'cr':
+                    regenerate = True
+                self.cut_lc_points(lc_file, regenerate = True)
             else:
                 try:
                     self.current_step = int(resp)
@@ -1175,15 +1171,17 @@ class LPP(object):
             self.cal_source = 'APASS'
         self.calfile_use = self.calfile.replace('.dat', '_use.dat')
 
-    def cut_lc_points(self, lc_list):
-        '''interactively cut points from each band in each lc file from the input list'''
+    def cut_lc_points(self, lc_file, regenerate = False):
+        '''interactively cut points from each band in input lc file'''
 
-        self.log.info('interactively cutting points from light curve files')
+        self.log.info('interactively cutting points from light curve file')
 
-        for fl in lc_list:
-            self.log.info('working on {}'.format(fl))
-            p = LPPu.plotLC(lc_file = fl)
-            p.plot_lc(icut = True, extensions = ['.ps', '.png'])
+        self.log.info('working on {}'.format(lc_file))
+        p = LPPu.plotLC(lc_file = lc_file)
+        p.plot_lc(icut = True, extensions = ['.ps', '.png'])
+
+        if regenerate is True:
+            self.raw2standard_lc(lc_file.replace('.dat', '_cut.dat'))
 
     def plot_lc(self, lc_list):
         '''plots each light curve from the input list'''
@@ -1270,14 +1268,18 @@ if __name__ == '__main__':
                         default = None, help = 'mjd of discovery')
     parser.add_argument('-c', '--cut-lc-points', dest = 'lc_file', type = str,
                         default = None, help = 'light curve file to cut points from')
+    parser.add_argument('-cr', '--cut-raw-lc-points-and-regenerate', dest = 'raw_lc_file', type = str,
+                        default = None, help = 'light curve file to cut points from')
     args = parser.parse_args()
 
     pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
     pipeline.disc_date_mjd = args.disc_date_mjd
     if (args.new is False) and (args.lc_file is None):
         pipeline.run()
-    elif(args.new is False) and (args.lc_file is not None):
-        pipeline.cut_lc_points([args.lc_file])
+    elif (args.new is False) and (args.lc_file is not None):
+        pipeline.cut_lc_points(args.lc_file)
+    elif (args.new is False) and (args.raw_lc_file is not None):
+        pipeline.cut_lc_points(args.raw_lc_file, regenerate = True)
     else:
         pipeline.load() # load from sav file
         if '_c.fit' in args.new:
