@@ -35,7 +35,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False, wdir = '.'):
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False, wdir = '.', override_ref_check = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -52,6 +52,7 @@ class LPP(object):
         self.min_ref_num = 3 # minimum number of ref stars
         self.checks = ['filter', 'date'] # default checks to perform on image list
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
+        self.override_ref_check = override_ref_check
 
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
@@ -455,7 +456,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def find_ref_stars(self, do_check = True):
+    def find_ref_stars(self):
         '''identify all suitable stars in ref image, compute ra & dec, write radecfile, store in instance'''
 
         # if radecfile already exists, no need to do it
@@ -506,7 +507,7 @@ class LPP(object):
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
 
         # check each image to identify ref stars to disregard
-        if do_check is True:
+        if self.override_ref_check is False:
             self.log.info('finding common ref stars')
             def check(img):
                 cs = WCS(header = img.header)
@@ -800,7 +801,7 @@ class LPP(object):
 
         im.close()
         if len(urgent_cut_list) > 0:
-            self.log.info('cutting and reprocessing {} IDs for exceeding {} mag tolerance'.format(len(urgent_cut_list), self.cal_redo_tol))
+            self.log.info('cutting {} IDs and reprocessing for exceeding {} mag tolerance'.format(len(urgent_cut_list), self.cal_redo_tol))
             cut_list = urgent_cut_list
         else:
             self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
