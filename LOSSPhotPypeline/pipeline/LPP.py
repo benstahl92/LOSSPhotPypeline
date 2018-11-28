@@ -506,18 +506,20 @@ class LPP(object):
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
 
         # check each image to identify ref stars to disregard
-        if do_check is True
+        if do_check is True:
             self.log.info('finding common ref stars')
             def check(img):
                 cs = WCS(header = img.header)
                 # ref star location as a fraction of total pixels
-                r = cs.all_world2pix(imagera, imagedec, 1) / np.array(cs._naxis)
+                r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 1) / np.array(cs._naxis)
                 # bad reference stars are outside an image
                 bad_ref = np.any(((r < 0) | (r > 1)), axis = 1)
                 return bad_ref
-            overall_bad_ref = self.phot_instances.loc[self.wIndex].apply(check)
-            imagera = imagera[~overall_bad_ref]
-            imagedec = imagedec[~overall_bad_ref]
+            overall_bad_ref = self.phot_instances.loc[self.wIndex].apply(check).sum()
+            imagera = imagera[np.logical_not(overall_bad_ref)]
+            self.log.info('{} out of {} ref stars are common for all images'.format(len(imagera), len(imagedec)))
+            imagedec = imagedec[np.logical_not(overall_bad_ref)]
+
             if len(imagera) == 0:
                 self.log.info('no common reference stars found, is the ref image good?')
                 self.run_success = False
