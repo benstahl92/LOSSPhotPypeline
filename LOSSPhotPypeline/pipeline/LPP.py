@@ -1174,6 +1174,10 @@ class LPP(object):
     def cut_lc_points(self, lc_file, regenerate = False):
         '''interactively cut points from each band in input lc file'''
 
+        if ('_all_' in lc_file) and ('_raw_' in lc_file):
+            self.cut_raw_all_lc_points(lc_file)
+            return
+
         self.log.info('interactively cutting points from light curve file')
 
         self.log.info('working on {}'.format(lc_file))
@@ -1182,6 +1186,39 @@ class LPP(object):
 
         if regenerate is True:
             self.raw2standard_lc(lc_file.replace('.dat', '_cut.dat'))
+
+    def cut_raw_all_lc_points(self, infile):
+        '''given "all" raw filename (need not exist), do cutting on relevant raw files and regenerate "all" files'''
+
+        # assign convenience variables
+        tmp = infile.split('_')
+        m = tmp[tmp.index('natural') - 1] # get phot aperture
+        groupfile = infile.replace('bin', 'group')
+        lc = groupfile.replace('natural_group', 'standard')
+
+        all_nat = []
+        all_std = []
+        for ct in self.color_terms_used.keys():
+            raw = infile.replace('all', ct)
+            self.cut_lc_points(raw, regenerate = True)
+            all_nat.append((ct, groupfile.replace('all', ct)))
+            all_std.append(lc.replace('all', ct))
+        concat_list = []
+        for row in all_nat:
+            tmp = pd.read_csv(row[1], delim_whitespace = True)
+            tmp.insert(3, 'SYSTEM', row[0])
+            concat_list.append(tmp)
+        if len(concat_list) > 0:
+            pd.concat(concat_list, sort = False).to_csv(groupfile, sep = '\t', na_rep = 'NaN', index = False)
+            p = LPPu.plotLC(lc_file = groupfile, name = self.targetname, photmethod = m)
+            p.plot_lc(extensions = ['.ps', '.png'])
+        concat_list = []
+        for fl in all_std:
+            concat_list.append(pd.read_csv(fl, delim_whitespace = True))
+        if len(concat_list) > 0:
+            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
+            p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
+            p.plot_lc(extensions = ['.ps', '.png'])
 
     def plot_lc(self, lc_list):
         '''plots each light curve from the input list'''
