@@ -103,6 +103,7 @@ class LPP(object):
         if not os.path.isdir(self.calibration_dir):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
+        self.radec = None
         self.cal_cut_IDs = []
         self.cal_redo_tol = 0.8
 
@@ -141,9 +142,9 @@ class LPP(object):
 
         # steps in standard reduction procedure
         self.current_step = 0
-        self.steps = [self.find_ref_stars,
-                      self.load_images,
+        self.steps = [self.load_images,
                       self.check_images,
+                      self.find_ref_stars,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
@@ -393,7 +394,68 @@ class LPP(object):
     #          Reduction Pipeline Methods
     ###################################################################################################
 
-    def find_ref_stars(self):
+    def load_images(self):
+        '''reads image list file to generate lists of image names and Phot instances'''
+
+        self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
+                                      comment = '#', squeeze = True)
+
+        if self.interactive:
+            print('\nSelected image files')
+            print('*'*60 + '\n')
+            print(self.image_list)
+            print('\n')
+
+        self.log.info('image list loaded from {}'.format(self.photlistfile))
+
+        self.log.info('generating list of Phot instances from image list')
+        self.phot_instances = self._im2inst(self.image_list) # radec is None if running in order
+
+        # set indices
+        self.aIndex = self.image_list.index
+        self.wIndex = self.aIndex
+
+    def check_images(self):
+        '''only keep images that are in a supported filter and without file format issues'''
+
+        # filter check
+        if 'filter' in self.checks:
+            filter_check = lambda img: True if img.filter.upper() in self.filter_set_ref else False
+            self.log.info('checking filters')
+            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(filter_check)
+            self.bfIndex = self.wIndex[~pd.Series(bool_idx)]
+            self.log.info('dropping {} images due to unsupported filter'.format(len(self.bfIndex)))
+            self.wIndex = self.wIndex.drop(self.bfIndex)
+
+        # uncal check
+        if 'uncal' in self.checks:
+            cal_check = lambda img: True if ('RADECSYS' not in img.header) else (False if (img.header['RADECSYS'] == '-999') else True)
+            self.log.info('checking images for WCS')
+            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(cal_check)
+            self.ucIndex = self.wIndex[~pd.Series(bool_idx)]
+            self.log.info('dropping {} images for failed WCS'.format(len(self.ucIndex)))
+            self.wIndex = self.wIndex.drop(self.ucIndex)
+
+        if 'date' in self.checks:
+            if self.disc_date_mjd is None:
+                self.log.warn('discovery date not set, cannot do date check')
+                return
+            date_check = lambda img: True if ((img.mjd >= (self.disc_date_mjd + self.phase_limits[0])) and 
+                         (img.mjd <= (self.disc_date_mjd + self.phase_limits[1]))) else False
+            self.log.info('checking phases')
+            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(date_check)
+            self.bdIndex = self.wIndex[~pd.Series(bool_idx)]
+            self.log.info('dropping {} images that are outside of phase bounds'.format(len(self.bdIndex)))
+            self.wIndex = self.wIndex.drop(self.bdIndex)
+
+        # if there are none left, end pipeline
+        if len(self.wIndex) == 0:
+            self.log.warn('all images removed by checks --- cannot proceed')
+            self.run_success = False
+            self.current_step = self.steps.index(self.write_summary) - 1
+            return
+
+    def find_ref_stars(self, do_check = True):
         '''identify all suitable stars in ref image, compute ra & dec, write radecfile, store in instance'''
 
         # if radecfile already exists, no need to do it
@@ -443,6 +505,30 @@ class LPP(object):
         cs = WCS(header = ref.header)
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
 
+        # check each image to identify ref stars to disregard
+        if do_check is True
+            self.log.info('finding common ref stars')
+            def check(img):
+                cs = WCS(header = img.header)
+                # ref star location as a fraction of total pixels
+                r = cs.all_world2pix(imagera, imagedec, 1) / np.array(cs._naxis)
+                # bad reference stars are outside an image
+                bad_ref = np.any(((r < 0) | (r > 1)), axis = 1)
+                return bad_ref
+            overall_bad_ref = self.phot_instances.loc[self.wIndex].apply(check)
+            imagera = imagera[~overall_bad_ref]
+            imagedec = imagedec[~overall_bad_ref]
+            if len(imagera) == 0:
+                self.log.info('no common reference stars found, is the ref image good?')
+                self.run_success = False
+                self.current_step = self.steps.index(self.write_summary) - 1
+                return
+            if len(imagera) < 3: # should have at least three good stars
+                self.log.warn('not enough common ref stars found, quitting')
+                self.run_success = False
+                self.current_step = self.steps.index(self.write_summary) - 1
+                return
+
         # write radec file
         with open(self.radecfile, 'w') as f:
             f.write('TARGET\n')
@@ -456,66 +542,9 @@ class LPP(object):
         self.log.info('{} written'.format(self.radecfile))
         self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
 
-    def load_images(self):
-        '''reads image list file to generate lists of image names and Phot instances'''
-
-        self.image_list = pd.read_csv(self.photlistfile, header = None, delim_whitespace = True,
-                                      comment = '#', squeeze = True)
-
-        if self.interactive:
-            print('\nSelected image files')
-            print('*'*60 + '\n')
-            print(self.image_list)
-            print('\n')
-
-        self.log.info('image list loaded from {}'.format(self.photlistfile))
-
-        self.log.info('generating list of Phot instances from image list')
-        self.phot_instances = self._im2inst(self.image_list)
-
-        # set indices
-        self.aIndex = self.image_list.index
-        self.wIndex = self.aIndex
-
-    def check_images(self):
-        '''only keep images that are in a supported filter and without file format issues'''
-
-        # filter check
-        if 'filter' in self.checks:
-            filter_check = lambda img: True if img.filter.upper() in self.filter_set_ref else False
-            self.log.info('checking filters')
-            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(filter_check)
-            self.bfIndex = self.wIndex[~pd.Series(bool_idx)]
-            self.log.info('dropping {} images due to unsupported filter'.format(len(self.bfIndex)))
-            self.wIndex = self.wIndex.drop(self.bfIndex)
-
-        # uncal check
-        if 'uncal' in self.checks:
-            cal_check = lambda img: True if ('RADECSYS' not in img.header) else (False if (img.header['RADECSYS'] == '-999') else True)
-            self.log.info('checking images for WCS')
-            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(cal_check)
-            self.ucIndex = self.wIndex[~pd.Series(bool_idx)]
-            self.log.info('dropping {} images for failed WCS'.format(len(self.ucIndex)))
-            self.wIndex = self.wIndex.drop(self.ucIndex)
-
-        if 'date' in self.checks:
-            if self.disc_date_mjd is None:
-                self.log.warn('discovery date not set, cannot do date check')
-                return
-            date_check = lambda img: True if ((img.mjd >= (self.disc_date_mjd + self.phase_limits[0])) and 
-                         (img.mjd <= (self.disc_date_mjd + self.phase_limits[1]))) else False
-            self.log.info('checking phases')
-            bool_idx = self.phot_instances.loc[self.wIndex].progress_apply(date_check)
-            self.bdIndex = self.wIndex[~pd.Series(bool_idx)]
-            self.log.info('dropping {} images that are outside of phase bounds'.format(len(self.bdIndex)))
-            self.wIndex = self.wIndex.drop(self.bdIndex)
-
-        # if there are none left, end pipeline
-        if len(self.wIndex) == 0:
-            self.log.warn('all images removed by checks --- cannot proceed')
-            self.run_success = False
-            self.current_step = self.steps.index(self.write_summary) - 1
-            return
+        # set radec in Phot instances
+        for img in self.phot_instances.loc[self.wIndex]:
+            img.radec = self.radec
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
