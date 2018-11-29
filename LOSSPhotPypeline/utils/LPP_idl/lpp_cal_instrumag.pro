@@ -122,7 +122,7 @@ for j=0,n_elements(inputfiles)-1 do begin
     decuse=decimage[indtmp]
     
     ;;match the two radec; match to 5 arcsec
-    close_match_radec,rause,decuse,stars.ra,stars.dec,indtmp1,indtmp2,5.0/3600.0,1.0,missed,/silent
+    close_match_radec,stars.ra,stars.dec,rause,decuse,indtmp2,indtmp1,5.0/3600.0,1.0,missed,/silent
     nmatch=n_elements(indtmp1)
     if nmatch le 0 then begin
       print,'no stars matches with catalog, doing nothing for photmethod',k
