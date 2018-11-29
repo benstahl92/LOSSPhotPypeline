@@ -1276,7 +1276,7 @@ class LPP(object):
         if self.disc_date_mjd is None:
             if self.first_obs is None:
                 self.first_obs = LPPu.get_first_obs_date(self)
-            dt = first_obs
+            dt = self.first_obs
         else:
             dt = self.disc_date_mjd
 
