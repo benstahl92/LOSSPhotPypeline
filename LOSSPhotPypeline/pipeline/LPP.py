@@ -146,7 +146,7 @@ class LPP(object):
         self.steps = [self.load_images,
                       self.check_images,
                       self.find_ref_stars,
-                      self.match_ref_stars,
+                      self.match_refcal_stars,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
@@ -563,7 +563,7 @@ class LPP(object):
             # IDL for matching
             # lpp_match_refstar_with_catalog: radecfile, .dat catalog
             self.log.info('matching ref stars to catalog stars and selecting 40 brightest')
-            idl_cmd = '''idl -e "lpp_match_refstar_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
+            idl_cmd = '''idl -e "lpp_match_refstars_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
                         os.path.join(self.calibration_dir, self.calfile))
             stdout, stderr = LPPu.idl(idl_cmd)
             self._log_idl(idl_cmd, stdout, stderr)
