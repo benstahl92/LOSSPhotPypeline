@@ -146,6 +146,7 @@ class LPP(object):
         self.steps = [self.load_images,
                       self.check_images,
                       self.find_ref_stars,
+                      self.match_ref_stars,
                       self.do_galaxy_subtraction_all_image,
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
@@ -545,6 +546,33 @@ class LPP(object):
         for img in self.phot_instances.loc[self.wIndex]:
             img.radec = self.radec
 
+    def match_refcal_stars(self):
+        '''get calibration catalog, and match stars to ref stars -- only do if needed'''
+
+        if os.path.exists(os.path.join(self.calibration_dir, self.calfile)) is False:
+
+            # get calibration catalog
+            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+            catalog.get_cal(method = self.cal_source)
+            #if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
+            catalog.to_natural()
+            self.calfile = catalog.cal_filename
+            self.cal_source = catalog.cal_source
+            self.log.info('calibration data sourced')
+
+            # IDL for matching
+            # lpp_match_refstar_with_catalog: radecfile, .dat catalog
+            self.log.info('matching ref stars to catalog stars and selecting 40 brightest')
+            idl_cmd = '''idl -e "lpp_match_refstar_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
+                        os.path.join(self.calibration_dir, self.calfile))
+            stdout, stderr = LPPu.idl(idl_cmd)
+            self._log_idl(idl_cmd, stdout, stderr)
+            self.calfile_use = self.calfile.replace('.dat', '_use.dat')
+
+            # generate "use" fits files
+            catalog.cal_filename = self.calfile_use
+            catalog.to_natural()
+
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
 
@@ -629,15 +657,15 @@ class LPP(object):
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
         # check if calibration files have been obtained and parse if so, otherwise generate
-        if (second_pass is False) and (os.path.exists(os.path.join(self.calibration_dir, self.calfile)) is False):
-            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
-            catalog.get_cal(method = self.cal_source)
-            if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
-                catalog.to_natural()
-            self.calfile = catalog.cal_filename
-            self.cal_source = catalog.cal_source
-
-        self.log.info('calibration data sourced')
+        #if (second_pass is False) and (os.path.exists(os.path.join(self.calibration_dir, self.calfile)) is False):
+        #    catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+        #    catalog.get_cal(method = self.cal_source)
+        #    if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
+        #        catalog.to_natural()
+        #    self.calfile = catalog.cal_filename
+        #    self.cal_source = catalog.cal_source
+        #
+        #self.log.info('calibration data sourced')
 
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
@@ -657,7 +685,7 @@ class LPP(object):
             else:
                 ps = '/PHOTSUB, '
             idl_cmd = '''idl -e "lpp_cal_instrumag, '{}', '{}', '{}', '{}', {}/OUTPUT"'''.format(img.cimg, img.filter.upper(), self.cal_source,
-                     os.path.join(self.calibration_dir, self._ct2cf(img.color_term, use = second_pass)), ps)
+                     os.path.join(self.calibration_dir, self._ct2cf(img.color_term, use = True)), ps)#second_pass)), ps)
             stdout, stderr = LPPu.idl(idl_cmd)
             self._log_idl(idl_cmd, stdout, stderr)
 
@@ -689,13 +717,14 @@ class LPP(object):
         results = {}
 
         # generate ordered calibration file
-        if second_pass is False:
-            idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(225), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
-            stdout, stderr = LPPu.idl(idl_cmd)
-            self._log_idl(idl_cmd, stdout, stderr)
-            idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
-            stdout, stderr = LPPu.idl(idl_cmd)
-            self._log_idl(idl_cmd, stdout, stderr)
+        #if second_pass is False: # indgen was 225
+        # will already exist
+        #idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(45), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
+        #stdout, stderr = LPPu.idl(idl_cmd)
+        #self._log_idl(idl_cmd, stdout, stderr)
+        #idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
+        #stdout, stderr = LPPu.idl(idl_cmd)
+        #self._log_idl(idl_cmd, stdout, stderr)
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
@@ -803,17 +832,18 @@ class LPP(object):
             self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
 
         # write new calibration file and regenerate .fit files
-        os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
-        with open('tmp.tmp', 'r') as infile:
-            with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
-                for idx, line in enumerate(infile):
-                    if idx == 0:
-                        outfile.write(line)
-                    else:
-                        ID = int(line.split(' ')[0])
-                        if ID not in cut_list:
-                            outfile.write(line)
-        os.system('rm tmp.tmp')
+        #os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
+        #with open('tmp.tmp', 'r') as infile:
+        #    with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
+        #        for idx, line in enumerate(infile):
+        #            if idx == 0:
+        #                outfile.write(line)
+        #            else:
+        #                ID = int(line.split(' ')[0])
+        #                if ID not in cut_list:
+        #                    outfile.write(line)
+        #os.system('rm tmp.tmp')
+        cal[~cal['starID'].isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
         catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
