@@ -728,7 +728,8 @@ class LPP(object):
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
-        IDs = cal['starID'] + 2
+        #IDs = cal['starID'] + 2
+        IDs = cal.index + 2
 
         # check for bad result and end if needed
         if len(cal) < 3: # should have at least three good stars
@@ -776,11 +777,16 @@ class LPP(object):
                 if filt not in summary_results.keys():
                     summary_results[filt] = {}
                 for ID in results[filt].keys():
-                    if (len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0) and (ID not in self.cal_cut_IDs):
-                        ra = im[1].data['RA'][cal['starID'] == (ID - 2)].item()
-                        dec = im[1].data['DEC'][cal['starID'] == (ID - 2)].item()
+                    #if (len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0) and (ID not in self.cal_cut_IDs):
+                    #    ra = im[1].data['RA'][cal['starID'] == (ID - 2)].item()
+                    #    dec = im[1].data['DEC'][cal['starID'] == (ID - 2)].item()
+                    #    obs = np.median(results[filt][ID])
+                    #    ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
+                    if (len(im[1].data[filt][cal.index == (ID-2)]) > 0) and (ID not in self.cal_cut_IDs):
+                        ra = im[1].data['RA'][cal.index == (ID - 2)].item()
+                        dec = im[1].data['DEC'][cal.index == (ID - 2)].item()
                         obs = np.median(results[filt][ID])
-                        ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
+                        ref = im[1].data[filt][cal.index == (ID - 2)].item()
                         diff = np.abs(obs - ref)
                         summary_results[filt][ID] = [ra, dec, obs, ref, diff]
                         if diff > self.cal_redo_tol:
@@ -843,7 +849,8 @@ class LPP(object):
         #                if ID not in cut_list:
         #                    outfile.write(line)
         #os.system('rm tmp.tmp')
-        cal[~cal['starID'].isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
+        #cal[~cal['starID'].isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
+        cal[~cal.index.isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
         catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
@@ -859,9 +866,9 @@ class LPP(object):
 
         # if calfile_use exists, first pass and cuts have been done
         self.get_cal_info()
-        if os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False:
-            self.calibrate()
-            self.process_calibration()
+        #if os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False:
+        self.calibrate()
+        self.process_calibration()
         self.calibrate(second_pass = True)
 
         self.log.info('full calibration sequence completed')
