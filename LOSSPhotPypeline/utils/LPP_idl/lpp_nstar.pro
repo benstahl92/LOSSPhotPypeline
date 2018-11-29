@@ -413,7 +413,7 @@ if ngood GT 0 then chi[chibad] = chiold
  dx = (-xg) > ( (xg - nx) > 0.) ;Find stars outside subarray
  dy = (-yg) > ( (yg-  ny) > 0.)
  badcen = where(    $                     ;Remove stars with bad centroids
-     (dx GT 0.001) or (dy GT 0.001) or ( (dx+1)^2 + (dy+1)^2 GE radsq ), nbad)
+     (dx GT 0.001) or (dy GT 0.001) or ( (dx+1)^2 + (dy+1)^2 GE radsq+1.6 ), nbad)
  if nbad GT 0 then begin
         nstr = nstr - nbad
         print,strn(nbad),' stars eliminated by centroid criteria'
