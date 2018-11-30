@@ -560,18 +560,19 @@ class LPP(object):
             self.cal_source = catalog.cal_source
             self.log.info('calibration data sourced')
 
-            # IDL for matching
-            # lpp_match_refstar_with_catalog: radecfile, .dat catalog
-            self.log.info('matching ref stars to catalog stars and selecting 40 brightest')
-            idl_cmd = '''idl -e "lpp_match_refstars_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
-                        os.path.join(self.calibration_dir, self.calfile))
-            stdout, stderr = LPPu.idl(idl_cmd)
-            self._log_idl(idl_cmd, stdout, stderr)
-            self.calfile_use = self.calfile.replace('.dat', '_use.dat')
+        # IDL for matching
+        self.log.info('matching ref stars to catalog stars and selecting 40 brightest')
+        idl_cmd = '''idl -e "lpp_match_refstars_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
+                    os.path.join(self.calibration_dir, self.calfile))
+        stdout, stderr = LPPu.idl(idl_cmd)
+        self._log_idl(idl_cmd, stdout, stderr)
 
-            # generate "use" fits files
-            catalog.cal_filename = self.calfile_use
-            catalog.to_natural()
+        # generate "use" fits files
+        self.get_cal_info()
+        catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+        catalog.cal_filename = self.calfile_use
+        catalog.cal_source = self.cal_source
+        catalog.to_natural()
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
@@ -712,24 +713,17 @@ class LPP(object):
 
         self.log.info('processing calibration')
 
-        # underlying data structure for handling this will be dictionary keyed by filter
+        # underlying data structure for results is dictionary keyed by filter
         # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
         results = {}
 
-        # generate ordered calibration file
-        #if second_pass is False: # indgen was 225
-        # will already exist
-        #idl_cmd = '''idl -e "lpp_pick_good_refstars, INDGEN(45), '{}', '{}', /OUTPUT"'''.format(self.radecfile, os.path.join(self.calibration_dir, self.calfile))
-        #stdout, stderr = LPPu.idl(idl_cmd)
-        #self._log_idl(idl_cmd, stdout, stderr)
-        #idl_cmd = '''idl -e "lpp_cal_dat2fit_{}, '{}', /OUTPUT"'''.format(self.cal_source.lower(), os.path.join(self.calibration_dir, self.calfile_use))
-        #stdout, stderr = LPPu.idl(idl_cmd)
-        #self._log_idl(idl_cmd, stdout, stderr)
+        # also track coordinates of each ID, using dictionary keyed by ID with each value a list of ra or dec
+        coordsra = {}
+        coordsdec = {}
 
         # read ordered calibration file, using index offset to match
         cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
-        #IDs = cal['starID'] + 2
-        IDs = cal.index + 2
+        IDs = cal['starID'] # starID in use.dat files sets absolute ID index for what follows
 
         # check for bad result and end if needed
         if len(cal) < 3: # should have at least three good stars
@@ -748,17 +742,29 @@ class LPP(object):
                 results[filt] = {}
 
             # read file (using selected columns corresponding to desired photometry method(s))
-            cols = (0,) + tuple((self.phot_cols[m] for m in self.photmethod))
-            col_names = ('id',) + tuple((m for m in self.photmethod))
-            d = pd.read_csv(img.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, names = col_names)
+            cols = (0,1,2) + tuple((self.phot_cols[m] for m in self.photmethod))
+            col_names = ('id','xpix','ypix') + tuple((m for m in self.photmethod))
+            d = pd.read_csv(img.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, 
+                            names = col_names, skiprows = 2) # skip sn
+            d.index = d.index - 2 # align indices to match starID index
 
-            # populate results dict from file
+            # get coords of ref stars
+            cs = WCS(header = img.header)
+            ira, idec = cs.all_pix2world(d['xpix'], d['ypix'], 1)
+
+            # populate data structures
             for idx, row in d.iterrows():
                 if (idx in IDs.values) and (~np.isnan(row[self.calmethod])):
                     if idx not in results[filt].keys():
                         results[filt][idx] = [row[self.calmethod]]
                     else:
                         results[filt][idx].append(row[self.calmethod])
+                    if idx not in coordsra.keys():
+                        coordsra[idx] = [ira[idx]]
+                        coordsdec[idx] = [idec[idx]]
+                    else:
+                        coordsra[idx].append(ira[idx])
+                        coordsdec[idx].append(idec[idx])
 
         # compute summary results, thereby allowing for cuts to be made
         # also include calibration magnitudes and differences
@@ -777,23 +783,20 @@ class LPP(object):
                 if filt not in summary_results.keys():
                     summary_results[filt] = {}
                 for ID in results[filt].keys():
-                    #if (len(im[1].data[filt][cal['starID'] == (ID-2)]) > 0) and (ID not in self.cal_cut_IDs):
-                    #    ra = im[1].data['RA'][cal['starID'] == (ID - 2)].item()
-                    #    dec = im[1].data['DEC'][cal['starID'] == (ID - 2)].item()
-                    #    obs = np.median(results[filt][ID])
-                    #    ref = im[1].data[filt][cal['starID'] == (ID - 2)].item()
-                    if (len(im[1].data[filt][cal.index == (ID-2)]) > 0) and (ID not in self.cal_cut_IDs):
-                        ra = im[1].data['RA'][cal.index == (ID - 2)].item()
-                        dec = im[1].data['DEC'][cal.index == (ID - 2)].item()
+                    if (len(im[1].data[IDs == ID]) > 0) and (ID not in self.cal_cut_IDs):
+                        ra = im[1].data['RA'][IDs == ID].item()
+                        dec = im[1].data['DEC'][IDs == ID].item()
+                        ref = im[1].data[filt][IDs == ID].item()
+                        ra2 = np.median(coordsra[ID])
+                        dec2 = np.median(coordsdec[ID])
                         obs = np.median(results[filt][ID])
-                        ref = im[1].data[filt][cal.index == (ID - 2)].item()
                         diff = np.abs(obs - ref)
-                        summary_results[filt][ID] = [ra, dec, obs, ref, diff]
+                        summary_results[filt][ID] = [ra, dec, ra2, dec2, ref, obs, diff]
                         if diff > self.cal_redo_tol:
-                            urgent_cut_list.append(ID - 2)
+                            urgent_cut_list.append(ID)
                         elif diff > self.cal_diff_tol:
-                            cut_list.append(ID - 2)
-                        full_list.append(ID - 2)
+                            cut_list.append(ID)
+                        full_list.append(ID)
 
             cut_list = list(set(cut_list))
             urgent_cut_list = list(set(urgent_cut_list))
@@ -817,11 +820,12 @@ class LPP(object):
                 for filt in summary_results.keys():
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
-                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', columns = ['RA', 'DEC', 'Obs Mag', 'Cal Mag', 'Diff']).sort_index().round(decimals = 4))
+                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', 
+                          columns = ['RA (cal)', 'DEC (cal)', 'RA (obs)','DEC (obs)', 'Mag (cal)', 'Mag (obs)', 'Diff']).sort_index().round(decimals = 4))
 
                 print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print('*'*60)
-                print([i + 2 for i in sorted(cut_list)])
+                print(sorted(cut_list))
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
                 if (response == '') or ('y' in response.lower()):
                     accept_tol = True
@@ -835,22 +839,9 @@ class LPP(object):
             self.log.info('cutting {} IDs and reprocessing for exceeding {} mag tolerance'.format(len(urgent_cut_list), self.cal_redo_tol))
             cut_list = urgent_cut_list
         else:
-            self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list) + 2, self.cal_diff_tol))
+            self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list), self.cal_diff_tol))
 
-        # write new calibration file and regenerate .fit files
-        #os.system('mv {} tmp.tmp'.format(os.path.join(self.calibration_dir, self.calfile_use)))
-        #with open('tmp.tmp', 'r') as infile:
-        #    with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
-        #        for idx, line in enumerate(infile):
-        #            if idx == 0:
-        #                outfile.write(line)
-        #            else:
-        #                ID = int(line.split(' ')[0])
-        #                if ID not in cut_list:
-        #                    outfile.write(line)
-        #os.system('rm tmp.tmp')
-        #cal[~cal['starID'].isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
-        cal[~cal.index.isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
+        cal[~IDs.isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
         catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
