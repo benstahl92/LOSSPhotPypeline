@@ -49,7 +49,7 @@ class LPP(object):
             self.parallel = False
         self.cal_diff_tol = cal_diff_tol
         self.abs_cal_tol = 0.2 # do not proceed with the pipeline if in non-interactive mode and cal tol exceeds this
-        self.min_ref_num = 3 # minimum number of ref stars
+        self.min_ref_num = 2 # minimum number of ref stars
         self.checks = ['filter', 'date'] # default checks to perform on image list
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
         self.override_ref_check = override_ref_check
@@ -523,7 +523,7 @@ class LPP(object):
                 self.run_success = False
                 self.current_step = self.steps.index(self.write_summary) - 1
                 return
-            if len(imagera) < 3: # should have at least three good stars
+            if len(imagera) < self.min_ref_num: # should have at least three good stars
                 self.log.warn('not enough common ref stars found, quitting')
                 self.run_success = False
                 self.current_step = self.steps.index(self.write_summary) - 1
@@ -657,17 +657,6 @@ class LPP(object):
         # reset color term counts
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
 
-        # check if calibration files have been obtained and parse if so, otherwise generate
-        #if (second_pass is False) and (os.path.exists(os.path.join(self.calibration_dir, self.calfile)) is False):
-        #    catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
-        #    catalog.get_cal(method = self.cal_source)
-        #    if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
-        #        catalog.to_natural()
-        #    self.calfile = catalog.cal_filename
-        #    self.cal_source = catalog.cal_source
-        #
-        #self.log.info('calibration data sourced')
-
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
 
@@ -708,10 +697,13 @@ class LPP(object):
             if self.photsub is True:
                 self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
 
-    def process_calibration(self, second_pass = False):
+    def process_calibration(self, second_pass = False, final_pass = False):
         '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
 
-        self.log.info('processing calibration')
+        if final_pass is False:
+            self.log.info('processing calibration (second pass: {}'.format(second_pass))
+        else:
+            self.log.info('analyzing final calibration choices')
 
         # underlying data structure for results is dictionary keyed by filter
         # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
@@ -726,7 +718,7 @@ class LPP(object):
         IDs = cal['starID'] # starID in use.dat files sets absolute ID index for what follows
 
         # check for bad result and end if needed
-        if len(cal) < 3: # should have at least three good stars
+        if (len(cal) < self.min_ref_num) and (final_pass is False): # should have at least three good stars
             self.log.warn('calibration file is bad --- is reference image good?')
             self.run_success = False
             self.current_step = self.steps.index(self.write_summary) - 1
@@ -801,10 +793,10 @@ class LPP(object):
             cut_list = list(set(cut_list))
             urgent_cut_list = list(set(urgent_cut_list))
             full_list = list(set(full_list))
-            if len(urgent_cut_list) > 0:
+            if (len(urgent_cut_list) > 0) and (final_pass is False):
                 break
 
-            if not self.interactive:
+            if (not self.interactive) and (final_pass is False):
                 if len(full_list) - len(cut_list) < self.min_ref_num:
                     self.cal_diff_tol += 0.05
                     if self.cal_diff_tol > self.abs_cal_tol:
@@ -815,52 +807,64 @@ class LPP(object):
                 else:
                     accept_tol = True
             else:
-                print('\nCalibration Summary')
-                print('*'*60)
-                for filt in summary_results.keys():
-                    print('\nFilter: {}'.format(filt))
+                if final_pass is False:
+                    print('\nCalibration Summary')
                     print('*'*60)
-                    print(pd.DataFrame.from_dict(summary_results[filt], orient = 'index', 
-                          columns = ['RA (cal)', 'DEC (cal)', 'RA (obs)','DEC (obs)', 'Mag (cal)', 'Mag (obs)', 'Diff']).sort_index().round(decimals = 4))
+                df_list = []
+                for filt in summary_results.keys():
+                    df_tmp = pd.DataFrame.from_dict(summary_results[filt], orient = 'index', 
+                          columns = ['RA (cal)', 'DEC (cal)', 'RA (obs)','DEC (obs)', 'Mag (cal)', 'Mag (obs)', 'Diff']).sort_index().round(decimals = 4)
+                    if final_pass is False:
+                        print('\nFilter: {}'.format(filt))
+                        print('*'*60)
+                        print(df_tmp)
+                    else:
+                        df_tmp.insert(0, 'Filter', filt)
+                        df_list.append(df_tmp)
 
-                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
-                print('*'*60)
-                print(sorted(cut_list))
-                response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
-                if (response == '') or ('y' in response.lower()):
-                    accept_tol = True
-                elif '.' in response:
-                    self.cal_diff_tol = float(response)
+                if final_pass is False:
+                    print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
+                    print('*'*60)
+                    print(sorted(cut_list))
+                    response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
+                    if (response == '') or ('y' in response.lower()):
+                        accept_tol = True
+                    elif '.' in response:
+                        self.cal_diff_tol = float(response)
+                    else:
+                        self.cal_cut_IDs = [int(i) for i in response.split(',')]
                 else:
-                    self.cal_cut_IDs = [int(i) for i in response.split(',')]
+                    pd.concat(df_list, sort = False).to_csv(os.path.join(self.calibration_dir, 'final_ref_stars.dat'),
+                              sep = '\t', na_rep = 'NaN')
 
         im.close()
-        if len(urgent_cut_list) > 0:
+        if (len(urgent_cut_list) > 0) and (final_pass is False):
             self.log.info('cutting {} IDs and reprocessing for exceeding {} mag tolerance'.format(len(urgent_cut_list), self.cal_redo_tol))
             cut_list = urgent_cut_list
-        else:
+        elif final_pass is False:
             self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list), self.cal_diff_tol))
 
-        cal[~IDs.isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
-        catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
-        catalog.cal_filename = self.calfile_use
-        catalog.cal_source = self.cal_source
-        catalog.to_natural()
+        if final_pass is False:
+            cal[~IDs.isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
+            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+            catalog.cal_filename = self.calfile_use
+            catalog.cal_source = self.cal_source
+            catalog.to_natural()
 
-        # recurse if urgent cuts have been triggered
-        if len(urgent_cut_list) > 0:
-            self.calibrate(second_pass = True)
-            self.process_calibration(second_pass = True)
+            # recurse if urgent cuts have been triggered
+            if len(urgent_cut_list) > 0:
+                self.calibrate(second_pass = True)
+                self.process_calibration(second_pass = True)
 
     def do_calibration(self):
         '''executes full calibration routine'''
 
         # if calfile_use exists, first pass and cuts have been done
         self.get_cal_info()
-        #if os.path.exists(os.path.join(self.calibration_dir, self.calfile_use)) is False:
         self.calibrate()
         self.process_calibration()
         self.calibrate(second_pass = True)
+        self.process_calibration(final_pass = True)
 
         self.log.info('full calibration sequence completed')
 
