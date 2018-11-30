@@ -834,8 +834,9 @@ class LPP(object):
                     else:
                         self.cal_cut_IDs = [int(i) for i in response.split(',')]
                 else:
-                    pd.concat(df_list, sort = False).to_csv(os.path.join(self.calibration_dir, 'final_ref_stars.dat'),
-                              sep = '\t', na_rep = 'NaN')
+                    with open(os.path.join(self.calibration_dir, 'final_ref_stars.dat'), 'w') as outfile:
+                        outfile.write(pd.concat(df_list, sort = False).to_string())
+                    break
 
         im.close()
         if (len(urgent_cut_list) > 0) and (final_pass is False):
