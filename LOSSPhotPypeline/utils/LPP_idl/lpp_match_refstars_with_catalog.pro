@@ -21,21 +21,31 @@ if nmatch le 0 then begin
   print,'no stars matches with catalog, doing nothing, exiting ...'
   return
 endif
-indtmp2=uniq(indtmp2)
+indsort=reverse(sort(indtmp2))
+indtmp2=indtmp2[indsort]
+indtmp1=indtmp1[indsort]
+print,n_elements(indtmp2),'before unique'
+induniq=uniq(indtmp2)
+indtmp2=indtmp2[induniq]
+indtmp1=indtmp1[induniq]
+print,n_elements(indtmp2),'after uniq'
 ;;do the sorting to select 40 bright stars.
 totalstar=n_elements(indtmp2)
 if totalstar gt 40 then begin
   indtmp=sort(calst[indtmp2].R)
   indtmp2=indtmp2[indtmp[0:39]]
+  indtmp1=indtmp1[indtmp[0:39]]
   print,'Selected the 40 most bright stars for calibration out from the total of ',totalstar
 endif else begin
   indtmp=sort(calst[indtmp2].R)
   indtmp2=indtmp2[indtmp]
+  indtmp1=indtmp1[indtmp]
 endelse
 
 ;;new method, makesure the output stars are in right order
 cmd="awk 'NR==1"+"' "+calfile
 spawn,cmd,line0
+line0='starID '+line0
 lines=[line0]
 nmatch=n_elements(indtmp2)
 for i=0,nmatch-1 do begin
@@ -43,6 +53,7 @@ for i=0,nmatch-1 do begin
   ;print,cmd
   spawn,cmd,linetmp
   ;;also add starID to the output file
+  linetmp=string(indtmp1[i]-1,format='(i0)')+"  "+linetmp
   lines=[lines,linetmp]
 endfor
 if keyword_set(output) then begin
