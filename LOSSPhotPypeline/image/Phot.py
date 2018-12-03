@@ -19,6 +19,7 @@ class Phot(FitsInfo):
         self.radecfile = radecfile
         self.radec = radec
         self.wdir = os.path.abspath(wdir)
+        self.phot = None # internal dataframe representation of photometry for use during calibration
 
         if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
@@ -37,6 +38,20 @@ class Phot(FitsInfo):
             return True
         except InvalidTransformError:
             return False
+
+    def galaxy_subtract(self, template_images):
+        '''perform galaxy subraction by wrapping IDL procedure'''
+
+        selector = '{}_{}'.format(self.filter.upper(), self.telescope.lower())
+
+        # execute idl commmand if possible, then store results
+        if template_images[selector] is not None:
+            idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[selector])
+            stdout, stderr = LPPu.idl(idl_cmd, wdir = self.wdir)
+            sub_idl = (idl_cmd, stdout, stderr)
+            return True, sub_idl
+        else:
+            return False, ('no IDL cmd due to missing template', None, None)
 
     def do_photometry(self, photsub = False):
         '''performs photometry by wrapping IDL procedure'''
@@ -65,17 +80,55 @@ class Phot(FitsInfo):
 
         return r1, r2, phot_idl
 
-    def galaxy_subtract(self, template_images):
-        '''perform galaxy subraction by wrapping IDL procedure'''
+    def calibrate(self, cal_IDs, cal_mags, sub = False, write_dat = False):
 
-        selector = '{}_{}'.format(self.filter.upper(), self.telescope.lower())
+        # aperture names
+        aps = ['3.5p', '5.0p', '7.0p', '9.0p', '1.0fh', '1.5fh', '2.0fh', 'psf']
+        col_names = ('id','ximage','yimage') + tuple(('{}{}'.format(m, e) for m in aps for e in ('', '_err')))
 
-        # execute idl commmand if possible, then store results
-        if template_images[selector] is not None:
-            idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[selector])
-            stdout, stderr = LPPu.idl(idl_cmd, wdir = self.wdir)
-            sub_idl = (idl_cmd, stdout, stderr)
-            return True, sub_idl
-        else:
-            return False, ('no IDL cmd due to missing template', None, None)
+        # load raw photometry
+        if self.phot_raw is None:
+            self.phot_raw = pd.read_csv(self.psf, header = None, delim_whitespace = True, comment = ';', index_col = 0, 
+                            names = col_names, skiprows = 1)
+            self.phot_raw.index = self.phot_raw.index - 2 # align with indexing of cal stars
+        if (self.phot_sub_raw is None) and (sub is True):
+            self.phot_sub_raw = pd.read_csv(self.psfsub, header = None, delim_whitespace = True, comment = ';', index_col = 0, 
+                                names = col_names, skiprows = 1)
+            self.phot_sub_raw.index = self.phot_sub_raw.index - 2
 
+        # ref stars in sub are the same as in un sub so only need to find cal mags once
+        cal_mag_mean = cal_mags.loc[cal_IDs].mean()
+        instrument_mag_mean = self.phot_raw.loc[cal_IDs, aps].mean(axis = 0)
+        zp_offset = cal_mag_mean - instrument_mag_mean
+
+        # get coords of ref stars
+        cs = WCS(header = self.header)
+        ra, dec = cs.all_pix2world(self.phot_raw['ximage'], self.phot_raw['yimage'], 1)
+        self.phot_raw.loc[:, 'ra'] = ra
+        self.phot_raw.loc[:, 'dec'] = dec
+
+        # write psf zeropoint (only do once)
+        with open(self.zero, 'w') as f:
+            f.write(25 + zp_offset['psf'])
+
+        # calibrate photometry
+        self.phot = self.phot_raw.copy(deep = True)
+        self.phot.loc[:, aps] = self.phot_raw[:, aps] + zp_offset
+        if sub is True:
+            self.phot_sub = self.phot_sub_raw.copy(deep = True)
+            self.phot_sub.loc[:, aps] = self.phot_sub_raw[:, aps] + zp_offset
+
+        # write dat files if requested
+        if write_dat is True:
+            self.phot.index = self.phot.index + 2
+            with open(self.psfdat, 'w') as outfile:
+                outfile.write(self.phot.loc[:,col_names].to_string())
+            self.phot.index = self.phot.index - 2
+            if sub is True:
+                self.phot_sub.index = self.phot_sub.index + 2
+                with opne(self.psfsubdat, 'w') as outfile:
+                    outfile.write(self.phot_sub.to_string())
+                self.phot_sub.index = self.phot_sub.index - 2
+
+        # return photometry for checking
+        return self.phot
