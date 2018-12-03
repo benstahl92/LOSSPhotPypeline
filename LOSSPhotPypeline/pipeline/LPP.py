@@ -105,8 +105,10 @@ class LPP(object):
             os.makedirs(self.calibration_dir)
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
         self.radec = None
+        self.cal_IDs = 'all'
         self.cal_cut_IDs = []
         self.cal_redo_tol = 0.8
+        self.cal_arrays = None
 
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
@@ -555,7 +557,7 @@ class LPP(object):
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
             #if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
-            catalog.to_natural()
+            #catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
             self.log.info('calibration data sourced')
@@ -573,6 +575,7 @@ class LPP(object):
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
         catalog.to_natural()
+        self.cal_arrays = catalog.get_cal_arrays()
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
@@ -648,6 +651,37 @@ class LPP(object):
 
         self.log.info('getting sky value for each image')
         self.phot_instances.loc[self.wIndex].progress_apply(lambda img: img.get_sky())
+
+    def calibrate_new(self, final_pass = False):
+
+        # reset color term counts
+        self.color_terms = {key: 0 for key in self.color_terms.keys()}
+
+        # calibration list
+        #cal_list = []
+
+        # iterate through image list and execute calibration script on each
+        for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
+
+            # count usage of color terms
+            if self.force_color_term is False:
+                self.color_terms[img.color_term] += 1
+            else:
+                self.color_terms[self.force_color_term] += 1
+
+            if self.cal_IDs == 'all':
+                self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
+
+            # do calibration
+            phot = img.calibrate(self.cal_IDs, self.cal_arrays[img.color_term].loc[:, img.filter.upper()], sub = self.photsub, write_dat = final_pass)
+            phot.insert(0, 'Filter', img.filter.upper())
+            cal_list.append(phot.loc[:, ['Filter', 'ra', 'dec', self.calmethod]])
+
+            # also get zero value
+            img.get_zeromag()
+
+        # collect all calibration information
+        self.calibrators = pd.concat(cal_list, keys = self.wIndex)
 
     def calibrate(self, second_pass = False):
         '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
