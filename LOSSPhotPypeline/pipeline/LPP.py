@@ -720,9 +720,9 @@ class LPP(object):
 
             # check for success if in final pass mode
             if final_pass:
-                if (os.path.exists(img.psfdat) is False) and (second_pass is False):
+                if (os.path.exists(img.psfdat) is False):
                     self.cfIndex.append(idx)
-                if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False) and (second_pass is False):
+                if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False):
                     self.csfIndex.append(idx)
 
         # collect all calibration information
