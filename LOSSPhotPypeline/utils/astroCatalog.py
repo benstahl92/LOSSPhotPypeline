@@ -196,7 +196,7 @@ class astroCatalog:
         cal_arrays = {} # will be keyed by color term
         to_retrieve = ['RA', 'DEC', 'B', 'EB', 'V', 'EV', 'R', 'ER', 'I', 'EI', 'CLEAR', 'ECLEAR']
 
-        for cterm in ['kait1', 'kait2', 'kait3', 'kait4', 'nickel1', 'nickel1', 'Landolt']:
+        for cterm in ['kait1', 'kait2', 'kait3', 'kait4', 'nickel1', 'nickel2', 'Landolt']:
             if ('kait' in cterm) or ('nickel' in cterm):
                 ct = cterm + '_natural'
             else:
