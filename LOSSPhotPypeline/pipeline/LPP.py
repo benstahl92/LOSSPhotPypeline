@@ -12,8 +12,12 @@ from tqdm import tqdm
 import logging
 import subprocess
 import warnings
+import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.wcs import WCS
+from astropy.coordinates import SkyCoord, match_coordinates_sky
+from astropy.visualization import ZScaleInterval
+from astropy import units as u
 from astropy.utils.exceptions import AstropyWarning
 warnings.simplefilter('ignore', AstropyWarning)
 
@@ -153,6 +157,7 @@ class LPP(object):
                       self.do_photometry_all_image,
                       self.get_sky_all_image,
                       self.do_calibration,
+                      self.get_zeromag_all_image,
                       self.get_limmag_all_image,
                       self.generate_lc,
                       self.write_summary]
@@ -462,6 +467,9 @@ class LPP(object):
         if os.path.exists(self.radecfile):
             self.log.info('radecfile already exists, loading only')
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
+            # set radec in Phot instances
+            for img in self.phot_instances.loc[self.wIndex]:
+                img.radec = self.radec
             return
         if self.refname == '' :
             self.log.warn('refname has not been assigned, please do it first!')
@@ -556,26 +564,39 @@ class LPP(object):
             # get calibration catalog
             catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
             catalog.get_cal(method = self.cal_source)
-            #if os.path.exists(os.path.join(self.calibration_dir, self._ct2cf('kait4'))) is False:
-            #catalog.to_natural()
             self.calfile = catalog.cal_filename
             self.cal_source = catalog.cal_source
             self.log.info('calibration data sourced')
 
         # IDL for matching
         self.log.info('matching ref stars to catalog stars and selecting 40 brightest')
-        idl_cmd = '''idl -e "lpp_match_refstars_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
-                    os.path.join(self.calibration_dir, self.calfile))
-        stdout, stderr = LPPu.idl(idl_cmd)
-        self._log_idl(idl_cmd, stdout, stderr)
+        #idl_cmd = '''idl -e "lpp_match_refstars_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
+        #            os.path.join(self.calibration_dir, self.calfile))
+        #stdout, stderr = LPPu.idl(idl_cmd)
+        #self._log_idl(idl_cmd, stdout, stderr)
 
-        # generate "use" fits files
         self.get_cal_info()
+        radec = SkyCoord(self.radec.loc[1:, 'RA'], self.radec.loc[1:, 'DEC'], unit = (u.deg, u.deg))
+        cal_cat = pd.read_csv(os.path.join(self.calibration_dir, self.calfile), delim_whitespace = True)
+        cal = SkyCoord(cal_cat.loc[:, 'ra'], cal_cat.loc[:, 'dec'], unit = (u.deg, u.deg))
+        idx, d2d, d3d = match_coordinates_sky(cal, radec)
+        cal_use = cal_cat.iloc[d2d.arcsecond < 5] # calibration stars that match within 5"
+        cal_use.index = self.radec.loc[1:].iloc[idx[d2d.arcsecond < 5]].index - 1 # don't count sn and align indices with radecfile
+        cal_use.insert(0, 'starID', cal_use.index)
+        cal_use = cal_use.sort_values(by = 'r').drop_duplicates(subset = 'starID', keep = 'first')
+        self.cal_use = cal_use
+
+        # write "use" files
+        with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
+            outfile.write(self.cal_use.iloc[:40].to_string(index = False))
         catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
         catalog.to_natural()
-        self.cal_arrays = catalog.get_cal_arrays()
+        self.cal_arrays = catalog.get_cal_arrays(index_order = cal_use.index)
+
+        # show ref stars
+        self._display_refstars()
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
@@ -652,13 +673,22 @@ class LPP(object):
         self.log.info('getting sky value for each image')
         self.phot_instances.loc[self.wIndex].progress_apply(lambda img: img.get_sky())
 
-    def calibrate_new(self, final_pass = False):
+    def calibrate(self, final_pass = False):
+        '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
 
-        # reset color term counts
+        if not final_pass:
+            self.log.info('performing calibration')
+
+        # reset trackers
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
+        self.cfIndex = []
+        self.csfIndex = []
 
         # calibration list
-        #cal_list = []
+        cal_list = []
+
+        if self.cal_IDs == 'all':
+            self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
 
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
@@ -669,21 +699,124 @@ class LPP(object):
             else:
                 self.color_terms[self.force_color_term] += 1
 
-            if self.cal_IDs == 'all':
-                self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
-
             # do calibration
             phot = img.calibrate(self.cal_IDs, self.cal_arrays[img.color_term].loc[:, img.filter.upper()], sub = self.photsub, write_dat = final_pass)
-            phot.insert(0, 'Filter', img.filter.upper())
-            cal_list.append(phot.loc[:, ['Filter', 'ra', 'dec', self.calmethod]])
+            phot.rename(columns = {self.calmethod: 'Mag_obs'}, inplace = True)
 
-            # also get zero value
-            img.get_zeromag()
+            # add comparison information
+            phot.insert(0, 'Filter', img.filter.upper())
+            phot.loc[self.cal_IDs, 'RA_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, 'RA']
+            phot.loc[self.cal_IDs, 'DEC_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, 'DEC']
+            phot.loc[self.cal_IDs, 'Mag_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, img.filter.upper()]
+            cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_obs', 'RA_cal', 'DEC_obs', 'DEC_cal', 'Mag_obs', 'Mag_cal']])
+
+            # check for success if in final pass mode
+            if final_pass:
+                if (os.path.exists(img.psfdat) is False) and (second_pass is False):
+                    self.cfIndex.append(idx)
+                if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False) and (second_pass is False):
+                    self.csfIndex.append(idx)
 
         # collect all calibration information
         self.calibrators = pd.concat(cal_list, keys = self.wIndex)
 
-    def calibrate(self, second_pass = False):
+        # remove failures if in final pass mode
+        if final_pass:
+            self.cfIndex = pd.Series(self.cfIndex)
+            self.csfIndex = pd.Series(self.csfIndex)
+            self.log.warn('calibration failed on {} out of {} images'.format(len(self.cfIndex), len(self.wIndex)))
+            self.wIndex = self.wIndex.drop(self.cfIndex) # processing based only on non-subtracted images
+            if self.photsub is True:
+                self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
+
+    def do_calibration(self):
+        '''check calibration and make cuts as needed'''
+
+        self.log.info('performing calibration')
+
+        # iterate until acceptable tolerance is reached
+        accept_tol = False
+        while not accept_tol:
+
+            # run calibration
+            self.calibrate()
+
+            # instantiate trackers
+            cut_list = [] # store IDs that will be cut
+            full_list = []
+            single_cut_idx = None
+            tmp_max = self.cal_diff_tol
+            df_list = []
+
+            # group by filter and perform comparison
+            for filt, group in self.calibrators.groupby('Filter', sort = False):
+                df = group.median(level = 1)
+                df = df.sort_index()
+                df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal'])
+                cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
+                full_list = list(df.index) # ok to overwrite b/c same each time
+                if self.interactive:
+                    print('\nFilter: {}'.format(filt))
+                    print('*'*60)
+                    print(df.round(4))
+                else:
+                    # find index and value of maximum diff
+                    maxi = df.loc[:, 'Diff'].idxmax()
+                    maxd = df.loc[maxi, 'Diff']
+                    if maxd > tmp_max:
+                        single_cut_idx = maxi
+                        tmp_max = maxd
+                df.insert(0, 'Filter', filt)
+                df_list.append(df)
+            cut_list = list(set(cut_list))
+
+            # make cuts to refstars as needed
+            if self.interactive:
+                print('*'*60)
+                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
+                print(sorted(cut_list))
+                response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
+                if (response == '') or ('y' in response.lower()):
+                    accept_tol = True
+                elif '.' in response:
+                    self.cal_diff_tol = float(response)
+                else:
+                    self.cal_IDs = self.cal_IDs.drop([int(i) for i in response.split(',')])
+            elif single_cut_idx is None:
+                accept_tol = True
+            elif len(full_list) > self.min_ref_num:
+                self.log.info('cutting ID {} for exceeding tolerance and re-running calibration'.format(single_cut_idx))
+                self.cal_IDs = self.cal_IDs.drop([single_cut_idx])
+            elif self.cal_diff_tol <= self.abs_cal_tol:
+                self.log.info('increasing tolerance to {} and re-running calibration'.format(self.cal_diff_tol))
+                self.cal_diff_tol += 0.05
+            else:
+                self.log.warn('calibration tolerance exceeds {}, cannot proceed'.format(self.abs_cal_tol))
+                self.run_success = False
+                self.current_step = self.steps.index(self.write_summary) - 1
+                return
+
+        # make final pass on calibration to track failures and write .dat files
+        self.calibrate(final_pass = True)
+
+        # write final "use" files
+        with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
+            outfile.write(self.cal_use.loc[self.cal_IDs, :].to_string(index = False))
+        catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
+        catalog.cal_filename = self.calfile_use
+        catalog.cal_source = self.cal_source
+        catalog.to_natural()
+
+        # show new ref stars
+        self._display_refstars()
+
+    def get_zeromag_all_image(self):
+        '''get and set zeromag for every phot instance'''
+
+        self.log.info('getting zeromag for each image')
+        self.phot_instances.loc[self.wIndex].progress_apply(lambda img: img.get_zeromag())
+
+    def calibrate_old(self, second_pass = False):
         '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
 
         self.log.info('commencing calibration (second pass: {})'.format(second_pass))
@@ -731,7 +864,7 @@ class LPP(object):
             if self.photsub is True:
                 self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
 
-    def process_calibration(self, second_pass = False, final_pass = False):
+    def process_calibration_old(self, second_pass = False, final_pass = False):
         '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
 
         if final_pass is False:
@@ -891,7 +1024,7 @@ class LPP(object):
                 self.calibrate(second_pass = True)
                 self.process_calibration(second_pass = True)
 
-    def do_calibration(self):
+    def do_calibration_old(self):
         '''executes full calibration routine'''
 
         # if calfile_use exists, first pass and cuts have been done
@@ -1087,6 +1220,9 @@ class LPP(object):
         ctu = self.color_terms_used
         if ctu is not None:
             ctu = ', '.join(ctu.keys())
+        stars = self.cal_IDs
+        if stars != 'all':
+            stars = ', '.join(self.cal_IDs.astype(str))
 
         self.summary_file = self.targetname + '.summary'
         with open(self.summary_file, 'w') as f:
@@ -1104,6 +1240,7 @@ class LPP(object):
             f.write('{:<25}{}\n'.format('num cal failures', len(self.cfIndex)))
             f.write('{:<25}{}\n'.format('num no obj', len(self.noIndex)))
             f.write('{:<25}{}\n'.format('cal source', self.cal_source))
+            f.write('{:<25}{}\n'.format('cal stars', stars))
             f.write('{:<25}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
             f.write('{:<25}{}\n'.format('run successful', self.run_success))
 
@@ -1356,6 +1493,30 @@ class LPP(object):
         self.log.debug('output of IDL command: {}'.format(idl_cmd))
         self.log.debug('STDOUT----\n{}'.format(stdout))
         self.log.debug('STDERR----\n{}'.format(stderr))
+
+    def _display_refstars(self):
+        '''show reference image and plot selected reference stars'''
+
+        with fits.open(self.refname) as f:
+            im = f[0].data
+            head = f[0].header
+
+        cs = WCS(header = head)
+        sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 1)
+        ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[:,'ra'], self.cal_use.loc[:,'dec'], 1)
+
+        fig, ax = plt.subplots(figsize = (8, 8))
+        z = ZScaleInterval()
+        zlim = z.get_limits(im.data)
+        ax.imshow(im, cmap = 'gray', vmin = zlim[0], vmax = zlim[1])
+        circ = plt.Circle((sn_x, sn_y), 25, color = 'g', fill = False)
+        ax.add_artist(circ)
+        for i in range(len(ref_x)):
+            circ = plt.Circle((ref_x[i], ref_y[i]), 25, color = 'r', fill = False)
+            ax.add_artist(circ)
+        ax.set_xticks(())
+        ax.set_yticks(())
+        plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
 
 # provide script functionality via
 # python LPP.py name

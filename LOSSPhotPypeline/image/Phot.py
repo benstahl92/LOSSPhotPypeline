@@ -19,7 +19,8 @@ class Phot(FitsInfo):
         self.radecfile = radecfile
         self.radec = radec
         self.wdir = os.path.abspath(wdir)
-        self.phot = None # internal dataframe representation of photometry for use during calibration
+        self.phot_raw = None # internal dataframe representation of photometry for use during calibration
+        self.phot_sub_raw = None
 
         if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
@@ -101,33 +102,35 @@ class Phot(FitsInfo):
         instrument_mag_mean = self.phot_raw.loc[cal_IDs, aps].mean(axis = 0)
         zp_offset = cal_mag_mean - instrument_mag_mean
 
-        # get coords of ref stars
+        # get coords of ref stars in obs
         cs = WCS(header = self.header)
         ra, dec = cs.all_pix2world(self.phot_raw['ximage'], self.phot_raw['yimage'], 1)
-        self.phot_raw.loc[:, 'ra'] = ra
-        self.phot_raw.loc[:, 'dec'] = dec
+        self.phot_raw.loc[:, 'RA_obs'] = ra
+        self.phot_raw.loc[:, 'DEC_obs'] = dec
 
         # write psf zeropoint (only do once)
-        with open(self.zero, 'w') as f:
-            f.write(25 + zp_offset['psf'])
+        with open(self.zerotxt, 'w') as f:
+            f.write(str(25 + zp_offset['psf']))
 
         # calibrate photometry
         self.phot = self.phot_raw.copy(deep = True)
-        self.phot.loc[:, aps] = self.phot_raw[:, aps] + zp_offset
+        self.phot.loc[:, aps] = self.phot.loc[:, aps] + zp_offset
         if sub is True:
             self.phot_sub = self.phot_sub_raw.copy(deep = True)
-            self.phot_sub.loc[:, aps] = self.phot_sub_raw[:, aps] + zp_offset
+            self.phot_sub.loc[:, aps] = self.phot_sub.loc[:, aps] + zp_offset
 
         # write dat files if requested
         if write_dat is True:
             self.phot.index = self.phot.index + 2
             with open(self.psfdat, 'w') as outfile:
-                outfile.write(self.phot.loc[:,col_names].to_string())
+                outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5.0p', 'err', '7.0p', 'err', '9.0p', 'err', '1.0fh', 'err', '1.5fh', 'err', '2.0fh', 'err', 'psf', 'err']]) + '\n')
+                outfile.write(self.phot.loc[:,list(col_names)[1:]].to_string(header = False, index_names = False, float_format = '%.3f', col_space = 7))
             self.phot.index = self.phot.index - 2
             if sub is True:
                 self.phot_sub.index = self.phot_sub.index + 2
                 with opne(self.psfsubdat, 'w') as outfile:
-                    outfile.write(self.phot_sub.to_string())
+                    outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5.0p', 'err', '7.0p', 'err', '9.0p', 'err', '1.0fh', 'err', '1.5fh', 'err', '2.0fh', 'err', 'psf', 'err']]) + '\n')
+                    outfile.write(self.phot_sub.loc[:,list(col_names)[1:]].to_string(header = False, index_names = False, float_format = '%.3f', col_space = 7))
                 self.phot_sub.index = self.phot_sub.index - 2
 
         # return photometry for checking
