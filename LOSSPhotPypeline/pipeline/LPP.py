@@ -799,6 +799,9 @@ class LPP(object):
                 self.current_step = self.steps.index(self.write_summary) - 1
                 return
 
+        with open(os.path.join(self.calibration_dir, 'final_ref_stars.dat'), 'w') as outfile:
+            outfile.write(pd.concat(df_list, sort = False).to_string())
+
         # make final pass on calibration to track failures and write .dat files
         self.calibrate(final_pass = True)
 
