@@ -1,7 +1,6 @@
 # standard imports
 import os
 import glob
-import shutil
 import inspect
 from pprint import pprint
 import pickle as pkl
@@ -39,7 +38,8 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False, wdir = '.', override_ref_check = False):
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
+                 wdir = '.', override_ref_check = True):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -51,18 +51,18 @@ class LPP(object):
             self.parallel = True
         else:
             self.parallel = False
-        self.cal_diff_tol = cal_diff_tol
+        self.cal_diff_tol = cal_diff_tol # starting calibration difference tolerance
         self.abs_cal_tol = 0.2 # do not proceed with the pipeline if in non-interactive mode and cal tol exceeds this
         self.min_ref_num = 2 # minimum number of ref stars
         self.checks = ['filter', 'date'] # default checks to perform on image list
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
-        self.override_ref_check = override_ref_check
+        self.override_ref_check = override_ref_check # override requirement that each image have all ref stars
 
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
         self.build_log()
 
-        # to be sourced from configuration file
+        # sourced from configuration file
         self.targetra = None
         self.targetdec = None
         self.photsub = False
@@ -110,8 +110,6 @@ class LPP(object):
         self.radecfile = os.path.join(self.calibration_dir, self.targetname + '_radec.txt')
         self.radec = None
         self.cal_IDs = 'all'
-        self.cal_cut_IDs = []
-        self.cal_redo_tol = 0.8
         self.cal_arrays = None
 
         # keep track of counts of color terms
@@ -533,7 +531,7 @@ class LPP(object):
                 self.run_success = False
                 self.current_step = self.steps.index(self.write_summary) - 1
                 return
-            if len(imagera) < self.min_ref_num: # should have at least three good stars
+            if len(imagera) < self.min_ref_num:
                 self.log.warn('not enough common ref stars found, quitting')
                 self.run_success = False
                 self.current_step = self.steps.index(self.write_summary) - 1
@@ -568,13 +566,7 @@ class LPP(object):
             self.cal_source = catalog.cal_source
             self.log.info('calibration data sourced')
 
-        # IDL for matching
         self.log.info('matching ref stars to catalog stars and selecting 40 brightest')
-        #idl_cmd = '''idl -e "lpp_match_refstars_with_catalog, '{}', '{}'"'''.format(self.radecfile, 
-        #            os.path.join(self.calibration_dir, self.calfile))
-        #stdout, stderr = LPPu.idl(idl_cmd)
-        #self._log_idl(idl_cmd, stdout, stderr)
-
         self.get_cal_info()
         radec = SkyCoord(self.radec.loc[1:, 'RA'], self.radec.loc[1:, 'DEC'], unit = (u.deg, u.deg))
         cal_cat = pd.read_csv(os.path.join(self.calibration_dir, self.calfile), delim_whitespace = True)
@@ -595,8 +587,11 @@ class LPP(object):
         catalog.to_natural()
         self.cal_arrays = catalog.get_cal_arrays(index_order = cal_use.index)
 
-        # show ref stars
-        self._display_refstars()
+        # show ref stars (and cut if interactive mode)
+        if self.interactive:
+            self._display_refstars(icut = True)
+        else:
+            self._display_refstars()
 
     def do_galaxy_subtraction_all_image(self):
         '''performs galaxy subtraction on all selected image files'''
@@ -823,226 +818,6 @@ class LPP(object):
 
         self.log.info('getting zeromag for each image')
         self.phot_instances.loc[self.wIndex].progress_apply(lambda img: img.get_zeromag())
-
-    def calibrate_old(self, second_pass = False):
-        '''performs calibration on all images included in photlistfile, using outputs from do_photometry_all_image'''
-
-        self.log.info('commencing calibration (second pass: {})'.format(second_pass))
-
-        # reset color term counts
-        self.color_terms = {key: 0 for key in self.color_terms.keys()}
-
-        # iterate through image list and execute calibration script on each
-        for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
-
-            # count usage of color terms
-            if self.force_color_term is False:
-                self.color_terms[img.color_term] += 1
-            else:
-                self.color_terms[self.force_color_term] += 1
-
-            # execute idl calibration procedure
-            # set photsub mode appropriately
-            if self.photsub is False:
-                ps = ''
-            elif (self.photsub is True) and (idx in self.psfIndex):
-                ps = ''
-            else:
-                ps = '/PHOTSUB, '
-            idl_cmd = '''idl -e "lpp_cal_instrumag, '{}', '{}', '{}', '{}', {}/OUTPUT"'''.format(img.cimg, img.filter.upper(), self.cal_source,
-                     os.path.join(self.calibration_dir, self._ct2cf(img.color_term, use = True)), ps)#second_pass)), ps)
-            stdout, stderr = LPPu.idl(idl_cmd)
-            self._log_idl(idl_cmd, stdout, stderr)
-
-            # also get zero value
-            img.get_zeromag()
-
-            # check for success
-            if (os.path.exists(img.psfdat) is False) and (second_pass is False):
-                self.cfIndex.append(idx)
-            if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False) and (second_pass is False):
-                self.csfIndex.append(idx)
-
-        if second_pass is False:
-            self.get_cal_info()
-            self.cfIndex = pd.Series(self.cfIndex)
-            self.csfIndex = pd.Series(self.csfIndex)
-            self.log.warn('calibration failed on {} out of {} images'.format(len(self.cfIndex), len(self.wIndex)))
-            self.wIndex = self.wIndex.drop(self.cfIndex) # processing based only on non-subtracted images
-            if self.photsub is True:
-                self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
-
-    def process_calibration_old(self, second_pass = False, final_pass = False):
-        '''combines all calibrated results (.dat files), grouped by filter, into data structure so that cuts can be made'''
-
-        if final_pass is False:
-            self.log.info('processing calibration (second pass: {}'.format(second_pass))
-        else:
-            self.log.info('analyzing final calibration choices')
-
-        # underlying data structure for results is dictionary keyed by filter
-        # for each key, there is another dictionary keyed by ID with each value being a list of magnitudes
-        results = {}
-
-        # also track coordinates of each ID, using dictionary keyed by ID with each value a list of ra or dec
-        coordsra = {}
-        coordsdec = {}
-
-        # read ordered calibration file, using index offset to match
-        cal = pd.read_csv(os.path.join(self.calibration_dir, self.calfile_use), delim_whitespace = True)
-        IDs = cal['starID'] # starID in use.dat files sets absolute ID index for what follows
-
-        # check for bad result and end if needed
-        if (len(cal) < self.min_ref_num) and (final_pass is False): # should have at least three good stars
-            self.log.warn('calibration file is bad --- is reference image good?')
-            self.run_success = False
-            self.current_step = self.steps.index(self.write_summary) - 1
-            return
-
-        # iterate through files and store photometry into data structure
-        for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
-
-            filt = img.filter.upper()
-
-            # add second level dictionary if needed
-            if filt not in results.keys():
-                results[filt] = {}
-
-            # read file (using selected columns corresponding to desired photometry method(s))
-            cols = (0,1,2) + tuple((self.phot_cols[m] for m in self.photmethod))
-            col_names = ('id','xpix','ypix') + tuple((m for m in self.photmethod))
-            d = pd.read_csv(img.psfdat, header = None, delim_whitespace = True, comment = ';', index_col = 0, usecols=cols, 
-                            names = col_names, skiprows = 2) # skip sn
-            d.index = d.index - 2 # align indices to match starID index
-
-            # get coords of ref stars
-            cs = WCS(header = img.header)
-            ira, idec = cs.all_pix2world(d['xpix'], d['ypix'], 1)
-
-            # populate data structures
-            for idx, row in d.iterrows():
-                if (idx in IDs.values) and (~np.isnan(row[self.calmethod])):
-                    if idx not in results[filt].keys():
-                        results[filt][idx] = [row[self.calmethod]]
-                    else:
-                        results[filt][idx].append(row[self.calmethod])
-                    if idx not in coordsra.keys():
-                        coordsra[idx] = [ira[idx]]
-                        coordsdec[idx] = [idec[idx]]
-                    else:
-                        coordsra[idx].append(ira[idx])
-                        coordsdec[idx].append(idec[idx])
-
-        # compute summary results, thereby allowing for cuts to be made
-        # also include calibration magnitudes and differences
-
-        # use "use" calfit file with color term that represents the most images
-        ct = max(self.color_terms, key = lambda k: self.color_terms[k])
-        cf = self._ct2cf(ct, use = True)
-        im = fits.open(os.path.join(self.calibration_dir, cf))
-        accept_tol = False
-        while not accept_tol:
-            summary_results = {}
-            cut_list = [] # store IDs that will be cut
-            urgent_cut_list = [] # IDs that will trigger recalibration
-            full_list = []
-            for filt in results.keys():
-                if filt not in summary_results.keys():
-                    summary_results[filt] = {}
-                for ID in results[filt].keys():
-                    if (len(im[1].data[IDs == ID]) > 0) and (ID not in self.cal_cut_IDs):
-                        ra = im[1].data['RA'][IDs == ID].item()
-                        dec = im[1].data['DEC'][IDs == ID].item()
-                        ref = im[1].data[filt][IDs == ID].item()
-                        ra2 = np.median(coordsra[ID])
-                        dec2 = np.median(coordsdec[ID])
-                        obs = np.median(results[filt][ID])
-                        diff = np.abs(obs - ref)
-                        summary_results[filt][ID] = [ra, dec, ra2, dec2, ref, obs, diff]
-                        if diff > self.cal_redo_tol:
-                            urgent_cut_list.append(ID)
-                        elif diff > self.cal_diff_tol:
-                            cut_list.append(ID)
-                        full_list.append(ID)
-
-            cut_list = list(set(cut_list))
-            urgent_cut_list = list(set(urgent_cut_list))
-            full_list = list(set(full_list))
-            if (len(urgent_cut_list) > 0) and (final_pass is False):
-                break
-
-            if (not self.interactive) and (final_pass is False):
-                if len(full_list) - len(cut_list) < self.min_ref_num:
-                    self.cal_diff_tol += 0.05
-                    if self.cal_diff_tol > self.abs_cal_tol:
-                        self.log.warn('calibration tolerance exceeds {}, cannot proceed'.format(self.abs_cal_tol))
-                        self.run_success = False
-                        self.current_step = self.steps.index(self.write_summary) - 1
-                        return
-                else:
-                    accept_tol = True
-            else:
-                if final_pass is False:
-                    print('\nCalibration Summary')
-                    print('*'*60)
-                df_list = []
-                for filt in summary_results.keys():
-                    df_tmp = pd.DataFrame.from_dict(summary_results[filt], orient = 'index', 
-                          columns = ['RA (cal)', 'DEC (cal)', 'RA (obs)','DEC (obs)', 'Mag (cal)', 'Mag (obs)', 'Diff']).sort_index().round(decimals = 4)
-                    if final_pass is False:
-                        print('\nFilter: {}'.format(filt))
-                        print('*'*60)
-                        print(df_tmp)
-                    else:
-                        df_tmp.insert(0, 'Filter', filt)
-                        df_list.append(df_tmp)
-
-                if final_pass is False:
-                    print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
-                    print('*'*60)
-                    print(sorted(cut_list))
-                    response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
-                    if (response == '') or ('y' in response.lower()):
-                        accept_tol = True
-                    elif '.' in response:
-                        self.cal_diff_tol = float(response)
-                    else:
-                        self.cal_cut_IDs = [int(i) for i in response.split(',')]
-                else:
-                    with open(os.path.join(self.calibration_dir, 'final_ref_stars.dat'), 'w') as outfile:
-                        outfile.write(pd.concat(df_list, sort = False).to_string())
-                    break
-
-        im.close()
-        if (len(urgent_cut_list) > 0) and (final_pass is False):
-            self.log.info('cutting {} IDs and reprocessing for exceeding {} mag tolerance'.format(len(urgent_cut_list), self.cal_redo_tol))
-            cut_list = urgent_cut_list
-        elif final_pass is False:
-            self.log.info('processing done, cutting IDs {} due to tolerance: {}'.format(np.array(cut_list), self.cal_diff_tol))
-
-        if final_pass is False:
-            cal[~IDs.isin(cut_list)].to_csv(os.path.join(self.calibration_dir, self.calfile_use), index = False, sep = '\t')
-            catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
-            catalog.cal_filename = self.calfile_use
-            catalog.cal_source = self.cal_source
-            catalog.to_natural()
-
-            # recurse if urgent cuts have been triggered
-            if len(urgent_cut_list) > 0:
-                self.calibrate(second_pass = True)
-                self.process_calibration(second_pass = True)
-
-    def do_calibration_old(self):
-        '''executes full calibration routine'''
-
-        # if calfile_use exists, first pass and cuts have been done
-        self.get_cal_info()
-        self.calibrate()
-        self.process_calibration()
-        self.calibrate(second_pass = True)
-        self.process_calibration(final_pass = True)
-
-        self.log.info('full calibration sequence completed')
 
     def get_limmag_all_image(self):
         '''get and set limiting mag for every phot instance'''
