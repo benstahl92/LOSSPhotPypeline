@@ -737,6 +737,9 @@ class LPP(object):
 
         self.log.info('performing calibration')
 
+        # get filters used
+        self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
+
         # iterate until acceptable tolerance is reached
         accept_tol = False
         while not accept_tol:
@@ -753,6 +756,9 @@ class LPP(object):
 
             # group by filter and perform comparison
             for filt, group in self.calibrators.groupby('Filter', sort = False):
+                # if clear is not the only filter, skip it in comparison
+                if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR'):
+                    continue
                 df = group.median(level = 1)
                 df = df.sort_index()
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal'])
@@ -1319,7 +1325,7 @@ class LPP(object):
             plt.ion()
             cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event, cut_list, ref, refp, fig))
             fig.show()
-            input('click on circled reference stars to be removed')
+            input('click on circled reference stars to be removed [hit "enter" when done]')
             fig.canvas.mpl_disconnect(cid)
             plt.ioff()
             self.cal_IDs = self.cal_IDs.drop(cut_list)
