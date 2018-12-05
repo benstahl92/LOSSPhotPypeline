@@ -1309,7 +1309,7 @@ class LPP(object):
         cs = WCS(header = head)
         sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 1)
         ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[self.cal_IDs, 'ra'], self.cal_use.loc[self.cal_IDs, 'dec'], 1)
-        ref = pd.DataFrame({'x': ref_x, 'y': ref_y}, index = self.cal_use.index)
+        ref = pd.DataFrame({'x': ref_x, 'y': ref_y}, index = self.cal_IDs)
 
         # plot (including interactive step if requested)
         fig, ax = plt.subplots(figsize = (8, 8))
