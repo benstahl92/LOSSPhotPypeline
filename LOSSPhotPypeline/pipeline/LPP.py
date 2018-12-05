@@ -1502,29 +1502,51 @@ class LPP(object):
         self.log.debug('STDOUT----\n{}'.format(stdout))
         self.log.debug('STDERR----\n{}'.format(stderr))
 
-    def _display_refstars(self):
+    def _display_refstars(self, icut = False):
         '''show reference image and plot selected reference stars'''
 
+        def onpick(event, cut_list, ref, refp, fig):
+            '''get index, append appropriate index to cut_list and remove star'''
+            ind = event.ind[0]
+            cut_list.append(ref.index.drop(cut_list)[ind])
+            refp.set_data(ref.loc[ref.index.drop(cut_list), 'x'], ref.loc[ref.index.drop(cut_list), 'y'])
+            fig.canvas.draw()
+
+        # set calibration IDs if necessary
+        if self.cal_IDs == 'all':
+            self.cal_IDs = self.cal_use.index
+
+        # read needed information from image
         with fits.open(self.refname) as f:
             im = f[0].data
             head = f[0].header
 
+        # find pixel locations of reference stars
         cs = WCS(header = head)
         sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 1)
-        ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[:,'ra'], self.cal_use.loc[:,'dec'], 1)
+        ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[self.cal_IDs, 'ra'], self.cal_use.loc[self.cal_IDs, 'dec'], 1)
+        ref = pd.DataFrame({'x': ref_x, 'y': ref_y}, index = self.cal_use.index)
 
+        # plot (including interactive step if requested)
         fig, ax = plt.subplots(figsize = (8, 8))
         z = ZScaleInterval()
         zlim = z.get_limits(im.data)
         ax.imshow(im, cmap = 'gray', vmin = zlim[0], vmax = zlim[1])
-        circ = plt.Circle((sn_x, sn_y), 25, color = 'g', fill = False)
-        ax.add_artist(circ)
-        for i in range(len(ref_x)):
-            circ = plt.Circle((ref_x[i], ref_y[i]), 25, color = 'r', fill = False)
-            ax.add_artist(circ)
+        ax.plot(sn_x, sn_y, 'go', markersize = 25, mfc = 'none')
+        refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 25, mfc = 'none', picker = 24)
         ax.set_xticks(())
         ax.set_yticks(())
+        if icut == True:
+            cut_list = []
+            plt.ion()
+            cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event, cut_list, ref, refp, fig))
+            fig.show()
+            input('click on circled reference stars to be removed')
+            fig.canvas.mpl_disconnect(cid)
+            plt.ioff()
+            self.cal_IDs = self.cal_IDs.drop(cut_list)
         plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
+        plt.close()
 
 # provide script functionality via
 # python LPP.py name

@@ -128,7 +128,7 @@ class Phot(FitsInfo):
             self.phot.index = self.phot.index - 2
             if sub is True:
                 self.phot_sub.index = self.phot_sub.index + 2
-                with opne(self.psfsubdat, 'w') as outfile:
+                with open(self.psfsubdat, 'w') as outfile:
                     outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5.0p', 'err', '7.0p', 'err', '9.0p', 'err', '1.0fh', 'err', '1.5fh', 'err', '2.0fh', 'err', 'psf', 'err']]) + '\n')
                     outfile.write(self.phot_sub.loc[:,list(col_names)[1:]].to_string(header = False, index_names = False, float_format = '%.3f', col_space = 7))
                 self.phot_sub.index = self.phot_sub.index - 2
