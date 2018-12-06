@@ -576,11 +576,11 @@ class LPP(object):
         cal_use.index = self.radec.loc[1:].iloc[idx[d2d.arcsecond < 5]].index - 1 # don't count sn and align indices with radecfile
         cal_use.insert(0, 'starID', cal_use.index)
         cal_use = cal_use.sort_values(by = 'r').drop_duplicates(subset = 'starID', keep = 'first')
-        self.cal_use = cal_use
+        self.cal_use = cal_use.iloc[:40] # select top 40 brightest
 
         # write "use" files
         with open(os.path.join(self.calibration_dir, self.calfile_use), 'w') as outfile:
-            outfile.write(self.cal_use.iloc[:40].to_string(index = False))
+            outfile.write(self.cal_use.to_string(index = False))
         catalog = LPPu.astroCatalog(self.targetname, self.targetra, self.targetdec, relative_path = self.calibration_dir)
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
@@ -786,6 +786,7 @@ class LPP(object):
                 print(sorted(cut_list))
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
                 if (response == '') or ('y' in response.lower()):
+                    self.cal_IDs = self.cal_IDs.drop(cut_list)
                     accept_tol = True
                 elif '.' in response:
                     self.cal_diff_tol = float(response)
@@ -1318,6 +1319,8 @@ class LPP(object):
         ax.imshow(im, cmap = 'gray', vmin = zlim[0], vmax = zlim[1])
         ax.plot(sn_x, sn_y, 'go', markersize = 25, mfc = 'none')
         refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 25, mfc = 'none', picker = 24)
+        for idx, row in ref.iterrows():
+            ax.annotate(idx, (row['x'] + 30, row['y']), color = 'r')
         ax.set_xticks(())
         ax.set_yticks(())
         if icut == True:
