@@ -585,7 +585,7 @@ class LPP(object):
         catalog.cal_filename = self.calfile_use
         catalog.cal_source = self.cal_source
         catalog.to_natural()
-        self.cal_arrays = catalog.get_cal_arrays(index_order = cal_use.index)
+        self.cal_arrays = catalog.get_cal_arrays(index_order = self.cal_use.index)
 
         # show ref stars (and cut if interactive mode)
         if self.interactive:
@@ -742,10 +742,13 @@ class LPP(object):
 
         # iterate until acceptable tolerance is reached
         accept_tol = False
+        skip_calibrate = False
         while not accept_tol:
 
             # run calibration
-            self.calibrate()
+            if not skip_calibrate:
+                self.calibrate()
+            skip_calibrate = False
 
             # instantiate trackers
             cut_list = [] # store IDs that will be cut
@@ -790,6 +793,7 @@ class LPP(object):
                     accept_tol = True
                 elif '.' in response:
                     self.cal_diff_tol = float(response)
+                    skip_calibrate = True
                 else:
                     self.cal_IDs = self.cal_IDs.drop([int(i) for i in response.split(',')])
             elif single_cut_idx is None:
@@ -1320,7 +1324,7 @@ class LPP(object):
         ax.plot(sn_x, sn_y, 'go', markersize = 25, mfc = 'none')
         refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 25, mfc = 'none', picker = 24)
         for idx, row in ref.iterrows():
-            ax.annotate(idx, (row['x'] + 30, row['y']), color = 'r')
+            ax.annotate(idx, (row['x'] + 30*head['NAXIS1']/1024, row['y']), color = 'r')
         ax.set_xticks(())
         ax.set_yticks(())
         if icut == True:
