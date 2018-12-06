@@ -1210,16 +1210,18 @@ class LPP(object):
                 all_std.append(lc.replace('all', ct))
         concat_list = []
         for row in all_nat:
-            tmp = pd.read_csv(row[1], delim_whitespace = True)
-            tmp.insert(3, 'SYSTEM', row[0])
-            concat_list.append(tmp)
+            if os.path.exists(row[1]):
+                tmp = pd.read_csv(row[1], delim_whitespace = True)
+                tmp.insert(3, 'SYSTEM', row[0])
+                concat_list.append(tmp)
         if len(concat_list) > 0:
             pd.concat(concat_list, sort = False).to_csv(groupfile, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = groupfile, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
         concat_list = []
         for fl in all_std:
-            concat_list.append(pd.read_csv(fl, delim_whitespace = True))
+            if os.path.exists(fl):
+                concat_list.append(pd.read_csv(fl, delim_whitespace = True))
         if len(concat_list) > 0:
             pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
