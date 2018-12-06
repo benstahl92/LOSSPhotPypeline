@@ -34,7 +34,7 @@ class Phot(FitsInfo):
         # convert to pixel coordinates in current image and save
         try:
             cs = WCS(header = self.header)
-            imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 1)
+            imagex, imagey = cs.all_world2pix(self.radec['RA'], self.radec['DEC'], 0)
             pd.DataFrame({'x': imagex, 'y': imagey}).to_csv(os.path.join(self.wdir, self.obj), sep = '\t', index=False, header = False, float_format='%9.4f')
             return True
         except InvalidTransformError:
@@ -104,7 +104,7 @@ class Phot(FitsInfo):
 
         # get coords of ref stars in obs
         cs = WCS(header = self.header)
-        ra, dec = cs.all_pix2world(self.phot_raw['ximage'], self.phot_raw['yimage'], 1)
+        ra, dec = cs.all_pix2world(self.phot_raw['ximage'], self.phot_raw['yimage'], 0)
         self.phot_raw.loc[:, 'RA_obs'] = ra
         self.phot_raw.loc[:, 'DEC_obs'] = dec
 

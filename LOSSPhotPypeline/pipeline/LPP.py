@@ -486,7 +486,7 @@ class LPP(object):
                     '-c', config,
                     '-PARAMETERS_NAME', par,
                     '-FILTER_NAME', filt,
-                    '-STARNNW_NAME', star, 
+                    '-STARNNW_NAME', star,
                     '-CATALOG_NAME', ref.sobj,
                     '-CHECKIMAGE_NAME', ref.skyfit]
         p = subprocess.Popen(cmd_list, stdout = subprocess.PIPE, stderr = subprocess.PIPE, universal_newlines = True)
@@ -509,7 +509,7 @@ class LPP(object):
 
         # transform to RA and DEC using ref image header information
         cs = WCS(header = ref.header)
-        imagera, imagedec = cs.all_pix2world(imagex, imagey, 1)
+        imagera, imagedec = cs.all_pix2world(imagex, imagey, 0)
 
         # check each image to identify ref stars to disregard
         if self.override_ref_check is False:
@@ -517,7 +517,7 @@ class LPP(object):
             def check(img):
                 cs = WCS(header = img.header)
                 # ref star location as a fraction of total pixels
-                r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 1) / np.array(cs._naxis)
+                r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 0) / np.array(cs._naxis)
                 # bad reference stars are outside an image
                 bad_ref = np.any(((r < 0) | (r > 1)), axis = 1)
                 return bad_ref
@@ -673,6 +673,8 @@ class LPP(object):
 
         if not final_pass:
             self.log.info('performing calibration')
+        else:
+            self.log.info('doing final calibration')
 
         # reset trackers
         self.color_terms = {key: 0 for key in self.color_terms.keys()}
@@ -766,6 +768,7 @@ class LPP(object):
                 df = df.sort_index()
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal'])
                 cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
+                cut_list.extend(list(df.index[df.loc[:, 'Diff'].isnull()]))
                 full_list = list(df.index) # ok to overwrite b/c same each time
                 if self.interactive:
                     print('\nFilter: {}'.format(filt))
@@ -1312,10 +1315,10 @@ class LPP(object):
 
         # find pixel locations of sn, reference stars, and radec stars
         cs = WCS(header = head)
-        sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 1)
-        ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[self.cal_IDs, 'ra'], self.cal_use.loc[self.cal_IDs, 'dec'], 1)
+        sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 0)
+        ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[self.cal_IDs, 'ra'], self.cal_use.loc[self.cal_IDs, 'dec'], 0)
         ref = pd.DataFrame({'x': ref_x, 'y': ref_y}, index = self.cal_IDs)
-        rd_x, rd_y = cs.all_world2pix(self.radec.loc[1:, 'RA'], self.radec.loc[1:, 'DEC'], 1)
+        rd_x, rd_y = cs.all_world2pix(self.radec.loc[1:, 'RA'], self.radec.loc[1:, 'DEC'], 0)
 
         # plot (including interactive step if requested)
         fig, ax = plt.subplots(figsize = (8, 8))
