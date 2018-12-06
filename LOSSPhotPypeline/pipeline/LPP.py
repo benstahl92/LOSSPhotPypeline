@@ -883,7 +883,7 @@ class LPP(object):
             for m in self.photmethod:
                 lcs[m][';; MJD'].append(round(img.mjd, 6))
                 lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
-                lcs[m]['filter'].append(img.filter)
+                lcs[m]['filter'].append(img.filter.upper())
                 lcs[m]['imagename'].append(img.cimg)
                 lcs[m]['limmag'].append(round(img.limmag, 5))
                 if 1 not in d['ID'].values:
