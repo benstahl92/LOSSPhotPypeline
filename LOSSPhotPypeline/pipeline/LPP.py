@@ -1310,21 +1310,23 @@ class LPP(object):
             im = f[0].data
             head = f[0].header
 
-        # find pixel locations of reference stars
+        # find pixel locations of sn, reference stars, and radec stars
         cs = WCS(header = head)
         sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 1)
         ref_x, ref_y = cs.all_world2pix(self.cal_use.loc[self.cal_IDs, 'ra'], self.cal_use.loc[self.cal_IDs, 'dec'], 1)
         ref = pd.DataFrame({'x': ref_x, 'y': ref_y}, index = self.cal_IDs)
+        rd_x, rd_y = cs.all_world2pix(self.radec.loc[1:, 'RA'], self.radec.loc[1:, 'DEC'], 1)
 
         # plot (including interactive step if requested)
         fig, ax = plt.subplots(figsize = (8, 8))
         z = ZScaleInterval()
         zlim = z.get_limits(im.data)
         ax.imshow(im, cmap = 'gray', vmin = zlim[0], vmax = zlim[1])
-        ax.plot(sn_x, sn_y, 'go', markersize = 25, mfc = 'none')
-        refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 25, mfc = 'none', picker = 24)
+        ax.plot(sn_x, sn_y, 'go', markersize = 15, mfc = 'none')
+        ax.plot(rd_x, rd_y, 'bs', markersize = 15, mfc = 'none')
+        refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 15, mfc = 'none', picker = 14)
         for idx, row in ref.iterrows():
-            ax.annotate(idx, (row['x'] + 30*head['NAXIS1']/1024, row['y']), color = 'r')
+            ax.annotate(idx, (row['x'] + 20*head['NAXIS1']/1024, row['y']), color = 'r')
         ax.set_xticks(())
         ax.set_yticks(())
         if icut == True:
