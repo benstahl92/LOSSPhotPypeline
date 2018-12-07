@@ -74,6 +74,13 @@ for i=0,number-1 do begin
            constantvale=6d0
            factor=3631d0
          end
+    'CLEAR': begin
+           temp=mag[i]-0.002+0.186
+           tempminus=mag[i]+mag_err_plus[i]-0.002+0.186
+           tempplus=mag[i]+mag_err_minus[i]-0.002+0.186
+           constantvale=6d0
+           factor=3631d0
+         end
     'I': begin
            temp=mag[i]-0.002+0.444
            tempminus=mag[i]+mag_err_plus[i]-0.002+0.444
