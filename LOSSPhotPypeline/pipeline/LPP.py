@@ -783,7 +783,7 @@ class LPP(object):
                         single_cut_idx = maxi
                         tmp_max = maxd
                 df.insert(0, 'Filter', filt)
-                df_list.append(df)
+                df_list.append(df.loc[self.cal_IDs, :])
             cut_list = list(set(cut_list))
 
             # make cuts to refstars as needed
@@ -815,7 +815,7 @@ class LPP(object):
                 return
 
         with open(os.path.join(self.calibration_dir, 'final_ref_stars.dat'), 'w') as outfile:
-            outfile.write(pd.concat(df_list.loc[self.cal_IDs, :], sort = False).to_string())
+            outfile.write(pd.concat(df_list, sort = False).to_string())
 
         # make final pass on calibration to track failures and write .dat files
         self.calibrate(final_pass = True)
