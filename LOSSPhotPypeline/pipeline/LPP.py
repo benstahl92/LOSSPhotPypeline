@@ -765,6 +765,7 @@ class LPP(object):
                 if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR'):
                     continue
                 df = group.median(level = 1)
+                df.loc[:, 'std_obs'] = group.std(level = 1).loc[:, 'Mag_obs']
                 df = df.sort_index()
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal'])
                 cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
@@ -814,7 +815,7 @@ class LPP(object):
                 return
 
         with open(os.path.join(self.calibration_dir, 'final_ref_stars.dat'), 'w') as outfile:
-            outfile.write(pd.concat(df_list, sort = False).to_string())
+            outfile.write(pd.concat(df_list.loc[self.cal_IDs, :], sort = False).to_string())
 
         # make final pass on calibration to track failures and write .dat files
         self.calibrate(final_pass = True)
