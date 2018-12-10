@@ -150,6 +150,8 @@ class astroCatalog:
         df = pd.DataFrame(data=dict_lst, columns=dict_lst[0].keys())
         df = df[['RA', 'DEC', 'V', 'Verr', 'B', 'Berr', 'g', 'gerr', 'r', 'rerr', 'i', 'ierr']]
         df = df.replace([99.9990], [np.nan])
+        df.rename(columns = {'RA' : 'ra'}, inplace = True)
+        df.rename(columns = {'DEC': 'dec'}, inplace = True)
         df = df.dropna()
 
         self.cal_source = 'APASS'

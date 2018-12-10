@@ -660,6 +660,12 @@ class LPP(object):
             self.log.warn('photometry (sub) failed on {} out of {} images'.format(len(self.psfIndex), len(self.wIndex)))
             self.wIndex = self.wIndex.drop(self.pfIndex.intersection(self.psfIndex))
 
+        if len(self.wIndex) == 0:
+            self.log.warn('all images failed, cannot proceed')
+            self.run_success = False
+            self.current_step = self.steps.index(self.write_summary) - 1
+            return
+
         self.log.info('photometry done')
 
     def get_sky_all_image(self):
@@ -686,6 +692,8 @@ class LPP(object):
 
         if self.cal_IDs == 'all':
             self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
+
+        cut_list = [] # entries containing NaN to be removed from cal_IDs
 
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
@@ -722,8 +730,7 @@ class LPP(object):
                 if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False):
                     self.csfIndex.append(idx)
 
-        # collect all calibration information
-        self.calibrators = pd.concat(cal_list, keys = self.wIndex)
+        self.calibrators = pd.concat([df.loc[self.cal_IDs, :] for df in cal_list], keys = self.wIndex)
 
         # remove failures if in final pass mode
         if final_pass:
@@ -733,6 +740,12 @@ class LPP(object):
             self.wIndex = self.wIndex.drop(self.cfIndex) # processing based only on non-subtracted images
             if self.photsub is True:
                 self.log.warn('calibration (sub) failed on {} out of {} images'.format(len(self.csfIndex), len(self.wIndex)))
+
+        if len(self.wIndex) == 0:
+            self.log.warn('all images failed, cannot proceed')
+            self.run_success = False
+            self.current_step = self.steps.index(self.write_summary) - 1
+            return
 
     def do_calibration(self):
         '''check calibration and make cuts as needed'''
@@ -754,6 +767,7 @@ class LPP(object):
 
             # instantiate trackers
             cut_list = [] # store IDs that will be cut
+            nan_list = [] # IDs of NaN to be cut immediately
             full_list = []
             single_cut_idx = None
             tmp_max = self.cal_diff_tol
@@ -769,7 +783,9 @@ class LPP(object):
                 df = df.sort_index()
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal'])
                 cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
-                cut_list.extend(list(df.index[df.loc[:, 'Diff'].isnull()]))
+                nan_list.extend(list(df.index[df.loc[:, 'Diff'].isnull()]))
+                if len(nan_list) > 0:
+                    break
                 full_list = list(df.index) # ok to overwrite b/c same each time
                 if self.interactive:
                     print('\nFilter: {}'.format(filt))
@@ -785,6 +801,12 @@ class LPP(object):
                 df.insert(0, 'Filter', filt)
                 df_list.append(df)
             cut_list = list(set(cut_list))
+
+            # remove NaN
+            if len(nan_list) > 0:
+                self.log.info('cutting IDs {} for NaN'.format(', '.join([str(i) for i in nan_list])))
+                self.cal_IDs = self.cal_IDs.drop(nan_list)
+                continue
 
             # make cuts to refstars as needed
             if self.interactive:
