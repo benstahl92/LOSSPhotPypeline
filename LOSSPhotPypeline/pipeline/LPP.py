@@ -1143,7 +1143,7 @@ class LPP(object):
             succ = False
             msg = 'no templates directory, cannot do photsub'
         else:
-            templates = glob.glob('{}/*.fit'.format(self.templates_dir))
+            templates = glob.glob('{}/*c.fit'.format(self.templates_dir))
             if len(templates) == 0:
                 msg = 'no templates available'
                 succ = False
@@ -1163,6 +1163,9 @@ class LPP(object):
                     idl_cmd = '''idl -e "lpp_rebin_nickel2kait, '{}', SAVEFILE='{}'"'''.format(ti.cimg, self.template_images['{}_kait'.format(filt)])
                     stdout, stderr = LPPu.idl(idl_cmd)
                     self._log_idl(idl_cmd, stdout, stderr)
+                    if not os.path.exists(self.template_images['{}_kait'.format(filt)]):
+                        succ = False
+                        msg = 'rebinning of templates from nickel to kait failed, cannot do photsub'
                 elif (ti.telescope.lower() == 'kait') and (filt == 'CLEAR') and ('n2k_c.fit' not in templ):
                     self.template_images['CLEAR_kait'] = ti.cimg
                 elif 'n2k_c.fit' in templ:
@@ -1349,12 +1352,12 @@ class LPP(object):
         fig, ax = plt.subplots(figsize = (8, 8))
         z = ZScaleInterval()
         zlim = z.get_limits(im.data)
-        ax.imshow(im, cmap = 'gray', vmin = zlim[0], vmax = zlim[1])
-        ax.plot(sn_x, sn_y, 'go', markersize = 15, mfc = 'none')
-        ax.plot(rd_x, rd_y, 'bs', markersize = 15, mfc = 'none')
-        refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 15, mfc = 'none', picker = 14)
+        ax.imshow(-1*im, cmap = 'gray', vmin = -1*zlim[1], vmax = -1*zlim[0])
+        ax.plot(sn_x, sn_y, 'mD', markersize = 15, mfc = 'none', mew = 2)
+        ax.plot(rd_x, rd_y, 'bs', markersize = 15, mfc = 'none', mew = 2)
+        refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 15, mfc = 'none', picker = 14, mew = 2)
         for idx, row in ref.iterrows():
-            ax.annotate(idx, (row['x'] + 20*head['NAXIS1']/1024, row['y']), color = 'r')
+            ax.annotate(idx, (row['x'] + 20*head['NAXIS1']/1024, row['y']), color = 'r', size = 12)
         ax.set_xticks(())
         ax.set_yticks(())
         if icut == True:

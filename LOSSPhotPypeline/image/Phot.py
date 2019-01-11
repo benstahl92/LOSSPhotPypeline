@@ -92,10 +92,12 @@ class Phot(FitsInfo):
             self.phot_raw = pd.read_csv(self.psf, header = None, delim_whitespace = True, comment = ';', index_col = 0, 
                             names = col_names, skiprows = 1)
             self.phot_raw.index = self.phot_raw.index - 2 # align with indexing of cal stars
+            self.phot_raw = self.phot_raw.reindex(self.radec.index - 1) # make indexes match, so NaN if not in file
         if (self.phot_sub_raw is None) and (sub is True):
             self.phot_sub_raw = pd.read_csv(self.psfsub, header = None, delim_whitespace = True, comment = ';', index_col = 0, 
                                 names = col_names, skiprows = 1)
             self.phot_sub_raw.index = self.phot_sub_raw.index - 2
+            self.phot_sub_raw = self.phot_sub_raw.reindex(self.radec.index - 1)
 
         # ref stars in sub are the same as in un sub so only need to find cal mags once
         cal_mag_mean = cal_mags.loc[cal_IDs].mean()
