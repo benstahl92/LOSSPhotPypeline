@@ -42,7 +42,7 @@ class plotLC:
     '''Light curve plotting for LOSSPhotPypeline outputs'''
 
     def __init__(self, lc = None, lc_raw = None, lc_file = None, tref = 'min', filters = 'auto', 
-                 offset_scale = 1, style = 'whitegrid', context = 'notebook', name = None, photmethod = None):
+                 offset_scale = 1, style = 'white', context = 'notebook', name = None, photmethod = None):
         '''
         instantiation instructions
 
@@ -84,6 +84,8 @@ class plotLC:
         self.tset = False
         self.lc_cut = None
 
+        self.all_black = False
+
         self.filter_ref = ('B','V','R','I','CLEAR')
 
         if (self.lc is None) and (self.raw is None) and (self.lc_file is not None):
@@ -101,6 +103,8 @@ class plotLC:
 
     def _color(self, filt):
         '''returns color to plot for given filter'''
+        if self.all_black:
+            return 'black'
         if filt == 'B':
             return 'blue'
         elif filt == 'V':
@@ -124,6 +128,21 @@ class plotLC:
             return -1*self.offset_scale
         else:
             return 0*self.offset_scale
+
+    def _marker(self, filt):
+        '''returns marker to use for given filter'''
+        if 'raw' in self.lc_file:
+            return 'o'
+        if filt == 'B':
+            return '^'
+        elif filt == 'V':
+            return 'D'
+        elif filt == 'R':
+            return 's'
+        elif filt == 'I':
+            return 'v'
+        else:
+            return 'o'
 
     def _set_t(self):
         '''set time relative to reference'''
@@ -302,11 +321,11 @@ class plotLC:
             # plot light curve
             if icut is True:
                 fig, ax = self._setup_plot()
-                errobj = ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.', elinewidth = 1, capsize = 2,
-                                     capthick = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)), picker = 3)
+                errobj = ax.errorbar(tmp['t_rel'], tmp[filt] + self._offset(filt), yerr = tmp['E' + filt], fmt = '.', elinewidth = 1, marker = self._marker(filt),
+                                     c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)), picker = 3)
             else:
-                errobj = ax.errorbar(tmp.loc[~ob,'t_rel'], tmp.loc[~ob,filt] + self._offset(filt), yerr = tmp.loc[~ob,'E' + filt], 
-                                     fmt = '.', elinewidth = 1, capsize = 2, capthick = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)))
+                errobj = ax.errorbar(tmp.loc[~ob,'t_rel'], tmp.loc[~ob,filt] + self._offset(filt), yerr = tmp.loc[~ob,'E' + filt], marker = self._marker(filt),
+                                     fmt = '.', elinewidth = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)))
 
             # handle selection of bad points
             if icut is True:
@@ -324,6 +343,11 @@ class plotLC:
                 plt.clf()
                 plt.close()
                 continue
+
+        # make plot square
+        x0, x1 = ax.get_xlim()
+        y0, y1 = ax.get_ylim()
+        ax.set_aspect(np.abs((x1-x0)/(y1-y0)))
 
         if icut is True:
             self._drop_lc_points(drop_dict)
