@@ -97,6 +97,7 @@ class LPP(object):
         self.csfIndex = [] # indices of calibration (sub) failures
         self.noIndex = []
         self.nosIndex = []
+        self.mrIndex = pd.Index([]) # keep track of indices to remove manually
         self.run_success = False # track run success
 
         # calibration variables
@@ -693,7 +694,8 @@ class LPP(object):
         if self.cal_IDs == 'all':
             self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
 
-        cut_list = [] # entries containing NaN to be removed from cal_IDs
+        #cut_list = [] # entries containing NaN to be removed from cal_IDs
+        cal_combos = []
 
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
@@ -721,7 +723,12 @@ class LPP(object):
             phot.loc[self.cal_IDs, 'RA_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, 'RA']
             phot.loc[self.cal_IDs, 'DEC_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, 'DEC']
             phot.loc[self.cal_IDs, 'Mag_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, img.filter.upper()]
-            cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_obs', 'RA_cal', 'DEC_obs', 'DEC_cal', 'Mag_obs', 'Mag_cal']])
+            phot.loc[self.cal_IDs, 'RA_diff'] = np.abs(phot.loc[self.cal_IDs, 'RA_obs'] - phot.loc[self.cal_IDs, 'RA_cal'])
+            phot.loc[self.cal_IDs, 'DEC_diff'] = np.abs(phot.loc[self.cal_IDs, 'DEC_obs'] - phot.loc[self.cal_IDs, 'DEC_cal'])
+            #cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_obs', 'RA_cal', 'DEC_obs', 'DEC_cal', 'Mag_obs', 'Mag_cal']])
+            cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_diff', 'DEC_diff', 'Mag_obs', 'Mag_cal', 'ref_in']])
+            #if phot.loc[self.cal_IDs, 'ref_in'].tolist() not in cal_combos:
+            cal_combos.append(phot.loc[self.cal_IDs, 'ref_in'].tolist())
 
             # check for success if in final pass mode
             if final_pass:
@@ -731,6 +738,7 @@ class LPP(object):
                     self.csfIndex.append(idx)
 
         self.calibrators = pd.concat([df.loc[self.cal_IDs, :] for df in cal_list], keys = self.wIndex)
+        #return self.calibrators, cal_combos
 
         # remove failures if in final pass mode
         if final_pass:
@@ -773,15 +781,31 @@ class LPP(object):
             tmp_max = self.cal_diff_tol
             df_list = []
 
+            # warn if any individual images have too few ref stars
+            ref_counts = self.calibrators['Mag_obs'].notnull().sum(level = 0)
+            if (ref_counts < self.min_ref_num).sum() > 0:
+                print('\nWarning - the following images have below the minimum number of ref stars ({}):'.format(self.min_ref_num))
+                print(ref_counts.index[ref_counts < self.min_ref_num])
+            if (ref_counts == self.min_ref_num).sum() > 0:
+                print('\nWarning - the following images have the minimum number of ref stars ({}):'.format(self.min_ref_num))
+                print(ref_counts.index[ref_counts == self.min_ref_num])
+                print('\nDo not cut the following IDs to avoid falling below the minimum:')
+                idx_selector = (ref_counts.index[ref_counts < 10], self.cal_IDs)
+                num_affected = self.calibrators.loc[idx_selector, 'Mag_obs'].notnull().sum(level=1)
+                print(num_affected.index[num_affected > 0].sort_values())
+
             # group by filter and perform comparison
             for filt, group in self.calibrators.groupby('Filter', sort = False):
                 # if clear is not the only filter, skip it in comparison
                 if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR'):
                     continue
                 df = group.median(level = 1)
+                df.loc[:, 'pct_im'] = group['Mag_obs'].notnull().sum(level=1) / len(group['Mag_obs'].groupby(level=0))
+                #group.mean(level = 1).loc[:, 'ref_in'] the above replaces this line
                 df.loc[:, 'std_obs'] = group.std(level = 1).loc[:, 'Mag_obs']
                 df = df.sort_index()
-                df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal'])
+                df.loc[:, 'Mag_diff'] = df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal']
+                df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_diff'])
                 cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
                 nan_list.extend(list(df.index[df.loc[:, 'Diff'].isnull()]))
                 if len(nan_list) > 0:
@@ -790,7 +814,7 @@ class LPP(object):
                 if self.interactive:
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
-                    print(df.round(4))
+                    print(df.loc[:, ['pct_im', 'RA_diff', 'DEC_diff', 'Mag_cal', 'Mag_obs', 'std_obs', 'Mag_diff']].round(4))
                 else:
                     # find index and value of maximum diff
                     maxi = df.loc[:, 'Diff'].idxmax()
@@ -1062,6 +1086,7 @@ class LPP(object):
             f.write('{:<25}{}\n'.format('num phot failures', len(self.pfIndex)))
             f.write('{:<25}{}\n'.format('num cal failures', len(self.cfIndex)))
             f.write('{:<25}{}\n'.format('num no obj', len(self.noIndex)))
+            f.write('{:<25}{}\n'.format('num manually removed', len(self.mrIndex)))
             f.write('{:<25}{}\n'.format('cal source', self.cal_source))
             f.write('{:<25}{}\n'.format('cal stars', stars))
             f.write('{:<25}{}\n'.format('cal tolerance', round(self.cal_diff_tol, 2)))
@@ -1073,6 +1098,15 @@ class LPP(object):
     ###################################################################################################
     #          Utility Methods
     ###################################################################################################
+
+    def manual_remove(self, id):
+        '''manually remove an index (or list of indices) from consideration'''
+
+        if type(id) is int:
+            id = [id]
+        id = pd.Index(id)
+        self.mrIndex = self.mrIndex.append(id)
+        self.wIndex = self.wIndex.drop(id)
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''processes images obtained after initial processing'''
@@ -1322,7 +1356,7 @@ class LPP(object):
         self.log.debug('STDOUT----\n{}'.format(stdout))
         self.log.debug('STDERR----\n{}'.format(stderr))
 
-    def _display_refstars(self, icut = False):
+    def _display_refstars(self, icut = False, return_ax = False, ax = None):
         '''show reference image and plot selected reference stars'''
 
         def onpick(event, cut_list, ref, refp, fig):
@@ -1349,7 +1383,8 @@ class LPP(object):
         rd_x, rd_y = cs.all_world2pix(self.radec.loc[1:, 'RA'], self.radec.loc[1:, 'DEC'], 0)
 
         # plot (including interactive step if requested)
-        fig, ax = plt.subplots(figsize = (8, 8))
+        if ax is None:
+            fig, ax = plt.subplots(figsize = (8, 8))
         z = ZScaleInterval()
         zlim = z.get_limits(im.data)
         ax.imshow(-1*im, cmap = 'gray', vmin = -1*zlim[1], vmax = -1*zlim[0])
@@ -1369,8 +1404,25 @@ class LPP(object):
             fig.canvas.mpl_disconnect(cid)
             plt.ioff()
             self.cal_IDs = self.cal_IDs.drop(cut_list)
+        if return_ax is True:
+            return ax
         plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
         plt.close()
+
+    def compare_image2ref(self, idx):
+        '''plot ref image and selected image side by side'''
+
+        #fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 6))
+        fig = plt.figure(figsize = (12, 6))
+        ref = Phot(self.refname)
+        wcs1 = WCS(header = ref.header)
+        ax1 = fig.add_subplot(1, 2, 1, projection = wcs1)
+        self._display_refstars(ax = ax1)
+        wcs2 = WCS(header = self.phot_instances.loc[idx].header)
+        ax2 = fig.add_subplot(1, 2, 2, projection = wcs2)
+        self.phot_instances.loc[idx].display_image(ax = ax2, display = False)
+        plt.tight_layout()
+        fig.show()
 
 # provide script functionality via
 # python LPP.py name

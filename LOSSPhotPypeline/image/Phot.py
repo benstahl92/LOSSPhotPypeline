@@ -4,6 +4,8 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS, InvalidTransformError
 import os
+import matplotlib.pyplot as plt
+from astropy.visualization import ZScaleInterval
 
 # internal imports
 from LOSSPhotPypeline.image.FileNames import FileNames
@@ -121,6 +123,11 @@ class Phot(FitsInfo):
             self.phot_sub = self.phot_sub_raw.copy(deep = True)
             self.phot_sub.loc[:, aps] = self.phot_sub.loc[:, aps] + zp_offset
 
+        # determine which ref stars are in image
+        self.phot.loc[:, 'ref_in'] = 1
+        out = (self.phot['ximage'] < 0) | (self.phot['ximage'] > cs._naxis[0]) | (self.phot['yimage'] < 0) | (self.phot['yimage'] > cs._naxis[1])
+        self.phot.loc[out, 'ref_in'] = 0
+
         # write dat files if requested
         if write_dat is True:
             self.phot.index = self.phot.index + 2
@@ -137,3 +144,18 @@ class Phot(FitsInfo):
 
         # return photometry for checking
         return self.phot
+
+    def display_image(self, ax = None, display = True):
+        '''displays image'''
+
+        with fits.open(self.oriname) as f:
+            im = f[0].data
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize = (8, 8))
+        z = ZScaleInterval()
+        zlim = z.get_limits(im.data)
+        ax.imshow(-1*im, cmap = 'gray', vmin = -1*zlim[1], vmax = -1*zlim[0])
+        if display:
+            fig.show()
+        return ax
