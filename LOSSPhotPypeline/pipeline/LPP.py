@@ -781,19 +781,6 @@ class LPP(object):
             tmp_max = self.cal_diff_tol
             df_list = []
 
-            # warn if any individual images have too few ref stars
-            ref_counts = self.calibrators['Mag_obs'].notnull().sum(level = 0)
-            if (ref_counts < self.min_ref_num).sum() > 0:
-                print('\nWarning - the following images have below the minimum number of ref stars ({}):'.format(self.min_ref_num))
-                print(ref_counts.index[ref_counts < self.min_ref_num])
-            if (ref_counts == self.min_ref_num).sum() > 0:
-                print('\nWarning - the following images have the minimum number of ref stars ({}):'.format(self.min_ref_num))
-                print(ref_counts.index[ref_counts == self.min_ref_num])
-                print('\nDo not cut the following IDs to avoid falling below the minimum:')
-                idx_selector = (ref_counts.index[ref_counts < 10], self.cal_IDs)
-                num_affected = self.calibrators.loc[idx_selector, 'Mag_obs'].notnull().sum(level=1)
-                print(num_affected.index[num_affected > 0].sort_values())
-
             # group by filter and perform comparison
             for filt, group in self.calibrators.groupby('Filter', sort = False):
                 # if clear is not the only filter, skip it in comparison
@@ -834,10 +821,24 @@ class LPP(object):
 
             # make cuts to refstars as needed
             if self.interactive:
+                self._display_refstars(display = True)
                 print('*'*60)
+                # warn if any individual images have too few ref stars
+                ref_counts = self.calibrators['Mag_obs'].notnull().sum(level = 0)
+                if (ref_counts < self.min_ref_num).sum() > 0:
+                    print('\nWarning - the following images have below the minimum number of ref stars ({}):'.format(self.min_ref_num))
+                    print(ref_counts.index[ref_counts < self.min_ref_num])
+                if (ref_counts == self.min_ref_num).sum() > 0:
+                    print('\nWarning - the following images have the minimum number of ref stars ({}):'.format(self.min_ref_num))
+                    print(ref_counts.index[ref_counts == self.min_ref_num])
+                    print('\nDo not cut the following IDs to avoid falling below the minimum:')
+                    idx_selector = (ref_counts.index[ref_counts < 10], self.cal_IDs)
+                    num_affected = self.calibrators.loc[idx_selector, 'Mag_obs'].notnull().sum(level=1)
+                    print(num_affected.index[num_affected > 0].sort_values())
                 print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print(sorted(cut_list))
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
+                plt.close()
                 if (response == '') or ('y' in response.lower()):
                     self.cal_IDs = self.cal_IDs.drop(cut_list)
                     accept_tol = True
@@ -1356,7 +1357,7 @@ class LPP(object):
         self.log.debug('STDOUT----\n{}'.format(stdout))
         self.log.debug('STDERR----\n{}'.format(stderr))
 
-    def _display_refstars(self, icut = False, return_ax = False, ax = None):
+    def _display_refstars(self, icut = False, display = False, ax = None):
         '''show reference image and plot selected reference stars'''
 
         def onpick(event, cut_list, ref, refp, fig):
@@ -1404,10 +1405,12 @@ class LPP(object):
             fig.canvas.mpl_disconnect(cid)
             plt.ioff()
             self.cal_IDs = self.cal_IDs.drop(cut_list)
-        if return_ax is True:
-            return ax
-        plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
-        plt.close()
+        if display is True:
+            plt.ion()
+            plt.show()
+        else:
+            plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
+            plt.close()
 
     def compare_image2ref(self, idx):
         '''plot ref image and selected image side by side'''
