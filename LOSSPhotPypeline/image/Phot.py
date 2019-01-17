@@ -158,4 +158,3 @@ class Phot(FitsInfo):
         ax.imshow(-1*im, cmap = 'gray', vmin = -1*zlim[1], vmax = -1*zlim[0])
         if display:
             fig.show()
-        return ax

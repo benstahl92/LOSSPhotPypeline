@@ -694,9 +694,6 @@ class LPP(object):
         if self.cal_IDs == 'all':
             self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
 
-        #cut_list = [] # entries containing NaN to be removed from cal_IDs
-        cal_combos = []
-
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
 
@@ -725,10 +722,7 @@ class LPP(object):
             phot.loc[self.cal_IDs, 'Mag_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, img.filter.upper()]
             phot.loc[self.cal_IDs, 'RA_diff'] = np.abs(phot.loc[self.cal_IDs, 'RA_obs'] - phot.loc[self.cal_IDs, 'RA_cal'])
             phot.loc[self.cal_IDs, 'DEC_diff'] = np.abs(phot.loc[self.cal_IDs, 'DEC_obs'] - phot.loc[self.cal_IDs, 'DEC_cal'])
-            #cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_obs', 'RA_cal', 'DEC_obs', 'DEC_cal', 'Mag_obs', 'Mag_cal']])
             cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_diff', 'DEC_diff', 'Mag_obs', 'Mag_cal', 'ref_in']])
-            #if phot.loc[self.cal_IDs, 'ref_in'].tolist() not in cal_combos:
-            cal_combos.append(phot.loc[self.cal_IDs, 'ref_in'].tolist())
 
             # check for success if in final pass mode
             if final_pass:
@@ -738,7 +732,6 @@ class LPP(object):
                     self.csfIndex.append(idx)
 
         self.calibrators = pd.concat([df.loc[self.cal_IDs, :] for df in cal_list], keys = self.wIndex)
-        #return self.calibrators, cal_combos
 
         # remove failures if in final pass mode
         if final_pass:
@@ -755,13 +748,15 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def do_calibration(self):
+    def do_calibration(self, force_clear = False, use_filts = 'all'):
         '''check calibration and make cuts as needed'''
 
         self.log.info('performing calibration')
 
         # get filters used
         self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
+        if use_filts == 'all':
+            use_filts = self.filters
 
         # iterate until acceptable tolerance is reached
         accept_tol = False
@@ -783,12 +778,14 @@ class LPP(object):
 
             # group by filter and perform comparison
             for filt, group in self.calibrators.groupby('Filter', sort = False):
-                # if clear is not the only filter, skip it in comparison
-                if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR'):
+                # use specific filters if specified
+                if filt not in use_filts:
+                    continue
+                # if clear is not the only filter, skip it in comparison unless forced to use
+                if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR') and (not force_clear):
                     continue
                 df = group.median(level = 1)
                 df.loc[:, 'pct_im'] = group['Mag_obs'].notnull().sum(level=1) / len(group['Mag_obs'].groupby(level=0))
-                #group.mean(level = 1).loc[:, 'ref_in'] the above replaces this line
                 df.loc[:, 'std_obs'] = group.std(level = 1).loc[:, 'Mag_obs']
                 df = df.sort_index()
                 df.loc[:, 'Mag_diff'] = df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal']
@@ -832,12 +829,13 @@ class LPP(object):
                     print('\nWarning - the following images have the minimum number of ref stars ({}):'.format(self.min_ref_num))
                     print(ref_counts.index[ref_counts == self.min_ref_num])
                     print('\nDo not cut the following IDs to avoid falling below the minimum:')
-                    idx_selector = (ref_counts.index[ref_counts < 10], self.cal_IDs)
+                    idx_selector = (ref_counts.index[ref_counts == self.min_ref_num], self.cal_IDs)
                     num_affected = self.calibrators.loc[idx_selector, 'Mag_obs'].notnull().sum(level=1)
                     print(num_affected.index[num_affected > 0].sort_values())
                 print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print(sorted(cut_list))
                 response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
+                plt.ioff()
                 plt.close()
                 if (response == '') or ('y' in response.lower()):
                     self.cal_IDs = self.cal_IDs.drop(cut_list)
@@ -876,6 +874,7 @@ class LPP(object):
         catalog.to_natural()
 
         # show new ref stars
+        plt.ioff()
         self._display_refstars()
 
     def get_zeromag_all_image(self):
@@ -1415,7 +1414,6 @@ class LPP(object):
     def compare_image2ref(self, idx):
         '''plot ref image and selected image side by side'''
 
-        #fig, (ax1, ax2) = plt.subplots(1, 2, figsize = (12, 6))
         fig = plt.figure(figsize = (12, 6))
         ref = Phot(self.refname)
         wcs1 = WCS(header = ref.header)
@@ -1424,7 +1422,6 @@ class LPP(object):
         wcs2 = WCS(header = self.phot_instances.loc[idx].header)
         ax2 = fig.add_subplot(1, 2, 2, projection = wcs2)
         self.phot_instances.loc[idx].display_image(ax = ax2, display = False)
-        plt.tight_layout()
         fig.show()
 
 # provide script functionality via
