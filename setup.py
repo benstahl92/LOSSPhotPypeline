@@ -7,12 +7,6 @@ import os
 import shutil
 import sys
 
-try:
-	import pidly
-	from pexpect.exceptions import ExceptionPexpect
-except ModuleNotFoundError:
-	sys.exit('Please install the python package "pIDLy" before proceeding.')
-
 # get root directory of codebase
 root_dir = os.path.realpath('.')
 
