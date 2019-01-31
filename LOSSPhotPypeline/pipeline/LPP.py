@@ -966,7 +966,7 @@ class LPP(object):
         self._log_idl(idl_cmd, stdout, stderr)
 
     def generate_final_lc(self, color_term, infile, outfile):
-        '''wraps IDL routine to convert to natural system'''
+        '''wraps IDL routine to convert from natural system'''
 
         idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile)
         stdout, stderr = LPPu.idl(idl_cmd)
@@ -1126,6 +1126,11 @@ class LPP(object):
         tmp = self.wIndex
         self.wIndex = pd.RangeIndex(start = offset, stop = offset + len(new_image_list))
 
+        # only proceed if any images remain
+        if len(new_image_list) == 0:
+            self.log.warn('all images in new image list have already been processed, exiting')
+            return
+
         # update image list to include everything, and update phot_instances
         self.log.info('loading new images')
         self.image_list = self.image_list.append(new_image_list, ignore_index = True)
@@ -1145,7 +1150,8 @@ class LPP(object):
         if full_cal:
             self.current_step = self.steps.index(self.do_calibration)
         else:
-            self.calibrate(second_pass = True)
+            self.calibrate(final_pass = True)
+            self.get_zeromag_all_image()
             self.get_limmag_all_image()
             self.current_step = self.steps.index(self.generate_lc)
 
