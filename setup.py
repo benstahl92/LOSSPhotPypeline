@@ -10,12 +10,6 @@ import sys
 # get root directory of codebase
 root_dir = os.path.realpath('.')
 
-# check that idl is properly configured
-try:
-	pidly.IDL()
-except ExceptionPexpect:
-	sys.exit('IDL executable not found. Make sure it is set appropriately in your .bashrc file')
-
 # check that required executables can be found
 required_execs = ['ds9, sex']
 for ex in required_execs:
