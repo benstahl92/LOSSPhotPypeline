@@ -39,7 +39,7 @@ class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
     def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
-                 wdir = '.', override_ref_check = True):
+                 wdir = '.', override_ref_check = True, sep_tol = 8):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -57,6 +57,7 @@ class LPP(object):
         self.checks = ['filter', 'date'] # default checks to perform on image list
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
         self.override_ref_check = override_ref_check # override requirement that each image have all ref stars
+        self.sep_tol = sep_tol # radius around target in arcseconds to exclude candidate reference stars from
 
         # log file
         self.logfile = self.targetname.lower().replace(' ', '') + '.log'
@@ -512,31 +513,12 @@ class LPP(object):
         cs = WCS(header = ref.header)
         imagera, imagedec = cs.all_pix2world(imagex, imagey, 0)
 
-        # check each image to identify ref stars to disregard
-        if self.override_ref_check is False:
-            self.log.info('finding common ref stars')
-            def check(img):
-                cs = WCS(header = img.header)
-                # ref star location as a fraction of total pixels
-                r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 0) / np.array(cs._naxis)
-                # bad reference stars are outside an image
-                bad_ref = np.any(((r < 0) | (r > 1)), axis = 1)
-                return bad_ref
-            overall_bad_ref = self.phot_instances.loc[self.wIndex].apply(check).sum()
-            imagera = imagera[np.logical_not(overall_bad_ref)]
-            self.log.info('{} out of {} ref stars are common for all images'.format(len(imagera), len(imagedec)))
-            imagedec = imagedec[np.logical_not(overall_bad_ref)]
-
-            if len(imagera) == 0:
-                self.log.info('no common reference stars found, is the ref image good?')
-                self.run_success = False
-                self.current_step = self.steps.index(self.write_summary) - 1
-                return
-            if len(imagera) < self.min_ref_num:
-                self.log.warn('not enough common ref stars found, quitting')
-                self.run_success = False
-                self.current_step = self.steps.index(self.write_summary) - 1
-                return
+        # remove any identified "stars" that are too close to target
+        coords = SkyCoord(imagera, imagedec, unit = (u.deg, u.deg))
+        target_coords = SkyCoord(self.targetra, self.targetdec, unit = (u.deg, u.deg))
+        offsets = coords.separation(target_coords).arcsecond
+        imagera = imagera[offsets < self.sep_tol]
+        imagedec = imagedec[offsets < self.sep_tol]
 
         # write radec file
         with open(self.radecfile, 'w') as f:
@@ -757,6 +739,35 @@ class LPP(object):
         self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
         if use_filts == 'all':
             use_filts = self.filters
+
+        # check each image to identify ref stars to disregard
+        if self.override_ref_check is False:
+            self.log.info('finding common ref stars')
+            # color term is arbitrary in next two lines b/c just getting coordinates
+            imagera = self.cal_arrays['kait4'].loc[self.cal_IDs, 'RA']
+            imagedec = self.cal_arrays['kait4'].loc[self.cal_IDs, 'DEC']
+            def check(img):
+                cs = WCS(header = img.header)
+                # ref star location as a fraction of total pixels
+                r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 0) / np.array(cs._naxis)
+                # bad reference stars are outside an image
+                bad_ref = np.any(((r < 0) | (r > 1)), axis = 1)
+                return bad_ref
+            overall_bad_ref = self.phot_instances.loc[self.wIndex].apply(check).sum()
+            before_cnt = len(self.cal_IDs)
+            self.cal_IDs = self.cal_IDs[np.logical_not(overall_bad_ref)]
+            self.log.info('{} out of {} ref stars are common for all images'.format(len(self.cal_IDs), before_cnt))
+
+            if len(self.cal_IDs) == 0:
+                self.log.info('no common reference stars found, is the ref image good?')
+                self.run_success = False
+                self.current_step = self.steps.index(self.write_summary) - 1
+                return
+            if len(self.cal_IDs) < self.min_ref_num:
+                self.log.warn('not enough common ref stars found, quitting')
+                self.run_success = False
+                self.current_step = self.steps.index(self.write_summary) - 1
+                return
 
         # iterate until acceptable tolerance is reached
         accept_tol = False
