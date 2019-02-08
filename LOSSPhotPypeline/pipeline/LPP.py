@@ -517,8 +517,8 @@ class LPP(object):
         coords = SkyCoord(imagera, imagedec, unit = (u.deg, u.deg))
         target_coords = SkyCoord(self.targetra, self.targetdec, unit = (u.deg, u.deg))
         offsets = coords.separation(target_coords).arcsecond
-        imagera = imagera[offsets < self.sep_tol]
-        imagedec = imagedec[offsets < self.sep_tol]
+        imagera = imagera[offsets > self.sep_tol]
+        imagedec = imagedec[offsets > self.sep_tol]
 
         # write radec file
         with open(self.radecfile, 'w') as f:
