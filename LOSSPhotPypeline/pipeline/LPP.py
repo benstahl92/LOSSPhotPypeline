@@ -743,6 +743,7 @@ class LPP(object):
             use_filts = self.filters
 
         # check each image to identify ref stars to disregard
+        cal_IDs_temp_copy=self.cal_IDs
         if self.override_ref_check is False:
             self.log.info('finding common ref stars')
             # color term is arbitrary in next two lines b/c just getting coordinates
@@ -762,18 +763,23 @@ class LPP(object):
 
             if len(self.cal_IDs) == 0:
                 self.log.info('no common reference stars found, is the ref image good?')
-                self.run_success = False
-                self.current_step = self.steps.index(self.write_summary) - 1
-                return
+                override_ref_check_failed = True
             if len(self.cal_IDs) < self.min_ref_num:
                 self.log.warn('not enough common ref stars found, quitting')
-                self.run_success = False
-                self.current_step = self.steps.index(self.write_summary) - 1
-                return
+                override_ref_check_failed = True
+            #self.run_success = False
+            #self.current_step = self.steps.index(self.write_summary) - 1
+
+            ##instead
+            ##set the cal stars to all again, and later pick the 4 most common reference stars
+            if override_ref_check_failed :
+                self.log.info('set the cal stars to all again, and later pick the 90% common reference stars')
+                self.cal_IDs = cal_IDs_temp_copy
 
         # iterate until acceptable tolerance is reached
         accept_tol = False
         skip_calibrate = False
+        currentrepeattimes=1
         while not accept_tol:
 
             # run calibration
@@ -803,7 +809,13 @@ class LPP(object):
                 df = df.sort_index()
                 df.loc[:, 'Mag_diff'] = df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal']
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_diff'])
-                cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
+                #################################################################
+                if currentrepeattimes == 1 and override_ref_check_failed :
+                    cut_list.extend(list(df.index[df.loc[:, 'pct_im'] < 0.90]))
+                else :
+                    cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
+                #################################################################
+                #cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
                 nan_list.extend(list(df.index[df.loc[:, 'Diff'].isnull()]))
                 if len(nan_list) > 0:
                     break
@@ -830,6 +842,15 @@ class LPP(object):
                 continue
 
             # make cuts to refstars as needed
+            #################################################################
+            if currentrepeattimes == 1 and override_ref_check_failed :
+                self.log.info('override_ref_check_failed, only using 90% command ref stars:')
+                self.cal_IDs = self.cal_IDs.drop(cut_list)
+                currentrepeattimes=currentrepeattimes+1
+                continue
+            currentrepeattimes=currentrepeattimes+1
+            #################################################################
+
             if self.interactive:
                 self._display_refstars(display = True)
                 print('*'*60)
