@@ -39,7 +39,7 @@ class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
     def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
-                 wdir = '.', override_ref_check = True, sep_tol = 8):
+                 wdir = '.', override_ref_check = True, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -54,6 +54,8 @@ class LPP(object):
         self.cal_diff_tol = cal_diff_tol # starting calibration difference tolerance
         self.abs_cal_tol = 0.2 # do not proceed with the pipeline if in non-interactive mode and cal tol exceeds this
         self.min_ref_num = 2 # minimum number of ref stars
+        self.pct_increment = pct_increment # amount to increment percentage requirement down by if doing ref check
+        self.in_pct_floor = in_pct_floor # minimum percentage of images ref stars must be in if doing ref check
         self.checks = ['filter', 'date'] # default checks to perform on image list
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
         self.override_ref_check = override_ref_check # override requirement that each image have all ref stars
@@ -740,34 +742,45 @@ class LPP(object):
         if use_filts == 'all':
             use_filts = self.filters
 
-        # check each image to identify ref stars to disregard
+        # identify ref stars to disregard (if they are not in a sufficient pct of images)
         if self.override_ref_check is False:
             self.log.info('finding common ref stars')
-            # color term is arbitrary in next two lines b/c just getting coordinates
-            imagera = self.cal_arrays['kait4'].loc[self.cal_IDs, 'RA']
-            imagedec = self.cal_arrays['kait4'].loc[self.cal_IDs, 'DEC']
-            def check(img):
+
+            # define checking function
+            def check(img, imagera, imagedec):
                 cs = WCS(header = img.header)
                 # ref star location as a fraction of total pixels
                 r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 0) / np.array(cs._naxis)
-                # bad reference stars are outside an image
-                bad_ref = np.any(((r < 0) | (r > 1)), axis = 1)
-                return bad_ref
-            overall_bad_ref = self.phot_instances.loc[self.wIndex].apply(check).sum()
-            before_cnt = len(self.cal_IDs)
-            self.cal_IDs = self.cal_IDs[np.logical_not(overall_bad_ref)]
-            self.log.info('{} out of {} ref stars are common for all images'.format(len(self.cal_IDs), before_cnt))
+                # good ref stars are within image
+                good_ref = np.any(((r > 0) & (r < 1)), axis = 1)
+                return 1 * good_ref # express boolean array as 0's and 1's
 
-            if len(self.cal_IDs) == 0:
-                self.log.info('no common reference stars found, is the ref image good?')
-                self.run_success = False
-                self.current_step = self.steps.index(self.write_summary) - 1
-                return
-            if len(self.cal_IDs) < self.min_ref_num:
-                self.log.warn('not enough common ref stars found, quitting')
-                self.run_success = False
-                self.current_step = self.steps.index(self.write_summary) - 1
-                return
+            # color term is arbitrary in next two lines b/c just getting coordinates
+            imagera = self.cal_arrays['kait4'].loc[self.cal_IDs, 'RA']
+            imagedec = self.cal_arrays['kait4'].loc[self.cal_IDs, 'DEC']
+
+            # set iteration params
+            cal_IDs_tmp = self.cal_IDs
+            accept = False
+            cnt = 0
+            while not accept:
+
+                # do the check, and get results as a percentage of images each ref star is in
+                ref_in_pct = self.phot_instances.loc[self.wIndex].apply(lambda img: check(img, imagera, imagedec)).mean()
+
+                # determine what to do
+                current_pct = 1 - self.pct_increment * cnt
+                if current_pct >= self.in_pct_floor:
+                    cal_IDs_tmp = self.cal_IDs[ref_in_pct >= current_pct]
+                else:
+                    self.log.warn('reached minimum tolerance for pct image including ref stars, quitting')
+                    return
+                if len(cal_IDs_tmp) >= self.min_ref_num:
+                    self.log.info('{} ref stars are in at least {} pct of images, using these'.format(len(cal_IDs_tmp), 100*current_pct))
+                    accept = True
+                cnt += 1
+
+            self.cal_IDs = cal_IDs_tmp
 
         # iterate until acceptable tolerance is reached
         accept_tol = False
