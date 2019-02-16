@@ -39,7 +39,7 @@ class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
     def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
-                 wdir = '.', override_ref_check = True, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8):
+                 wdir = '.', override_ref_check = True, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -171,6 +171,8 @@ class LPP(object):
                 load = input('Load saved state from {}? ([y]/n) > '.format(self.savefile))
             else:
                 load = 'n' # run fresh if in non-interactive mode
+                if autoloadsave :
+                        load = 'y' # run fresh if in non-interactive mode, unless this keyword is set
             if 'n' not in load.lower():
                 self.load()
 
