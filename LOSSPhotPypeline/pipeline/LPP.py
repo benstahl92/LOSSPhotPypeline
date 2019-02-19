@@ -677,9 +677,6 @@ class LPP(object):
         # calibration list
         cal_list = []
 
-        if self.cal_IDs == 'all':
-            self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
-
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
 
@@ -754,9 +751,11 @@ class LPP(object):
                 # ref star location as a fraction of total pixels
                 r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 0) / np.array(cs._naxis)
                 # good ref stars are within image
-                good_ref = np.any(((r > 0) & (r < 1)), axis = 1)
+                good_ref = np.all(((r > 0) & (r < 1)), axis = 1)
                 return 1 * good_ref # express boolean array as 0's and 1's
 
+            if self.cal_IDs == 'all':
+                self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
             # color term is arbitrary in next two lines b/c just getting coordinates
             imagera = self.cal_arrays['kait4'].loc[self.cal_IDs, 'RA']
             imagedec = self.cal_arrays['kait4'].loc[self.cal_IDs, 'DEC']
