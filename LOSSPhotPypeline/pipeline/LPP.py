@@ -580,7 +580,7 @@ class LPP(object):
         else:
             self._display_refstars()
 
-    def do_galaxy_subtraction_all_image(self):
+    def do_galaxy_subtraction_all_image(self, subreg = 0.9):
         '''performs galaxy subtraction on all selected image files'''
 
         if not self.photsub:
@@ -598,7 +598,7 @@ class LPP(object):
 
         # set up for parallelization
         ti = self.template_images
-        fn = lambda img: img.galaxy_subtract(ti)
+        fn = lambda img: img.galaxy_subtract(ti, subreg = subreg)
 
         # do galaxy subtraction in the appropriate mode
         if self.parallel is True:

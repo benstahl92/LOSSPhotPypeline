@@ -49,7 +49,7 @@ class Phot(FitsInfo):
 
         # execute idl commmand if possible, then store results
         if template_images[selector] is not None:
-            idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', /OUTPUT"'''.format(self.cimg, template_images[selector])
+            idl_cmd = '''idl -e "lpp_kait_photsub, '{}', '{}', subreg={}, /OUTPUT"'''.format(self.cimg, template_images[selector], subreg)
             stdout, stderr = LPPu.idl(idl_cmd, wdir = self.wdir)
             sub_idl = (idl_cmd, stdout, stderr)
             return True, sub_idl
