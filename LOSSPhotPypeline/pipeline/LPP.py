@@ -39,7 +39,7 @@ class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
     def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
-                 wdir = '.', override_ref_check = True, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
+                 wdir = '.', cal_use_common_ref_stars = True, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -58,11 +58,11 @@ class LPP(object):
         self.in_pct_floor = in_pct_floor # minimum percentage of images ref stars must be in if doing ref check
         self.checks = ['filter', 'date'] # default checks to perform on image list
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
-        self.override_ref_check = override_ref_check # override requirement that each image have all ref stars
+        self.cal_use_common_ref_stars = cal_use_common_ref_stars # override requirement that each image have all ref stars
         self.sep_tol = sep_tol # radius around target in arcseconds to exclude candidate reference stars from
 
         # log file
-        self.logfile = self.targetname.lower().replace(' ', '') + '.log'
+        self.logfile = self.targetname.replace(' ', '') + '.log'
         self.build_log()
 
         # sourced from configuration file
@@ -115,6 +115,7 @@ class LPP(object):
         self.radec = None
         self.cal_IDs = 'all'
         self.cal_arrays = None
+        self.cal_force_clear = False
 
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
@@ -165,7 +166,7 @@ class LPP(object):
                       self.write_summary]
 
         # save file
-        self.savefile = self.targetname.lower().replace(' ', '') + '.sav'
+        self.savefile = self.targetname.replace(' ', '') + '.sav'
         if os.path.exists(self.savefile):
             if self.interactive:
                 load = input('Load saved state from {}? ([y]/n) > '.format(self.savefile))
@@ -731,7 +732,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def do_calibration(self, force_clear = False, use_filts = 'all'):
+    def do_calibration(self, use_filts = 'all'):
         '''check calibration and make cuts as needed'''
 
         self.log.info('performing calibration')
@@ -741,8 +742,11 @@ class LPP(object):
         if use_filts == 'all':
             use_filts = self.filters
 
+        if self.cal_IDs == 'all':
+            self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
+
         # identify ref stars to disregard (if they are not in a sufficient pct of images)
-        if self.override_ref_check is False:
+        if self.cal_use_common_ref_stars is True:
             self.log.info('finding common ref stars')
 
             # define checking function
@@ -754,8 +758,6 @@ class LPP(object):
                 good_ref = np.all(((r > 0) & (r < 1)), axis = 1)
                 return 1 * good_ref # express boolean array as 0's and 1's
 
-            if self.cal_IDs == 'all':
-                self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
             # color term is arbitrary in next two lines b/c just getting coordinates
             imagera = self.cal_arrays['kait4'].loc[self.cal_IDs, 'RA']
             imagedec = self.cal_arrays['kait4'].loc[self.cal_IDs, 'DEC']
@@ -807,7 +809,7 @@ class LPP(object):
                 if filt not in use_filts:
                     continue
                 # if clear is not the only filter, skip it in comparison unless forced to use
-                if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR') and (not force_clear):
+                if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR') and (not self.cal_force_clear):
                     continue
                 df = group.median(level = 1)
                 df.loc[:, 'pct_im'] = group['Mag_obs'].notnull().sum(level=1) / len(group['Mag_obs'].groupby(level=0))
