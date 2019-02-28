@@ -121,7 +121,6 @@ class LPP(object):
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
                             'nickel1': 0, 'nickel2': 0,
                             'Landolt': 0}
-        self.color_terms_used = None
 
         # load configuration file
         loaded = False
@@ -671,7 +670,6 @@ class LPP(object):
             self.log.info('doing final calibration')
 
         # reset trackers
-        self.color_terms = {key: 0 for key in self.color_terms.keys()}
         self.cfIndex = []
         self.csfIndex = []
 
@@ -681,11 +679,6 @@ class LPP(object):
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
 
-            # count usage of color terms
-            if self.force_color_term is False:
-                self.color_terms[img.color_term] += 1
-            else:
-                self.color_terms[self.force_color_term] += 1
 
             # set photsub mode appropriately
             if self.photsub is False:
@@ -1027,6 +1020,12 @@ class LPP(object):
 
         return True, True
 
+    def get_color_term_used(self):
+        '''get dictionary counting use of each color term'''
+
+        ct = self.phot_instances.loc[self.wIndex].apply(lambda img: img.color_term)
+        self.color_terms_used = dict(ct.value_counts())
+
     def generate_lc(self, sub = False):
         '''performs all functions to transform image photometry into calibrated light curve of target'''
 
@@ -1036,8 +1035,7 @@ class LPP(object):
         if not os.path.isdir(self.lc_dir):
             os.makedirs(self.lc_dir)
 
-        # select only colors terms that are used
-        self.color_terms_used = {key: self.color_terms[key] for key in self.color_terms.keys() if self.color_terms[key] > 0}
+        self.get_color_term_used()
 
         # generate raw light curves
         self.log.info('generating raw light curves for the following color terms: {}'.format(', '.join(self.color_terms_used.keys())))
