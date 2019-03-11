@@ -229,7 +229,7 @@ class plotLC:
         '''write cut lc to file of same format that it was read from'''
 
         if fname is None:
-            fname = self.lc_file.replace('.dat', '_cut.dat')
+            fname = self.lc_file#.replace('.dat', '_cut.dat')
         if self.raw is None: # it was a "standard" file
             cols = self.lc_cut.columns[self.lc_cut.columns != 't_rel']
             self.lc_cut.to_csv(fname, sep = '\t', na_rep = 'NaN', index = False, columns = cols)
@@ -297,6 +297,7 @@ class plotLC:
 
         if icut is False:
             fig, ax = self._setup_plot()
+
         else:
             drop_dict = {filt: set() for filt in self.filters}
 
@@ -352,7 +353,12 @@ class plotLC:
         if icut is True:
             self._drop_lc_points(drop_dict)
             self.write_cut_lc()
-            self.plot_lc(lc = self.lc_cut, magerr_cut = False, extensions = ['_cut{}'.format(ext) for ext in extensions])
+            # get name of images to cut
+            images = []
+            for filt in drop_dict.keys():
+                images.extend(list(self.raw.loc[drop_dict[filt], 'imagename']))
+            return images
+            #self.plot_lc(lc = self.lc_cut, magerr_cut = False, extensions = ['_cut{}'.format(ext) for ext in extensions])
         else:
             # workaround for bugs with the legend
             handles, labels = ax.get_legend_handles_labels()

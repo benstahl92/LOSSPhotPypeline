@@ -1083,9 +1083,9 @@ class LPP(object):
     def write_summary(self):
         '''write summary file'''
 
-        if self.current_step != (len(self.steps) - 1):
-            print('processing must be done before summary can be written')
-            return
+        #if self.current_step != (len(self.steps) - 1):
+        #    print('processing must be done before summary can be written')
+        #    return
 
         # get filters used
         self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
@@ -1277,10 +1277,15 @@ class LPP(object):
 
         self.log.info('working on {}'.format(lc_file))
         p = LPPu.plotLC(lc_file = lc_file)
-        p.plot_lc(icut = True, extensions = ['.ps', '.png'])
+        cut_images = p.plot_lc(icut = True)
+        self.manual_remove(self.aIndex[self.image_list.isin(cut_images)])
+        del p
+        p = LPPu.plotLC(lc_file = lc_file)
+        p.plot_lc(extensions = ['.ps', '.png'])
 
         if regenerate is True:
-            self.raw2standard_lc(lc_file.replace('.dat', '_cut.dat'))
+            #self.raw2standard_lc(lc_file.replace('.dat', '_cut.dat'))
+            self.raw2standard_lc(lc_file)
 
     def cut_raw_all_lc_points(self, infile):
         '''given "all" raw filename (need not exist), do cutting on relevant raw files and regenerate "all" files'''
@@ -1288,7 +1293,7 @@ class LPP(object):
         # assign convenience variables
         tmp = infile.split('_')
         m = tmp[tmp.index('natural') - 1] # get phot aperture
-        groupfile = infile.replace('raw', 'group').replace('.dat', '_cut.dat')
+        groupfile = infile.replace('raw', 'group')#.replace('.dat', '_cut.dat')
         lc = groupfile.replace('natural_group', 'standard')
 
         all_nat = []
@@ -1482,7 +1487,10 @@ if __name__ == '__main__':
     elif (args.new is False) and (args.lc_file is not None):
         pipeline.cut_lc_points(args.lc_file)
     elif (args.new is False) and (args.raw_lc_file is not None):
+        pipeline.load()
         pipeline.cut_lc_points(args.raw_lc_file, regenerate = True)
+        pipeline.save()
+        pipeline.write_summary()
     else:
         pipeline.load() # load from sav file
         if '_c.fit' in args.new:
