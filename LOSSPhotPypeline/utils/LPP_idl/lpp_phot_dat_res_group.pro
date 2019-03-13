@@ -62,7 +62,14 @@ for i=0,number-1 do begin
         endif
       endfor
       currentgroup=currentgroup+maxsubgroup
-    endif
+    endif else begin
+    ;;Found another bug on 190313, in a rare case, if the second line 
+    ;;is another group in same filter, the old code will bin this two lines
+    ;;old code only stop after endif. Here are else can solve the problem.
+      if (ind ne -1) or (ind eq -1 and currentgroup eq 1) then begin
+        currentgroup=currentgroup+1
+      endif
+    endelse
   endif
 endfor
 totalgroups=currentgroup-1
