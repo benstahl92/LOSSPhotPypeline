@@ -42,7 +42,7 @@ class Phot(FitsInfo):
         except InvalidTransformError:
             return False
 
-    def galaxy_subtract(self, template_images):
+    def galaxy_subtract(self, template_images, subreg = 0.9):
         '''perform galaxy subraction by wrapping IDL procedure'''
 
         selector = '{}_{}'.format(self.filter.upper(), self.telescope.lower())
