@@ -1278,7 +1278,8 @@ class LPP(object):
         self.log.info('working on {}'.format(lc_file))
         p = LPPu.plotLC(lc_file = lc_file)
         cut_images = p.plot_lc(icut = True)
-        self.manual_remove(self.aIndex[self.image_list.isin(cut_images)])
+        if cut_images is not None:
+            self.manual_remove(self.aIndex[self.image_list.isin(cut_images)])
         del p
         p = LPPu.plotLC(lc_file = lc_file)
         p.plot_lc(extensions = ['.ps', '.png'])

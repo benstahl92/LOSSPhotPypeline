@@ -281,6 +281,11 @@ class plotLC:
             extensions to write image files
         '''
 
+        # check if there is data to plot and return if not
+        if len(self.lc.loc[self.lc['B'].notnull(), :]) == 0:
+            print('no data to plot')
+            return None
+
         # set plot attributes
         if style is None:
             style = self.style
@@ -354,9 +359,12 @@ class plotLC:
             self._drop_lc_points(drop_dict)
             self.write_cut_lc()
             # get name of images to cut
-            images = []
-            for filt in drop_dict.keys():
-                images.extend(list(self.raw.loc[drop_dict[filt], 'imagename']))
+            if self.raw is not None:
+                images = []
+                for filt in drop_dict.keys():
+                    images.extend(list(self.raw.loc[drop_dict[filt], 'imagename']))
+            else:
+                images = None
             return images
             #self.plot_lc(lc = self.lc_cut, magerr_cut = False, extensions = ['_cut{}'.format(ext) for ext in extensions])
         else:
