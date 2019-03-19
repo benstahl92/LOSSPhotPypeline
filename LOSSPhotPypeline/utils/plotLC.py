@@ -282,7 +282,8 @@ class plotLC:
         '''
 
         # check if there is data to plot and return if not
-        if len(self.lc.loc[self.lc['B'].notnull(), :]) == 0:
+        #if len(self.lc.loc[self.lc['B'].notnull(), :]) == 0:
+        if len(self.lc.loc[self.lc.loc[:, ['B','V','R','I','CLEAR']].notnull().sum(axis=1),:]) == 0:
             print('no data to plot')
             return None
 
