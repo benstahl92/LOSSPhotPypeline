@@ -26,6 +26,14 @@ if direction eq 1 then begin
   starst.V = (V1 + V2)/2.0
   starst.R = (R1 + R2)/2.0
   starst.I = (I1 + I2)/2.0
+  ;;;zwk added on 190318. The error is simply use this sqrt(E1^2+E2^2+E3^3) where E1 E2 are from each
+  ;;;filter, while E3 is from the transormation equation method 2, E3 taken from Table 6
+  starst.EB = sqrt(starst.ESG^2+starst.ESR^2+0.034^2)
+  starst.EV = sqrt(starst.ESG^2+starst.ESR^2+0.012^2)
+  starst.ER = sqrt(starst.ESG^2+starst.ESR^2+0.015^2)
+  starst.EI = sqrt(starst.ESG^2+starst.ESR^2+0.015^2)
+  starst.EC = sqrt(starst.ESI^2+starst.ESG^2+0.015^2)
+  starst.ECLEAR = starst.EC
 endif
 if direction eq 2 then begin
   print,'JohnsonCousins -> PS1 is not working, fix it'

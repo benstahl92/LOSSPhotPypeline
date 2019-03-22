@@ -27,6 +27,13 @@ stars.SI=ps1st.i
 stars.SZ=ps1st.z
 stars.C=ps1st.r
 stars.CLEAR=ps1st.r
+;;zwk added on 190318. added error
+stars.ESG=ps1st.gErr
+stars.ESR=ps1st.rErr
+stars.ESI=ps1st.iErr
+stars.ESZ=ps1st.zErr
+stars.EC=ps1st.rErr
+stars.ECLEAR=ps1st.rErr
 lpp_mag_ps1_jc,1,stars
 stars.C=stars.R
 stars.CLEAR=stars.R
