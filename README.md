@@ -194,4 +194,4 @@ Miscellaneous notes on running the pipeline
    >>> sn.show_methods()
    [...]
    ```
-
+# FAQ
