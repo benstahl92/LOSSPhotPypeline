@@ -203,7 +203,7 @@ if fail eq 0 then begin
   ;imagedata=mrdfits(image,0,/silent)
   ;imagedata=readfits(image,imhdr)
   lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
-    ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
+    ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,imagest.psffitarr,psfmag=psfmag,/quiet,fail=fail
   if fail ne 0 then begin
     ;;print,'psf failed'
     if keyword_set(output) then print,'first try making PSF failed, now using all the stars'
@@ -217,7 +217,7 @@ if fail eq 0 then begin
     inds=lindgen(nw)
     fail=0
     lpp_getpsf,imagedata,psfstarx,psfstary,psfstarmags,psfstarskys $
-      ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,'',psfmag=psfmag,/quiet,fail=fail
+      ,ccdronoise,ccdgain,gauss,psf,inds,psfrad,fitrad,imagest.psffitarr,psfmag=psfmag,/quiet,fail=fail
     if fail ne 0 then begin
       if keyword_set(output) then print,'second trying making PSF failed too, can not do PSF phot, quiting'
       fail=1

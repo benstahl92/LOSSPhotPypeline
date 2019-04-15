@@ -60,6 +60,7 @@ class FileNames(object):
         self.aptdat    = self.root + '_apt.dat'
         self.psf       = self.root + '_psf.txt'
         self.psfsub    = self.root + '_psfsub.txt'
+        self.psffitarr = self.root + '_psffitarr.fit'
         self.psfdat    = self.root + '_psf.dat'
         self.psfsubdat = self.root + '_psfsub.dat'
         self.standrd   = self.root + '_standrd.txt'

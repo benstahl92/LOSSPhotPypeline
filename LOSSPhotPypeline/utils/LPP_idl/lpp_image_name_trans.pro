@@ -5,7 +5,7 @@ if n_params() eq 0 then begin
   return
 endif
 
-imagenamest={ori:'', dir: '', root:'', cimg:'',sobj:'',cobj:'', cwcs:'', cnew:'', ctwp:'', cfwp:'', ctcv:'', cfcv:'', ctsb:'', cfsb:'', cph:'', ctph:'', sbph:'', cand:'', sobjdir:'./' , fwhm:'', obj:'', apt:'', aptdat:'', aptsub:'', aptsubdat:'', psf:'', psfdat:'', psfsub:'', psfsubdat:'', standrd:'', standxy:'', objectrd:'', sky:'', apass:'', zero:''}
+imagenamest={ori:'', dir: '', root:'', cimg:'',sobj:'',cobj:'', cwcs:'', cnew:'', ctwp:'', cfwp:'', ctcv:'', cfcv:'', ctsb:'', cfsb:'', cph:'', ctph:'', sbph:'', cand:'', sobjdir:'./' , fwhm:'', obj:'', apt:'', aptdat:'', aptsub:'', aptsubdat:'', psf:'', psfdat:'', psfsub:'', psfsubdat:'', psffitarr:'',standrd:'', standxy:'', objectrd:'', sky:'', apass:'', zero:''}
 
 dir=strmid(inputname[0],0,strpos(inputname[0],'/',/REVERSE_SEARCH))
 imagedir=''
@@ -60,6 +60,7 @@ strreplace,imagename,'_psf.txt',''
 strreplace,imagename,'_psf.dat',''
 strreplace,imagename,'_psfsub.txt',''
 strreplace,imagename,'_psfsub.dat',''
+strreplace,imagename,'_psffitarr.fit',''
 strreplace,imagename,'_standrd.txt',''
 strreplace,imagename,'_standxy.txt',''
 strreplace,imagename,'_sky.txt',''
@@ -93,6 +94,7 @@ imagenamest.psf=dir + imagedir + imagenamest.root + '_psf.txt'
 imagenamest.psfdat=dir + imagedir + imagenamest.root + '_psf.dat'
 imagenamest.psfsub=dir + imagedir + imagenamest.root + '_psfsub.txt'
 imagenamest.psfsubdat=dir + imagedir + imagenamest.root + '_psfsub.dat'
+imagenamest.psffitarr=dir + imagedir + imagenamest.root + '_psffitarr.fit'
 imagenamest.standrd=dir + imagedir + imagenamest.root + '_standrd.txt'
 ;imagenamest.standxy=dir + imagedir + imagenamest.root + '_standxy.txt'
 imagenamest.objectrd=dir + imagedir + imagenamest.root + '_objectrd.txt'

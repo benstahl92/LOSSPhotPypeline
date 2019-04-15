@@ -128,6 +128,9 @@ class Phot(FitsInfo):
         out = (self.phot['ximage'] < 0) | (self.phot['ximage'] > cs._naxis[0]) | (self.phot['yimage'] < 0) | (self.phot['yimage'] > cs._naxis[1])
         self.phot.loc[out, 'ref_in'] = 0
 
+        # include color term
+        self.phot.loc[:, 'system'] = self.color_term
+
         # write dat files if requested
         if write_dat is True:
             self.phot.index = self.phot.index + 2
