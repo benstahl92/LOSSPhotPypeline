@@ -746,6 +746,7 @@ class LPP(object):
         accept_tol = False
         skip_calibrate = False
         iter_cnt = -1
+        qc_cnt = -1
         while not accept_tol:
 
             # run calibration
@@ -761,15 +762,16 @@ class LPP(object):
             cal_succ = (1 - locs.levels[1][locs.labels[1]].value_counts() / len(self.wIndex))
 
             # run minimal quality cuts
-            if quality_cuts:
+            qc_cnt += 1
+            if (quality_cuts is True) and (qc_cnt < 2):
                 # remove any cal IDs or images with a very low success rate
                 ID_cut = cal_succ.index[cal_succ < 0.4]
-                if len(ID_cut > 0):
+                if (len(ID_cut) > 0) and (qc_cnt == 0):
                     self.cal_IDs = self.cal_IDs.drop(ID_cut)
                     self.log.info('cut IDs: {} from minimal quality cut'.format(ID_cut))
                     continue
                 img_cut = img_succ.index[img_succ < 0.4]
-                if len(img_cut > 0):
+                if (len(img_cut) > 0) and (qc_cnt == 1):
                     self.manual_remove(img_cut)
                     self.log.info('cut images: {} from minimal quality cut'.format(img_cut))
                     continue
