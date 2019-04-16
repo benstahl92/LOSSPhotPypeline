@@ -149,6 +149,9 @@ class LPP(object):
         self.template_images = None
         self.templates_dir = 'templates'
 
+        # error data directory
+        self.error_dir = 'data_sim'
+
         # steps in standard reduction procedure
         self.current_step = 0
         self.steps = [self.load_images,
@@ -340,7 +343,7 @@ class LPP(object):
             pkl.dump(vs, f)
         self.log.info('{} written'.format(self.savefile))
 
-    def load(self, savefile = None):
+    def load(self, savefile = None, summary = True):
         '''re-initializes pipeline from saved state in file'''
         if savefile is None:
             savefile = self.savefile
@@ -350,7 +353,8 @@ class LPP(object):
             s = 'self.{} = vs["{}"]'.format(v, v)
             exec(s)
         self.log.info('{} loaded'.format(savefile))
-        self.summary()
+        if summary:
+            self.summary()
 
     def summary(self):
         '''print summary of pipeline status'''
@@ -699,7 +703,7 @@ class LPP(object):
             phot.loc[self.cal_IDs, 'Mag_cal'] = self.cal_arrays[img.color_term].loc[self.cal_IDs, img.filter.upper()]
             phot.loc[self.cal_IDs, 'RA_diff'] = np.abs(phot.loc[self.cal_IDs, 'RA_obs'] - phot.loc[self.cal_IDs, 'RA_cal'])
             phot.loc[self.cal_IDs, 'DEC_diff'] = np.abs(phot.loc[self.cal_IDs, 'DEC_obs'] - phot.loc[self.cal_IDs, 'DEC_cal'])
-            cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_diff', 'DEC_diff', 'Mag_obs', 'Mag_cal', 'ref_in']])
+            cal_list.append(phot.loc[self.cal_IDs, ['Filter', 'RA_diff', 'DEC_diff', 'Mag_obs', 'Mag_cal', 'ref_in', 'system']])
 
             # check for success if in final pass mode
             if final_pass:
@@ -712,8 +716,8 @@ class LPP(object):
 
         # remove failures if in final pass mode
         if final_pass:
-            self.cfIndex = pd.Series(self.cfIndex)
-            self.csfIndex = pd.Series(self.csfIndex)
+            self.cfIndex = pd.Index(self.cfIndex)
+            self.csfIndex = pd.Index(self.csfIndex)
             self.log.warn('calibration failed on {} out of {} images'.format(len(self.cfIndex), len(self.wIndex)))
             self.wIndex = self.wIndex.drop(self.cfIndex) # processing based only on non-subtracted images
             if self.photsub is True:
@@ -725,7 +729,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def do_calibration(self, use_filts = 'all'):
+    def do_calibration(self, use_filts = 'all', sig = 3, quality_cuts = True):
         '''check calibration and make cuts as needed'''
 
         self.log.info('performing calibration')
@@ -738,49 +742,10 @@ class LPP(object):
         if self.cal_IDs == 'all':
             self.cal_IDs = self.cal_arrays['kait4'].index # choice of color term here is arbitrary
 
-        # identify ref stars to disregard (if they are not in a sufficient pct of images)
-        if self.cal_use_common_ref_stars is True:
-            self.log.info('finding common ref stars')
-
-            # define checking function
-            def check(img, imagera, imagedec):
-                cs = WCS(header = img.header)
-                # ref star location as a fraction of total pixels
-                r = cs.all_world2pix(np.column_stack([imagera, imagedec]), 0) / np.array(cs._naxis)
-                # good ref stars are within image
-                good_ref = np.all(((r > 0) & (r < 1)), axis = 1)
-                return 1 * good_ref # express boolean array as 0's and 1's
-
-            # color term is arbitrary in next two lines b/c just getting coordinates
-            imagera = self.cal_arrays['kait4'].loc[self.cal_IDs, 'RA']
-            imagedec = self.cal_arrays['kait4'].loc[self.cal_IDs, 'DEC']
-
-            # set iteration params
-            cal_IDs_tmp = self.cal_IDs
-            accept = False
-            cnt = 0
-            while not accept:
-
-                # do the check, and get results as a percentage of images each ref star is in
-                ref_in_pct = self.phot_instances.loc[self.wIndex].apply(lambda img: check(img, imagera, imagedec)).mean()
-
-                # determine what to do
-                current_pct = 1 - self.pct_increment * cnt
-                if current_pct >= self.in_pct_floor:
-                    cal_IDs_tmp = self.cal_IDs[ref_in_pct >= current_pct]
-                else:
-                    self.log.warn('reached minimum tolerance for pct image including ref stars, quitting')
-                    return
-                if len(cal_IDs_tmp) >= self.min_ref_num:
-                    self.log.info('{} ref stars are in at least {} pct of images, using these'.format(len(cal_IDs_tmp), 100*current_pct))
-                    accept = True
-                cnt += 1
-
-            self.cal_IDs = cal_IDs_tmp
-
         # iterate until acceptable tolerance is reached
         accept_tol = False
         skip_calibrate = False
+        iter_cnt = -1
         while not accept_tol:
 
             # run calibration
@@ -788,13 +753,55 @@ class LPP(object):
                 self.calibrate()
             skip_calibrate = False
 
+            # find indices (img, cal_ID) where Mag_obs failed to measure
+            locs = self.calibrators.loc[self.calibrators['Mag_obs'].isnull(), :].index
+            # pct of succ meas as a function of img
+            img_succ = (1 - locs.levels[0][locs.labels[0]].value_counts() / len(self.cal_IDs))
+            # pct of succ meas as a function of cal_ID
+            cal_succ = (1 - locs.levels[1][locs.labels[1]].value_counts() / len(self.wIndex))
+
+            # run minimal quality cuts
+            if quality_cuts:
+                # remove any cal IDs or images with a very low success rate
+                ID_cut = cal_succ.index[cal_succ < 0.4]
+                if len(ID_cut > 0):
+                    self.cal_IDs = self.cal_IDs.drop(ID_cut)
+                    self.log.info('cut IDs: {} from minimal quality cut'.format(ID_cut))
+                    continue
+                img_cut = img_succ.index[img_succ < 0.4]
+                if len(img_cut > 0):
+                    self.manual_remove(img_cut)
+                    self.log.info('cut images: {} from minimal quality cut'.format(img_cut))
+                    continue
+
+            # do further cuts if requested
+            if self.cal_use_common_ref_stars is True:
+                self.log.info('finding common ref stars')
+                accept = False
+                cnt = 0
+                while not accept:
+                    current_pct = 1 - cnt * self.pct_increment
+                    tmp = cal_succ[cal_succ >= current_pct]
+                    if len(tmp) > self.min_ref_num:
+                        self.log.info('{} ref stars are in at least {} pct of images, using these'.format(len(tmp), 100*current_pct))
+                        accept = True
+                    elif current_pct < self.in_pct_floor:
+                        self.log.warn('reached minimum tolerance for pct image including ref stars, quitting')
+                        return
+                    cnt += 1
+            if len(tmp) < len(self.cal_IDs):
+                self.cal_IDs = tmp.index
+                continue
+
             # instantiate trackers
             cut_list = [] # store IDs that will be cut
             nan_list = [] # IDs of NaN to be cut immediately
             full_list = []
+            bad_img_list = [] # indices of images that are <sig> outliers
             single_cut_idx = None
             tmp_max = self.cal_diff_tol
             df_list = []
+            iter_cnt += 1
 
             # group by filter and perform comparison
             for filt, group in self.calibrators.groupby('Filter', sort = False):
@@ -804,17 +811,29 @@ class LPP(object):
                 # if clear is not the only filter, skip it in comparison unless forced to use
                 if (len(self.filters) > 1) and ('CLEAR' in self.filters) and (filt == 'CLEAR') and (not self.cal_force_clear):
                     continue
+                # compute metrics
                 df = group.median(level = 1)
                 df.loc[:, 'pct_im'] = group['Mag_obs'].notnull().sum(level=1) / len(group['Mag_obs'].groupby(level=0))
                 df.loc[:, 'std_obs'] = group.std(level = 1).loc[:, 'Mag_obs']
                 df = df.sort_index()
                 df.loc[:, 'Mag_diff'] = df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal']
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_diff'])
+                # identify possible exclusions
                 cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
                 nan_list.extend(list(df.index[df.loc[:, 'Diff'].isnull()]))
                 if len(nan_list) > 0:
                     break
                 full_list = list(df.index) # ok to overwrite b/c same each time
+                ## exclude outlier images by iterating through all cal IDs and finding images of <sig> outliers
+                for id in self.cal_IDs:
+                    selection = self.calibrators.loc[self.calibrators['Filter'] == filt, :].loc[(self.wIndex, id),['Mag_obs', 'system']]
+                    for sys, grp in selection.groupby('system', sort = False):
+                        grp = grp.loc[grp['Mag_obs'].notnull(), :]
+                        mags = grp.loc[:, 'Mag_obs'].values
+                        index = grp.index.levels[0][grp.index.labels[0]] # image indices
+                        if len(mags) > 0:
+                            bad_img_list.extend(index[np.abs(mags - mags.mean()) > sig * mags.std()])
+
                 if self.interactive:
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
@@ -829,6 +848,7 @@ class LPP(object):
                 df.insert(0, 'Filter', filt)
                 df_list.append(df)
             cut_list = list(set(cut_list))
+            bad_img_list = list(set(bad_img_list))
 
             # remove NaN
             if len(nan_list) > 0:
@@ -840,6 +860,10 @@ class LPP(object):
             if self.interactive:
                 self._display_refstars(display = True)
                 print('*'*60)
+                print('\nSuccess rate per cal ID (worst 10)')
+                print(cal_succ[:10])
+                print('\nSuccess rate per image (worst 10)')
+                print(img_succ[:10])
                 # warn if any individual images have too few ref stars
                 ref_counts = self.calibrators['Mag_obs'].notnull().sum(level = 0)
                 if (ref_counts < self.min_ref_num).sum() > 0:
@@ -852,9 +876,19 @@ class LPP(object):
                     idx_selector = (ref_counts.index[ref_counts == self.min_ref_num], self.cal_IDs)
                     num_affected = self.calibrators.loc[idx_selector, 'Mag_obs'].notnull().sum(level=1)
                     print(num_affected.index[num_affected > 0].sort_values())
+                if len(bad_img_list) > 0:
+                    print('\nWarning - the following images are {} sigma outliers:'.format(sig))
+                    print(bad_img_list)
                 print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print(sorted(cut_list))
-                response = input('\nAccept cuts with tolerance of {} mag ([y])? If not, enter new tolerance (or a comma-separated list of IDs to cut) > '.format(self.cal_diff_tol))
+                print('\nSelect an option below:')
+                print('\tAccept cuts with tolerance of {} mag ([y])'.format(self.cal_diff_tol))
+                print('\tAdjust tolerance [enter float between 0 and 1]')
+                print('\tCut calibration star(s) by ID(s) [comma separated list of IDs to cut]')
+                print('\tDisplay image ["d" followed by index (e.g. d162)]')
+                print('\tCut image(s) ["c" followed by comma separated indexes (e.g. c162,163)]')
+                print('\tView measured mags for specific cal star ["<passband>" followed by cal ID (e.g. B5)]')
+                response = input('\nChoice > '.format(self.cal_diff_tol))
                 plt.ioff()
                 plt.close()
                 if (response == '') or ('y' in response.lower()):
@@ -863,8 +897,19 @@ class LPP(object):
                 elif '.' in response:
                     self.cal_diff_tol = float(response)
                     skip_calibrate = True
+                elif response.lower()[0] == 'd':
+                    self.compare_image2ref(int(response[1:]))
+                    skip_calibrate = True
+                elif response.lower()[0] == 'c':
+                    self.manual_remove([int(i) for i in response[1:].split(',')])
+                elif response[0] in self.filters:
+                    self._display_obs_cal_mags(response[0], int(response[1:]))
+                    skip_calibrate = True
                 else:
                     self.cal_IDs = self.cal_IDs.drop([int(i) for i in response.split(',')])
+            elif (len(bad_img_list) > 0) and (iter_cnt == 0):
+                self.log.info('removing images b/c {} sigma outliers: {}'.format(sig, bad_img_list))
+                self.manual_remove(bad_img_list)
             elif single_cut_idx is None:
                 accept_tol = True
             elif len(full_list) > self.min_ref_num:
@@ -1080,12 +1125,191 @@ class LPP(object):
         if (self.photsub is True) and (sub is False):
             self.generate_lc(sub = True)
 
+    def get_errors(self, method = 'sn6', kpix_rad = 20, skip_photsub = False, photsub = 'auto', ps = 0.7965,
+                   host_ra = None, host_dec = None):
+        '''inject artificial stars of same mag as SN at each epoch and compute mags'''
+
+        self.log.info('doing artificial star simulation to determine errors')
+
+        # make directory for new generated data
+        if not os.path.exists(self.error_dir):
+            os.makedirs(self.error_dir)
+
+        if (photsub == 'auto') or (type(photsub) != type(True)):
+            photsub = self.photsub
+
+        # hard coded
+        n_stars = 30
+
+        # compute coords of n_stars around host
+        def handle_img(img, ret_xy = False, method = method):
+            cs = WCS(header = img.header)
+
+            # get pix coords of sn
+            sn_x, sn_y = cs.all_world2pix(self.targetra, self.targetdec, 0)
+
+            # select appropriate method
+            if method == 'snhost':
+                # ring of radius equal to distance between sn and nucleus
+                n_stars = 10
+                host_x, host_y = cs.all_world2pix(host_ra, host_dec, 0)
+                theta_sn = np.arctan2(sn_y - host_y, sn_x - host_x) # angle relative to hose
+                # coordinates of artificial stars
+                dtheta = np.linspace(2*np.pi/n_stars, 2*np.pi - 2*np.pi/n_stars, n_stars)
+                x = host_x + np.sqrt((sn_y - host_y)**2 + (sn_x - host_x)**2) * np.cos(theta_sn + dtheta)
+                y = host_y + np.sqrt((sn_y - host_y)**2 + (sn_x - host_x)**2) * np.sin(theta_sn + dtheta)
+            elif method == 'squares':
+                # square distribution as discussed w/ zwk and TdG
+                x_comp = np.cos(np.linspace(np.pi/4, 2*np.pi - np.pi / 4, 4))
+                x = sn_x + (kpix_rad * ps / img.pixscale) * np.concatenate([x_comp, 2 * x_comp, 2 * np.cos(np.pi/4) * np.array([1,0,-1,0])])
+                y_comp = np.sin(np.linspace(np.pi/4, 2*np.pi - np.pi / 4, 4))
+                y = sn_y + (kpix_rad * ps / img.pixscale) * np.concatenate([y_comp, 2 * y_comp, 2 * np.sin(np.pi/4) * np.array([0,1,0,-1])])
+                n_stars = len(x)
+            else:
+                # preferred method of concentric hexagons with radius increments of 20 KAIT pixels
+                dtheta = np.linspace(0, 2*np.pi, 7)[:-1]
+                x = sn_x + (kpix_rad * ps / img.pixscale) * np.concatenate((np.cos(dtheta), 2 * np.cos(dtheta + np.pi/6), 3 * np.cos(dtheta),
+                                                                      4 * np.cos(dtheta + np.pi/6), 5 * np.cos(dtheta)))
+                y = sn_y + (kpix_rad * ps / img.pixscale) * np.concatenate((np.sin(dtheta), 2 * np.sin(dtheta + np.pi/6), 3 * np.sin(dtheta),
+                                                                      4 * np.sin(dtheta + np.pi/6), 5 * np.sin(dtheta)))
+                n_stars = len(x
+                    )
+            # if just want pixel coords, return them along with WCS instance
+            if ret_xy is True:
+                return cs, x, y
+
+            # get magnitude of sn at this epoch
+            if photsub is False:
+                mag = img.phot.loc[-1, 'Mag_obs']
+            else:
+                mag = img.phot_sub.loc[-1, self.calmethod]
+            if (np.isnan(mag)) or (np.isinf(mag)):
+                return False, None
+
+            assert n_stars == len(x)
+
+            # IDL call leads to new images in new directory
+            idl_cmd = '''idl -e "lpp_sim_fake_star, '{}', {}, {}, {}, OUTFILE='{}', PSFFITARRFILE='{}'"'''.format(img.cimg, 
+                      x.tolist(), y.tolist(), [mag]*n_stars, os.path.join(self.error_dir, os.path.basename(img.cimg)), img.psffitarr)
+            stdout, stderr = LPPu.idl(idl_cmd)
+            self._log_idl(idl_cmd, stdout, stderr)
+
+            return True, mag
+
+        self.log.info('creating images with artificial stars')
+        succ = []
+        mags = []
+        for img in tqdm(self.phot_instances.loc[self.wIndex].tolist()):
+            s, m = handle_img(img)
+            succ.append(s)
+            if m is not None:
+                mags.append(m)
+
+        # drop images with no mag
+        self.wIndex = self.wIndex[pd.Series(succ)]
+
+        # put mags into series
+        mags = pd.Series(mags, index = self.wIndex)
+
+        # instantiate pipeline instance and inherit many parent attributes
+        sn = LPP(self.targetname, interactive = False, parallel = self.parallel, cal_diff_tol = self.cal_diff_tol, force_color_term = self.force_color_term,
+                 wdir = self.wdir, cal_use_common_ref_stars = self.cal_use_common_ref_stars, autoloadsave = False, sep_tol = self.sep_tol)
+        vs = vars(self).copy()
+        vs.pop('steps')
+        vs.pop('log')
+        vs.pop('phot_instances')
+        for v in vs.keys():
+            s = 'sn.{} = vs["{}"]'.format(v, v)
+            exec(s)
+        sn.interactive = False
+
+        self.log.info('running pipeline steps on images with artificial stars')
+        # change image paths and load instances
+        sn.image_list = sn.image_list.apply(lambda fl: os.path.join(self.error_dir, os.path.basename(fl)))
+        sn.phot_instances = sn._im2inst(sn.image_list.loc[sn.wIndex], mode = 'quiet')
+
+        # include artificial stars in radec
+        cs, x, y = handle_img(Phot(self.refname), ret_xy = True)
+        fake_ra, fake_dec = cs.all_pix2world(x, y, 0)
+        for img in sn.phot_instances.loc[sn.wIndex]:
+            img.radec = self.radec.append(pd.DataFrame({'RA': fake_ra, 'DEC': fake_dec}), ignore_index = True)
+
+        # run needed pipeline steps on those new images
+        if (skip_photsub is False) and (photsub is True):
+            sn.do_galaxy_subtraction_all_image()
+        sn.do_photometry_all_image()
+        sn.get_sky_all_image()
+        sn.calibrate(final_pass = True) # just use already selected calibration stars
+
+        # gather, organize and write
+        sn.lc_dir = self.lc_dir + '_sim'
+        sn.lc_base = os.path.join(sn.lc_dir, 'lightcurve_{}_'.format(self.targetname))
+        if not os.path.exists(sn.lc_dir):
+            os.makedirs(sn.lc_dir)
+        def get_res(img, ps):
+            if ps is False:
+                tmp = img.phot.iloc[-n_stars:].loc[:, 'Mag_obs']
+            else:
+                tmp = img.phot_sub.iloc[-n_stars:].loc[:, sn.calmethod]
+            return pd.Series([img.cimg, tmp.mean(axis = 0), tmp.median(axis = 0), tmp.std(axis = 0)])
+        r = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
+        r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag')
+        r['residual'] = mags - r['sim_mean_mag']
+        with open(os.path.join(sn.lc_dir, 'sim_{}_results.dat'.format(sn.calmethod)), 'w') as f:
+            f.write(r.to_string(index = False))
+        with open(os.path.join(sn.lc_dir, 'sim_{}_summary.dat'.format(sn.calmethod)), 'w') as f:
+            f.write(r.describe().round(3).to_string())
+        r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
+
+        # do all light curves (replace stat errors with simulation errors)
+        all_nat = []
+        all_std = []
+        columns = (';; MJD', 'etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
+        ps_choice = photsub
+        self.log.info('updating LC errors')
+        for ct in tqdm(self.color_terms_used.keys()):
+            # generate raw light curves
+            lc = pd.read_csv(self._lc_fname(ct, sn.calmethod, 'raw', sub = ps_choice), delim_whitespace = True, comment = ';', names = columns)
+            tmp = pd.merge(lc, r, on = 'imagename', how = 'left')
+            tmp['-emag'] = tmp['mag'] - tmp['sim_std_mag']
+            tmp['+emag'] = tmp['mag'] + tmp['sim_std_mag']
+            lc_raw_name = sn._lc_fname(ct, sn.calmethod, 'raw', sub = ps_choice)
+            tmp.drop(['sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'residual'], axis = 'columns').to_csv(lc_raw_name, sep = '\t', columns = columns,
+                                                                                                          index = False, na_rep = 'NaN')
+            p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = self.calmethod)
+            p.plot_lc(extensions = ['.ps', '.png'])
+
+            # generate remaining light curves
+            group_succ, standard_succ = self.raw2standard_lc(lc_raw_name)
+            if group_succ is True:
+                all_nat.append((ct, sn._lc_fname(ct, sn.calmethod, 'group', sub = ps_choice)))
+            if standard_succ is True:
+                all_std.append(sn._lc_fname(ct, sn.calmethod, 'standard', sub = ps_choice))
+        # make "all" light curves
+        lc_nat = sn._lc_fname('all', sn.calmethod, 'group', sub = ps_choice)
+        concat_list = []
+        for row in all_nat:
+            tmp = pd.read_csv(row[1], delim_whitespace = True)
+            tmp.insert(3, 'SYSTEM', row[0])
+            concat_list.append(tmp)
+        if len(concat_list) > 0:
+            pd.concat(concat_list, sort = False).to_csv(lc_nat, sep = '\t', na_rep = 'NaN', index = False)
+            p = LPPu.plotLC(lc_file = lc_nat, name = self.targetname, photmethod = self.calmethod)
+            p.plot_lc(extensions = ['.ps', '.png'])
+        lc = sn._lc_fname('all', self.calmethod, 'standard', sub = ps_choice)
+        concat_list = []
+        for fl in all_std:
+            concat_list.append(pd.read_csv(fl, delim_whitespace = True))
+        if len(concat_list) > 0:
+            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
+            p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = self.calmethod)
+            p.plot_lc(extensions = ['.ps', '.png'])
+
+        sn.savefile = sn.savefile.replace('.sav', '_sim.sav')
+        sn.save()
+
     def write_summary(self):
         '''write summary file'''
-
-        #if self.current_step != (len(self.steps) - 1):
-        #    print('processing must be done before summary can be written')
-        #    return
 
         # get filters used
         self.filters = set(self.phot_instances.loc[self.wIndex].apply(lambda img: img.filter.upper()))
@@ -1124,7 +1348,7 @@ class LPP(object):
     #          Utility Methods
     ###################################################################################################
 
-    def manual_remove(self, id):
+    def manual_remove(self, id, save_img = True):
         '''manually remove an index (or list of indices) from consideration'''
 
         if type(id) is int:
@@ -1132,6 +1356,9 @@ class LPP(object):
         id = pd.Index(id)
         self.mrIndex = self.mrIndex.append(id)
         self.wIndex = self.wIndex.drop(id)
+        if save_img:
+            for img_id in id:
+                self._display_refstars(imname = self.image_list.loc[img_id], imidx = img_id)
 
     def process_new_images(self, new_image_file = None, new_image_list = []):
         '''processes images obtained after initial processing'''
@@ -1393,8 +1620,8 @@ class LPP(object):
         self.log.debug('STDOUT----\n{}'.format(stdout))
         self.log.debug('STDERR----\n{}'.format(stderr))
 
-    def _display_refstars(self, icut = False, display = False, ax = None):
-        '''show reference image and plot selected reference stars'''
+    def _display_refstars(self, imname = None, imidx = None, icut = False, display = False, ax = None):
+        '''show (reference) image and plot selected reference stars'''
 
         def onpick(event, cut_list, ref, refp, fig):
             '''get index, append appropriate index to cut_list and remove star'''
@@ -1408,7 +1635,9 @@ class LPP(object):
             self.cal_IDs = self.cal_use.index
 
         # read needed information from image
-        with fits.open(self.refname) as f:
+        if imname is None:
+            imname = self.refname
+        with fits.open(imname) as f:
             im = f[0].data
             head = f[0].header
 
@@ -1445,8 +1674,49 @@ class LPP(object):
             plt.ion()
             plt.show()
         else:
-            plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
+            if imidx is None:
+                plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
+            else:
+                plt.savefig(os.path.join(self.calibration_dir, 'cut_img_{}.png'.format(imidx)))
             plt.close()
+
+    def _display_obs_cal_mags(self, filt, id, sig = 3):
+        '''show all observed mags of a given calibration star in a given passband'''
+
+        # select relevant data
+        selection = self.calibrators.loc[self.calibrators['Filter'] == filt, :].loc[(self.wIndex, id),['Mag_obs', 'system']]
+
+        fig, ax = plt.subplots(1, 1, figsize = (7, 3))
+
+        def onpick(event):
+            '''get index, append appropriate index to cut_list and remove star'''
+            ind = event.ind[0]
+            ids = event.artist._x
+            mags = event.artist._y
+            print('\nIndex of clicked image mag: {}'.format(int(ids[ind])))
+            sub = mags[ids != ids[ind]]
+            print('Without this image: {:.2f} pm {:.2f}'.format(np.median(sub), np.std(sub)))
+
+        colors = ('b','r','g','k','m')
+        cnt = 0
+        for sys, group in selection.groupby('system', sort = False):
+            group = group.loc[group['Mag_obs'].notnull(), :]
+            mags = group.loc[:, 'Mag_obs'].values
+            ids = group.index.levels[0][group.index.labels[0]]
+            line, = ax.plot(ids, mags, '{}.'.format(colors[cnt]), label = sys, picker = 5)
+            ax.plot([ids.min(), ids.max()], [np.mean(mags)]*2, '{}--'.format(colors[cnt]),
+                       label = '${:.2f} \pm {:.2f}$'.format(np.mean(mags), np.std(mags)))
+            ax.plot([ids.min(), ids.max()], [np.mean(mags) + sig * np.std(mags)]*2, '{}:'.format(colors[cnt]),
+                    label = '${}\sigma$ boundary'.format(sig))
+            ax.plot([ids.min(), ids.max()], [np.mean(mags) - sig * np.std(mags)]*2, '{}:'.format(colors[cnt]))
+            cnt += 1
+
+        ax.set_title('Filter: {} Cal ID: {}'.format(filt, id))
+        ax.legend(bbox_to_anchor = (1.01, 0.5), loc = 'center left')
+        plt.tight_layout()
+        cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event))
+        plt.show()
+        fig.canvas.mpl_disconnect(cid)
 
     def compare_image2ref(self, idx):
         '''plot ref image and selected image side by side'''
