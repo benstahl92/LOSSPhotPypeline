@@ -777,7 +777,7 @@ class LPP(object):
                     continue
 
             # do further cuts if requested
-            if self.cal_use_common_ref_stars is True:
+            if (self.cal_use_common_ref_stars is True) and (iter_cnt < 0):
                 self.log.info('finding common ref stars')
                 accept = False
                 cnt = 0
