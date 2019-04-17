@@ -11,6 +11,7 @@ from tqdm import tqdm
 import logging
 import subprocess
 import warnings
+import itertools
 import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -39,7 +40,7 @@ class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
     def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
-                 wdir = '.', cal_use_common_ref_stars = True, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
+                 wdir = '.', cal_use_common_ref_stars = False, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
         '''Instantiation instructions'''
 
         # basics from instantiation
@@ -712,7 +713,9 @@ class LPP(object):
                 if (self.photsub is True) and (os.path.exists(img.psfsubdat) is False):
                     self.csfIndex.append(idx)
 
+        # organize calibrators and compute globabl metrics
         self.calibrators = pd.concat([df.loc[self.cal_IDs, :] for df in cal_list], keys = self.wIndex)
+        self.calibrators['Mag_diff'] = self.calibrators['Mag_obs'] - self.calibrators['Mag_cal']
 
         # remove failures if in final pass mode
         if final_pass:
@@ -729,7 +732,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def do_calibration(self, use_filts = 'all', sig = 3, quality_cuts = True):
+    def do_calibration(self, use_filts = 'all', sig = 3, min_cut_diff = 0.5, quality_cuts = True):
         '''check calibration and make cuts as needed'''
 
         self.log.info('performing calibration')
@@ -746,8 +749,8 @@ class LPP(object):
         accept_tol = False
         skip_calibrate = False
         iter_cnt = -1
-        qc_cnt = -1
         while not accept_tol:
+            iter_cnt += 1
 
             # run calibration
             if not skip_calibrate:
@@ -761,23 +764,31 @@ class LPP(object):
             # pct of succ meas as a function of cal_ID
             cal_succ = (1 - locs.levels[1][locs.labels[1]].value_counts() / len(self.wIndex))
 
-            # run minimal quality cuts
-            qc_cnt += 1
-            if (quality_cuts is True) and (qc_cnt < 2):
+            # run minimal quality cuts if requested --- these are the first and second iterations
+            if (quality_cuts is True) and (iter_cnt < 2):
                 # remove any cal IDs or images with a very low success rate
                 ID_cut = cal_succ.index[cal_succ < 0.4]
-                if (len(ID_cut) > 0) and (qc_cnt == 0):
+                if (len(ID_cut) > 0) and (iter_cnt == 0):
                     self.cal_IDs = self.cal_IDs.drop(ID_cut)
-                    self.log.info('cut IDs: {} from minimal quality cut'.format(ID_cut))
+                    self.log.info('cut ID(s): {} from minimal quality cut'.format(ID_cut))
                     continue
+                elif iter_cnt == 0:
+                    self.log.info('all IDs passed minimal quality cut')
+                iter_cnt = 1
                 img_cut = img_succ.index[img_succ < 0.4]
-                if (len(img_cut) > 0) and (qc_cnt == 1):
+                if (len(img_cut) > 0) and (iter_cnt == 1):
                     self.manual_remove(img_cut)
-                    self.log.info('cut images: {} from minimal quality cut'.format(img_cut))
+                    self.log.info('cut image(s): {} from minimal quality cut'.format(img_cut))
                     continue
+                elif iter_cnt == 1:
+                    self.log.info('all images passed minimal quality cut')
+                iter_cnt = 2
+            elif iter_cnt < 2:
+                iter_cnt = 2
 
-            # do further cuts if requested
-            if (self.cal_use_common_ref_stars is True) and (iter_cnt < 0):
+            # cut to use common ref stars if requested --- these is the fourth iteration
+            # iteration 3 is used to remove outlier images before applying this cut
+            if (self.cal_use_common_ref_stars is True) and (iter_cnt == 3):
                 self.log.info('finding common ref stars')
                 accept = False
                 cnt = 0
@@ -789,11 +800,13 @@ class LPP(object):
                         accept = True
                     elif current_pct < self.in_pct_floor:
                         self.log.warn('reached minimum tolerance for pct image including ref stars, quitting')
+                        self.run_succss = False
+                        self.current_step = self.steps.index(self.write_summary) - 1
                         return
                     cnt += 1
-            if len(tmp) < len(self.cal_IDs):
-                self.cal_IDs = tmp.index
-                continue
+                if len(tmp) < len(self.cal_IDs):
+                    self.cal_IDs = tmp.index
+                    continue
 
             # instantiate trackers
             cut_list = [] # store IDs that will be cut
@@ -803,7 +816,6 @@ class LPP(object):
             single_cut_idx = None
             tmp_max = self.cal_diff_tol
             df_list = []
-            iter_cnt += 1
 
             # group by filter and perform comparison
             for filt, group in self.calibrators.groupby('Filter', sort = False):
@@ -818,7 +830,6 @@ class LPP(object):
                 df.loc[:, 'pct_im'] = group['Mag_obs'].notnull().sum(level=1) / len(group['Mag_obs'].groupby(level=0))
                 df.loc[:, 'std_obs'] = group.std(level = 1).loc[:, 'Mag_obs']
                 df = df.sort_index()
-                df.loc[:, 'Mag_diff'] = df.loc[:, 'Mag_obs'] - df.loc[:, 'Mag_cal']
                 df.loc[:, 'Diff'] = np.abs(df.loc[:, 'Mag_diff'])
                 # identify possible exclusions
                 cut_list.extend(list(df.index[df.loc[:, 'Diff'] > self.cal_diff_tol]))
@@ -834,12 +845,13 @@ class LPP(object):
                         mags = grp.loc[:, 'Mag_obs'].values
                         index = grp.index.levels[0][grp.index.labels[0]] # image indices
                         if len(mags) > 0:
-                            bad_img_list.extend(index[np.abs(mags - mags.mean()) > sig * mags.std()])
+                            bad_img_list.extend(index[np.abs(mags - mags.mean()) > np.max([min_cut_diff, sig * mags.std()])])
 
                 if self.interactive:
                     print('\nFilter: {}'.format(filt))
                     print('*'*60)
-                    print(df.loc[:, ['pct_im', 'RA_diff', 'DEC_diff', 'Mag_cal', 'Mag_obs', 'std_obs', 'Mag_diff']].round(4))
+                    rnd = pd.Series([2,4,4,3,3,3,3], index = ['pct_im', 'RA_diff', 'DEC_diff', 'Mag_cal', 'Mag_obs', 'std_obs', 'Mag_diff'])
+                    print(df.loc[:, ['pct_im', 'RA_diff', 'DEC_diff', 'Mag_cal', 'Mag_obs', 'std_obs', 'Mag_diff']].round(rnd))
                 else:
                     # find index and value of maximum diff
                     maxi = df.loc[:, 'Diff'].idxmax()
@@ -854,36 +866,75 @@ class LPP(object):
 
             # remove NaN
             if len(nan_list) > 0:
-                self.log.info('cutting IDs {} for NaN'.format(', '.join([str(i) for i in nan_list])))
+                self.log.info('cutting ID(s) {} for NaN'.format(', '.join([str(i) for i in nan_list])))
                 self.cal_IDs = self.cal_IDs.drop(nan_list)
                 continue
 
             # make cuts to refstars as needed
             if self.interactive:
-                self._display_refstars(display = True)
+                # show ref stars and calibrated light curves
+                fig, ax = plt.subplots(1, 2, figsize = (12, 6))
+                self._display_refstars(ax = ax[0], display = True)
+                r = self.phot_instances.loc[self.wIndex].apply(lambda img: pd.Series([img.mjd, img.filter, img.phot.loc[-1, 'Mag_obs'],
+                                                               img.phot.loc[-1, self.calmethod + '_err'], img.color_term]))
+                r.columns = ('mjd', 'filter', 'mag', 'emag', 'system')
+                p = LPPu.plotLC(offset_scale = 2)
+                for idx, ct in enumerate(set(r['system'])):
+                    fs = 'full'
+                    if 'nickel' in ct:
+                        fs = 'none'
+                    for filt in set(['B', 'V', 'R', 'I']).intersection(set(r['filter'])):
+                        selector = (r['filter'] == filt) & r['mag'].notnull() & (r['mjd'] - r['mjd'].min() < 120) & (r['system'] == ct)
+                        line, = ax[1].plot(r.loc[selector, 'mjd'], r.loc[selector, 'mag'] + p._offset(filt), c = p._color(filt),
+                                           marker = ['o', 'D', 's', 'v', '^'][idx], linestyle = 'None', picker = 3,
+                                           label = '{}{}'.format(filt, ct), fillstyle = fs)
+                ax[1].invert_yaxis()
+                ax[1].set_xticks(())
+                ax[1].set_yticks(())
+                x0, x1 = ax[1].get_xlim()
+                y0, y1 = ax[1].get_ylim()
+                ax[1].set_aspect(np.abs((x1-x0)/(y1-y0)))
+                plt.tight_layout()
+                def onpick(event):
+                    ind = event.ind[0]
+                    filt = event.artist._label[0]
+                    sys = event.artist._label[1:]
+                    row = r.loc[(r['filter'] == filt) & (r['system'] == sys) & (r['mjd'] == event.artist._x[ind]), :]
+                    id = row.index[0]
+                    cal = self.phot_instances.loc[id].phot.loc[self.cal_IDs, 'Mag_obs']
+                    print('\nClicked Point Information:')
+                    print('\tImage ID: {}'.format(id))
+                    print('\tMJD: {:.1f}'.format(row['mjd'].item()))
+                    print('\tMag: {:.1f} pm {:.1f}'.format(row['mag'].item(), row['emag'].item()))
+                    print('\tFilter: {}'.format(filt))
+                    print('\tSystem: {}'.format(sys))
+                    print('\tcal IDs used: {}/{}'.format(len(cal.loc[cal.notnull()]), len(cal)))
+                    print('\tfailed cal IDs: {}'.format(', '.join([str(i) for i in sorted(cal.loc[cal.isnull()].index)])))
+                    print('\nChoice >')
+                cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event))
                 print('*'*60)
-                print('\nSuccess rate per cal ID (worst 10)')
-                print(cal_succ[:10])
-                print('\nSuccess rate per image (worst 10)')
-                print(img_succ[:10])
+                print('\nSuccess Rate Per (worst 10)')
+                print('{:<12} {:<12}'.format('cal ID', 'image'))
+                for c, i in itertools.zip_longest(cal_succ.iloc[:10].index, img_succ.iloc[:10].index):
+                    print('{:<4} {:<7} {:<4} {:<7}'.format(c, round(cal_succ.loc[c], 3), i, round(img_succ.loc[i], 3)))
                 # warn if any individual images have too few ref stars
                 ref_counts = self.calibrators['Mag_obs'].notnull().sum(level = 0)
                 if (ref_counts < self.min_ref_num).sum() > 0:
-                    print('\nWarning - the following images have below the minimum number of ref stars ({}):'.format(self.min_ref_num))
+                    print('\nWarning - the following image(s) have below the minimum number of ref stars ({}):'.format(self.min_ref_num))
                     print(ref_counts.index[ref_counts < self.min_ref_num])
                 if (ref_counts == self.min_ref_num).sum() > 0:
-                    print('\nWarning - the following images have the minimum number of ref stars ({}):'.format(self.min_ref_num))
+                    print('\nWarning - the following image(s) have the minimum number of ref stars ({}):'.format(self.min_ref_num))
                     print(ref_counts.index[ref_counts == self.min_ref_num])
-                    print('\nDo not cut the following IDs to avoid falling below the minimum:')
+                    print('\nDo not cut the following ID(s) to avoid falling below the minimum:')
                     idx_selector = (ref_counts.index[ref_counts == self.min_ref_num], self.cal_IDs)
                     num_affected = self.calibrators.loc[idx_selector, 'Mag_obs'].notnull().sum(level=1)
                     print(num_affected.index[num_affected > 0].sort_values())
                 if len(bad_img_list) > 0:
-                    print('\nWarning - the following images are {} sigma outliers:'.format(sig))
+                    print('\nWarning - the following image(s) are outliers:')
                     print(bad_img_list)
-                print('\nAt tolerance {}, {} IDs (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
+                print('\nAt tolerance {}, {} ID(s) (out of {}) will be cut'.format(self.cal_diff_tol, len(cut_list), len(full_list)))
                 print(sorted(cut_list))
-                print('\nSelect an option below:')
+                print('\nSelect an option below (or click on light curve points to get info):')
                 print('\tAccept cuts with tolerance of {} mag ([y])'.format(self.cal_diff_tol))
                 print('\tAdjust tolerance [enter float between 0 and 1]')
                 print('\tCut calibration star(s) by ID(s) [comma separated list of IDs to cut]')
@@ -891,6 +942,7 @@ class LPP(object):
                 print('\tCut image(s) ["c" followed by comma separated indexes (e.g. c162,163)]')
                 print('\tView measured mags for specific cal star ["<passband>" followed by cal ID (e.g. B5)]')
                 response = input('\nChoice > '.format(self.cal_diff_tol))
+                fig.canvas.mpl_disconnect(cid)
                 plt.ioff()
                 plt.close()
                 if (response == '') or ('y' in response.lower()):
@@ -909,8 +961,8 @@ class LPP(object):
                     skip_calibrate = True
                 else:
                     self.cal_IDs = self.cal_IDs.drop([int(i) for i in response.split(',')])
-            elif (len(bad_img_list) > 0) and (iter_cnt == 0):
-                self.log.info('removing images b/c {} sigma outliers: {}'.format(sig, bad_img_list))
+            elif (len(bad_img_list) > 0):
+                self.log.info('removing {} outlier image(s): {}'.format(len(bad_img_list), bad_img_list))
                 self.manual_remove(bad_img_list)
             elif single_cut_idx is None:
                 accept_tol = True

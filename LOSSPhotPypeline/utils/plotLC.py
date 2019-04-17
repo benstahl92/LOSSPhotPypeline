@@ -211,7 +211,6 @@ class plotLC:
         if self.lc is not None:
             tmp = self.lc.dropna(axis = 1, how = 'all')
         else:
-            print('load light curve first')
             return
 
         # extract filters and then sort
