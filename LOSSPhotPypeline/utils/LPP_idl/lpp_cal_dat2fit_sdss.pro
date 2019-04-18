@@ -28,9 +28,19 @@ stars.SI=sdssst.i
 stars.SZ=sdssst.z
 stars.C=sdssst.r
 stars.CLEAR=sdssst.r
+;;zwk added on 190318. added error
+stars.ESU=sdssst.uErr
+stars.ESG=sdssst.gErr
+stars.ESR=sdssst.rErr
+stars.ESI=sdssst.iErr
+stars.ESZ=sdssst.zErr
+stars.EC=sdssst.rErr
+stars.ECLEAR=sdssst.rErr
 lpp_mag_sdss_jc,1,stars
 stars.C=stars.R
 stars.CLEAR=stars.R
+stars.EC=stars.ER
+stars.ECLEAR=stars.ECLEAR
 
 strreplace,outstfitfile,'.dat','_Landolt_standard.fit'
 wsttofile,outstfitfile,stars
