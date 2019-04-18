@@ -1180,10 +1180,14 @@ class LPP(object):
             self.generate_lc(sub = True)
 
     def get_errors(self, method = 'sn6', kpix_rad = 20, skip_photsub = False, photsub = 'auto', ps = 0.7965,
-                   host_ra = None, host_dec = None):
+                   host_ra = None, host_dec = None, rseed = 100):
         '''inject artificial stars of same mag as SN at each epoch and compute mags'''
 
         self.log.info('doing artificial star simulation to determine errors')
+
+        # set seed
+        if rseed is not None:
+            np.random.seed(rseed)
 
         # make directory for new generated data
         if not os.path.exists(self.error_dir):
@@ -1226,8 +1230,8 @@ class LPP(object):
                                                                       4 * np.cos(dtheta + np.pi/6), 5 * np.cos(dtheta)))
                 y = sn_y + (kpix_rad * ps / img.pixscale) * np.concatenate((np.sin(dtheta), 2 * np.sin(dtheta + np.pi/6), 3 * np.sin(dtheta),
                                                                       4 * np.sin(dtheta + np.pi/6), 5 * np.sin(dtheta)))
-                n_stars = len(x
-                    )
+                n_stars = len(x)
+
             # if just want pixel coords, return them along with WCS instance
             if ret_xy is True:
                 return cs, x, y
@@ -1235,20 +1239,28 @@ class LPP(object):
             # get magnitude of sn at this epoch
             if photsub is False:
                 mag = img.phot.loc[-1, 'Mag_obs']
+                emag = img.phot.loc[-1, self.calmethod + '_err']
             else:
                 mag = img.phot_sub.loc[-1, self.calmethod]
+                emag = img.phot_sub.loc[-1, self.calmethod + '_err']
             if (np.isnan(mag)) or (np.isinf(mag)):
                 return False, None
+
+            # if random seed given, injected mags drawn from a gaussian of width set by uncertainty
+            if rseed is None:
+                inj_mags = [mag]*n_stars
+            else:
+                inj_mags = np.random.normal(mag, emag, n_stars).tolist()
 
             assert n_stars == len(x)
 
             # IDL call leads to new images in new directory
             idl_cmd = '''idl -e "lpp_sim_fake_star, '{}', {}, {}, {}, OUTFILE='{}', PSFFITARRFILE='{}'"'''.format(img.cimg, 
-                      x.tolist(), y.tolist(), [mag]*n_stars, os.path.join(self.error_dir, os.path.basename(img.cimg)), img.psffitarr)
+                      x.tolist(), y.tolist(), inj_mags, os.path.join(self.error_dir, os.path.basename(img.cimg)), img.psffitarr)
             stdout, stderr = LPPu.idl(idl_cmd)
             self._log_idl(idl_cmd, stdout, stderr)
 
-            return True, mag
+            return True, inj_mags#mag
 
         self.log.info('creating images with artificial stars')
         succ = []
@@ -1263,7 +1275,8 @@ class LPP(object):
         self.wIndex = self.wIndex[pd.Series(succ)]
 
         # put mags into series
-        mags = pd.Series(mags, index = self.wIndex)
+        #mags = pd.DataFrame(mags, index = self.wIndex) #pd.Series(mags, index = self.wIndex)
+        #mags.columns = self.phot_instances.loc[self.wIndex[0]].phot.index[-n_stars:]
 
         # instantiate pipeline instance and inherit many parent attributes
         sn = LPP(self.targetname, interactive = False, parallel = self.parallel, cal_diff_tol = self.cal_diff_tol, force_color_term = self.force_color_term,
@@ -1305,16 +1318,27 @@ class LPP(object):
                 tmp = img.phot.iloc[-n_stars:].loc[:, 'Mag_obs']
             else:
                 tmp = img.phot_sub.iloc[-n_stars:].loc[:, sn.calmethod]
-            return pd.Series([img.cimg, tmp.mean(axis = 0), tmp.median(axis = 0), tmp.std(axis = 0)])
-        r = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
-        r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag')
-        r['residual'] = mags - r['sim_mean_mag']
+            #return pd.Series([img.cimg, tmp.mean(axis = 0), tmp.median(axis = 0), tmp.std(axis = 0)])
+            return tmp
+        res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
+        #r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag')
+
+        # put mags into series
+        mags = pd.DataFrame(mags, index = self.wIndex) #pd.Series(mags, index = self.wIndex)
+        mags.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
+
+        residuals = mags - res
+
+        r = pd.concat([sn.image_list.loc[sn.wIndex], mags.mean(axis = 1), mags.std(axis = 1), residuals.mean(axis = 1),
+                       np.sqrt(np.mean(residuals**2, axis = 1)), residuals.std(axis = 1)], axis = 1)
+        r.columns = ('imagename', 'sim_mean_mag', 'sim_std_mag', 'mean_residual', 'RMS_residual', 'std_residual')
+        #r['residual'] = mags - r['sim_mean_mag']
         with open(os.path.join(sn.lc_dir, 'sim_{}_results.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.to_string(index = False))
         with open(os.path.join(sn.lc_dir, 'sim_{}_summary.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.describe().round(3).to_string())
-        r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
-
+        #r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
+        return
         # do all light curves (replace stat errors with simulation errors)
         all_nat = []
         all_std = []
