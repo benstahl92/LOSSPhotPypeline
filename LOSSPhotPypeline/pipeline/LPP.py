@@ -1351,7 +1351,7 @@ class LPP(object):
             tmp['-emag'] = tmp['mag'] - tmp['sim_std_mag']
             tmp['+emag'] = tmp['mag'] + tmp['sim_std_mag']
             lc_raw_name = sn._lc_fname(ct, sn.calmethod, 'raw', sub = ps_choice)
-            tmp.drop(['sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'residual'], axis = 'columns').to_csv(lc_raw_name, sep = '\t', columns = columns,
+            tmp.drop(['sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'mean_residual'], axis = 'columns').to_csv(lc_raw_name, sep = '\t', columns = columns,
                                                                                                           index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = self.calmethod)
             p.plot_lc(extensions = ['.ps', '.png'])

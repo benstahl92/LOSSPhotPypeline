@@ -83,10 +83,11 @@ class Phot(FitsInfo):
 
         return r1, r2, phot_idl
 
-    def calibrate(self, cal_IDs, cal_mags, sub = False, write_dat = False):
+    def calibrate(self, cal_IDs, cal_mags, cal_errs, sub = False, write_dat = False):
 
         # aperture names
         aps = ['3.5p', '5.0p', '7.0p', '9.0p', '1.0fh', '1.5fh', '2.0fh', 'psf']
+        err_aps = [ap + '_err' for ap in aps]
         col_names = ('id','ximage','yimage') + tuple(('{}{}'.format(m, e) for m in aps for e in ('', '_err')))
 
         # load raw photometry
@@ -103,8 +104,11 @@ class Phot(FitsInfo):
 
         # ref stars in sub are the same as in un sub so only need to find cal mags once
         cal_mag_mean = cal_mags.loc[cal_IDs].mean()
+        cal_mag_var = (cal_errs.loc[cal_IDs]**2).sum()
         instrument_mag_mean = self.phot_raw.loc[cal_IDs, aps].mean(axis = 0)
+        instrument_mag_var = (self.phot_raw.loc[cal_IDs, err_aps]**2).sum(axis = 1)
         zp_offset = cal_mag_mean - instrument_mag_mean
+        zp_offset_var = cal_mag_var + instrument_mag_var
 
         # get coords of ref stars in obs
         cs = WCS(header = self.header)
@@ -119,9 +123,11 @@ class Phot(FitsInfo):
         # calibrate photometry
         self.phot = self.phot_raw.copy(deep = True)
         self.phot.loc[:, aps] = self.phot.loc[:, aps] + zp_offset
+        self.phot.loc[:, err_aps] = np.sqrt(self.phot.loc[:, err_aps]**2 + zp_offset_var)
         if sub is True:
             self.phot_sub = self.phot_sub_raw.copy(deep = True)
             self.phot_sub.loc[:, aps] = self.phot_sub.loc[:, aps] + zp_offset
+            self.phot_sub.loc[:, err_aps] = np.sqrt(self.phot_sub.loc[:, err_aps]**2 + zp_offset_var)
 
         # determine which ref stars are in image
         self.phot.loc[:, 'ref_in'] = 1
