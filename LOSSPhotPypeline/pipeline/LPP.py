@@ -1321,7 +1321,6 @@ class LPP(object):
             #return pd.Series([img.cimg, tmp.mean(axis = 0), tmp.median(axis = 0), tmp.std(axis = 0)])
             return tmp
         res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
-        #r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag')
 
         # put mags into series
         mags = pd.DataFrame(mags, index = self.wIndex) #pd.Series(mags, index = self.wIndex)
@@ -1329,16 +1328,16 @@ class LPP(object):
 
         residuals = mags - res
 
-        r = pd.concat([sn.image_list.loc[sn.wIndex], mags.mean(axis = 1), mags.std(axis = 1), residuals.mean(axis = 1),
-                       np.sqrt(np.mean(residuals**2, axis = 1)), residuals.std(axis = 1)], axis = 1)
-        r.columns = ('imagename', 'sim_mean_mag', 'sim_std_mag', 'mean_residual', 'RMS_residual', 'std_residual')
+        r = pd.concat([sn.image_list.loc[sn.wIndex], mags.mean(axis = 1), mags.median(axis = 1), mags.std(axis = 1), residuals.mean(axis = 1)], axis = 1)
+        r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'mean_residual')
+        #r.columns = ('imagename', 'sim_mean_mag', 'sim_std_mag', 'mean_residual', 'RMS_residual', 'std_residual')
         #r['residual'] = mags - r['sim_mean_mag']
         with open(os.path.join(sn.lc_dir, 'sim_{}_results.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.to_string(index = False))
         with open(os.path.join(sn.lc_dir, 'sim_{}_summary.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.describe().round(3).to_string())
         #r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
-        return
+
         # do all light curves (replace stat errors with simulation errors)
         all_nat = []
         all_std = []
