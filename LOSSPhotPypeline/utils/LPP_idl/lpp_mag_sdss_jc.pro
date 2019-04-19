@@ -27,8 +27,9 @@ if direction eq 1 then begin
   if not keyword_set(gri) then begin
     if not keyword_set(nou) then begin
       Btmp = starst.SG + 0.47*(starst.SG-starst.SR) + 0.17
+      EBtmp = sqrt((1.0+0.47)^2*starst.ESG^2+0.47^2*starst.ESR^2+0.0107^2)
       starst.U = 0.75*(starst.SU-starst.SG) - 0.83 + Btmp
-      starst.EU = sqrt(starst.ESU^2+starst.ESG^2+0.03^2)
+      starst.EU = sqrt(0.75^2*starst.ESU^2+0.75^2*starst.ESG^2+0.03^2+EBtmp^2)
     endif
   
     ;;See papger Lupton (2005)
@@ -44,15 +45,17 @@ if direction eq 1 then begin
     starst.V = starst.SG - 0.5784*(starst.SG-starst.SR) - 0.0038
     starst.R = starst.SR - 0.2936*(starst.SR-starst.SI) - 0.1439
     starst.I = starst.SR - 1.2444*(starst.SR-starst.SI) - 0.3820
-    starst.EB = sqrt(starst.ESG^2+starst.ESR^2+0.0107^2)
-    starst.EV = sqrt(starst.ESG^2+starst.ESR^2+0.0054^2)
-    starst.ER = sqrt(starst.ESR^2+starst.ESI^2+0.0072^2)
-    starst.EI = sqrt(starst.ESR^2+starst.ESI^2+0.0078^2)
+    ;f=aA+bB Sigma_f=a^2SigmaA^2+b^2SigmaB^2+2abSigma_AB
+    ;f=aA-bB Sigma_f=a^2SigmaA^2+b^2SigmaB^2-2abSigma_AB
+    starst.EB = sqrt((1.0+0.3130)^2*starst.ESG^2+0.3130^2*starst.ESR^2+0.0107^2)
+    starst.EV = sqrt((1.0-0.5784)^2*starst.ESG^2+0.5784^2*starst.ESR^2+0.0054^2)
+    starst.ER = sqrt((1.0-0.2936)^2*starst.ESR^2+0.2936^2*starst.ESI^2+0.0072^2)
+    starst.EI = sqrt((1.0-1.2444)^2*starst.ESR^2+1.2444^2*starst.ESI^2+0.0078^2)
   endif else begin
     starst.R = starst.SR - 0.2936*(starst.SR-starst.SI) - 0.1439
     starst.I = starst.SR - 1.2444*(starst.SR-starst.SI) - 0.3820
-    starst.ER = sqrt(starst.ESR^2+starst.ESI^2+0.0072^2)
-    starst.EI = sqrt(starst.ESR^2+starst.ESI^2+0.0078^2)
+    starst.ER = sqrt((1.0-0.2936)^2*starst.ESR^2+0.2936^2*starst.ESI^2+0.0072^2)
+    starst.EI = sqrt((1.0-1.2444)^2*starst.ESR^2+1.2444^2*starst.ESI^2+0.0078^2)
   endelse
 endif
 if direction eq 2 then begin

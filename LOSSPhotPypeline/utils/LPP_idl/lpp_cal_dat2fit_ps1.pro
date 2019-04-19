@@ -38,7 +38,7 @@ lpp_mag_ps1_jc,1,stars
 stars.C=stars.R
 stars.CLEAR=stars.R
 stars.EC=stars.ER
-stars.ECLEAR=stars.ECLEAR
+stars.ECLEAR=stars.ER
 
 
 strreplace,outstfitfile,'.dat','_Landolt_standard.fit'

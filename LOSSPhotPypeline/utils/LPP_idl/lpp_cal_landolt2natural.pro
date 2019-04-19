@@ -31,6 +31,11 @@ stnew.B=st.B+Cb*(st.B-st.V)
 stnew.V=st.V+Cv*(st.B-st.V)
 stnew.R=st.R+Cr*(st.V-st.R)
 stnew.I=st.I+Ci*(st.R-st.I)
+;;add updated error by zwk on 190419
+stnew.EB=sqrt((1.0+Cb)^2*st.EB^2 + Cb^2*st.EV^2)
+stnew.EV=sqrt((1.0-Cv)^2*st.EV^2 + Cv^2*st.EB^2)
+stnew.ER=sqrt((1.0-Cr)^2*st.ER^2 + Cr^2*st.EV^2)
+stnew.EI=sqrt((1.0-Ci)^2*st.EI^2 + Ci^2*st.ER^2)
 outstfitfile=outstfitfilehead+'_kait1_natural.fit'
 wsttofile,outstfitfile,stnew
 
@@ -44,6 +49,10 @@ stnew.B=st.B+Cb*(st.B-st.V)
 stnew.V=st.V+Cv*(st.B-st.V)
 stnew.R=st.R+Cr*(st.V-st.R)
 stnew.I=st.I+Ci*(st.R-st.I)
+stnew.EB=sqrt((1.0+Cb)^2*st.EB^2 + Cb^2*st.EV^2)
+stnew.EV=sqrt((1.0-Cv)^2*st.EV^2 + Cv^2*st.EB^2)
+stnew.ER=sqrt((1.0-Cr)^2*st.ER^2 + Cr^2*st.EV^2)
+stnew.EI=sqrt((1.0-Ci)^2*st.EI^2 + Ci^2*st.ER^2)
 outstfitfile=outstfitfilehead+'_kait2_natural.fit'
 wsttofile,outstfitfile,stnew
 
@@ -57,6 +66,10 @@ stnew.B=st.B+Cb*(st.B-st.V)
 stnew.V=st.V+Cv*(st.B-st.V)
 stnew.R=st.R+Cr*(st.V-st.R)
 stnew.I=st.I+Ci*(st.R-st.I)
+stnew.EB=sqrt((1.0+Cb)^2*st.EB^2 + Cb^2*st.EV^2)
+stnew.EV=sqrt((1.0-Cv)^2*st.EV^2 + Cv^2*st.EB^2)
+stnew.ER=sqrt((1.0-Cr)^2*st.ER^2 + Cr^2*st.EV^2)
+stnew.EI=sqrt((1.0-Ci)^2*st.EI^2 + Ci^2*st.ER^2)
 outstfitfile=outstfitfilehead+'_kait3_natural.fit'
 wsttofile,outstfitfile,stnew
 
@@ -70,6 +83,10 @@ stnew.B=st.B+Cb*(st.B-st.V)
 stnew.V=st.V+Cv*(st.B-st.V)
 stnew.R=st.R+Cr*(st.V-st.R)
 stnew.I=st.I+Ci*(st.R-st.I)
+stnew.EB=sqrt((1.0+Cb)^2*st.EB^2 + Cb^2*st.EV^2)
+stnew.EV=sqrt((1.0-Cv)^2*st.EV^2 + Cv^2*st.EB^2)
+stnew.ER=sqrt((1.0-Cr)^2*st.ER^2 + Cr^2*st.EV^2)
+stnew.EI=sqrt((1.0-Ci)^2*st.EI^2 + Ci^2*st.ER^2)
 outstfitfile=outstfitfilehead+'_kait4_natural.fit'
 wsttofile,outstfitfile,stnew
 
@@ -88,6 +105,10 @@ stnew.B=st.B+Cb*(st.B-st.V)
 stnew.V=st.V+Cv*(st.B-st.V)
 stnew.R=st.R+Cr*(st.V-st.R)
 stnew.I=st.I+Ci*(st.R-st.I)
+stnew.EB=sqrt((1.0+Cb)^2*st.EB^2 + Cb^2*st.EV^2)
+stnew.EV=sqrt((1.0-Cv)^2*st.EV^2 + Cv^2*st.EB^2)
+stnew.ER=sqrt((1.0-Cr)^2*st.ER^2 + Cr^2*st.EV^2)
+stnew.EI=sqrt((1.0-Ci)^2*st.EI^2 + Ci^2*st.ER^2)
 outstfitfile=outstfitfilehead+'_nickel1_natural.fit'
 wsttofile,outstfitfile,stnew
 
@@ -101,6 +122,10 @@ stnew.B=st.B+Cb*(st.B-st.V)
 stnew.V=st.V+Cv*(st.B-st.V)
 stnew.R=st.R+Cr*(st.V-st.R)
 stnew.I=st.I+Ci*(st.R-st.I)
+stnew.EB=sqrt((1.0+Cb)^2*st.EB^2 + Cb^2*st.EV^2)
+stnew.EV=sqrt((1.0-Cv)^2*st.EV^2 + Cv^2*st.EB^2)
+stnew.ER=sqrt((1.0-Cr)^2*st.ER^2 + Cr^2*st.EV^2)
+stnew.EI=sqrt((1.0-Ci)^2*st.EI^2 + Ci^2*st.ER^2)
 outstfitfile=outstfitfilehead+'_nickel2_natural.fit'
 wsttofile,outstfitfile,stnew
 
