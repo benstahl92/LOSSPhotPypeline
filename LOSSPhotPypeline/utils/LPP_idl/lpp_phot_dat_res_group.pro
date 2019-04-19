@@ -115,18 +115,18 @@ outst=out_magst
 ;;this is for 1 filters
 if filternumber eq 1 then begin
   if keyword_set(output) then begin
-    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a7,a9)'
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a8,a10)'
   endif 
   if keyword_set(outfile) then begin
     openw, outlun, outfile, /get
-    printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a7,a9)'
+    printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],format='(a7,a10,a5,a8,a10)'
   endif
   for i=0,n_elements(out_magst)-1 do begin
     if keyword_set(output) then begin
-      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),format='(i6,f11.4,i5,f7.2,f9.2)'
+      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),format='(i6,f11.4,i5,f8.3,f10.3)'
     endif
     if keyword_set(outfile) then begin
-      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),format='(i6,f11.4,i5,f7.2,f9.2)'
+      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),format='(i6,f11.4,i5,f8.3,f10.3)'
     endif
   endfor
   if keyword_set(outfile) then begin
@@ -137,18 +137,18 @@ endif
 ;;this is for 2 filters
 if filternumber eq 2 then begin
   if keyword_set(output) then begin
-    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9)'
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10)'
   endif
   if keyword_set(outfile) then begin
     openw, outlun, outfile, /get
-      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9)'
+      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10)'
   endif
   for i=0,n_elements(out_magst)-1 do begin
     if keyword_set(output) then begin
-      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2)'
+      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3)'
     endif
     if keyword_set(outfile) then begin
-      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2)'
+      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3)'
     endif
   endfor
   if keyword_set(outfile) then begin
@@ -159,18 +159,18 @@ endif
 ;;this is for 3 filters
 if filternumber eq 3 then begin
   if keyword_set(output) then begin
-    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9)'
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   if keyword_set(outfile) then begin
     openw, outlun, outfile, /get
-      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9)'
+      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   for i=0,n_elements(out_magst)-1 do begin
     if keyword_set(output) then begin
-      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
     if keyword_set(outfile) then begin
-      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
   endfor
   if keyword_set(outfile) then begin
@@ -181,18 +181,18 @@ endif
 ;;this is for 4 filters
 if filternumber eq 4 then begin
   if keyword_set(output) then begin
-    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9)'
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   if keyword_set(outfile) then begin
     openw, outlun, outfile, /get
-      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9)'
+      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   for i=0,n_elements(out_magst)-1 do begin
     if keyword_set(output) then begin
-      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
     if keyword_set(outfile) then begin
-      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
   endfor
   if keyword_set(outfile) then begin
@@ -203,18 +203,18 @@ endif
 ;;this is for 5 filters
 if filternumber eq 5 then begin
   if keyword_set(output) then begin
-    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9)'
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   if keyword_set(outfile) then begin
     openw, outlun, outfile, /get
-      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9)'
+      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   for i=0,n_elements(out_magst)-1 do begin
     if keyword_set(output) then begin
-      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
   endif
     if keyword_set(outfile) then begin
-      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
   endfor
   if keyword_set(outfile) then begin
@@ -225,18 +225,18 @@ endif
 ;;this is for 6 filters, that's the maximum filter number support for now, could add more if needed
 if filternumber eq 6 then begin
   if keyword_set(output) then begin
-    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],tagnames[13],tagnames[14],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9)'
+    print,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],tagnames[13],tagnames[14],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   if keyword_set(outfile) then begin 
     openw, outlun, outfile, /get
-      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],tagnames[13],tagnames[14],format='(a7,a10,a5,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9,a7,a9)'
+      printf,outlun,tagnames[0],tagnames[1],tagnames[2],tagnames[3],tagnames[4],tagnames[5],tagnames[6],tagnames[7],tagnames[8],tagnames[9],tagnames[10],tagnames[11],tagnames[12],tagnames[13],tagnames[14],format='(a7,a10,a5,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10,a8,a10)'
   endif
   for i=0,n_elements(out_magst)-1 do begin
     if keyword_set(output) then begin
-      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),out_magst[i].(13),out_magst[i].(14),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      print,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),out_magst[i].(13),out_magst[i].(14),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
     if keyword_set(outfile) then begin
-      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),out_magst[i].(13),out_magst[i].(14),format='(i6,f11.4,i5,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2,f7.2,f9.2)'
+      printf,outlun,out_magst[i].(0),out_magst[i].(1),out_magst[i].(2),out_magst[i].(3),out_magst[i].(4),out_magst[i].(5),out_magst[i].(6),out_magst[i].(7),out_magst[i].(8),out_magst[i].(9),out_magst[i].(10),out_magst[i].(11),out_magst[i].(12),out_magst[i].(13),out_magst[i].(14),format='(i6,f11.4,i5,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3,f8.3,f10.3)'
     endif
   endfor
   if keyword_set(outfile) then begin

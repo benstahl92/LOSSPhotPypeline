@@ -1,4 +1,4 @@
-pro lpp_sim_fake_star,image,ximage,yimage,mag,fwhm=fwhm,exposures=exposures,outfile=outfile,psffitarrfile=psffitarrfile
+pro lpp_sim_fake_star,image,ximage,yimage,mag,fwhm=fwhm,exposures=exposures,outfile=outfile,psffitarrfile=psffitarrfile,usenaturalmag=usenaturalmag
 
 if n_params() eq 0 then begin
   print,'syntax - lpp_sim_fake_star,image,ximage,yimage,mag,fwhm=fwhm,exposures=exposures'
@@ -39,17 +39,21 @@ maxX=float(sxpar(imhdr,'NAXIS1'))
 maxY=float(sxpar(imhdr,'NAXIS2'))
 ;print,maxX,maxY
 
-;;also need to find zero mag from .zero file
-ff=findfile(imagest.zero)
-if ff[0] eq '' then begin
-  print,'file : ',imagest.zero,' not found, quit!'
-  return
-endif
-readcol,imagest.zero,magzero
-magzero=magzero[0]
+if keyword_set(usenaturalmag) then begin
+  magzero=25.0
+endif else begin
+  ;;also need to find zero mag from .zero file
+  ff=findfile(imagest.zero)
+  if ff[0] eq '' then begin
+    print,'file : ',imagest.zero,' not found, quit!'
+    return
+  endif
+  readcol,imagest.zero,magzero
+  magzero=magzero[0]
+endelse
 print,'zero mag is : ',magzero
-psffitfilereaded=0
 
+psffitfilereaded=0
 for i=0,n_elements(ximage)-1 do begin
   ;totalcount=5000
   ;;now need to findout the totalcount according to the mag
