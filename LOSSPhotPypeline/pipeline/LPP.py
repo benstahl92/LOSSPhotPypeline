@@ -694,7 +694,8 @@ class LPP(object):
                 ps = True
 
             # do calibration
-            phot = img.calibrate(self.cal_IDs, self.cal_arrays[img.color_term].loc[:, img.filter.upper()], sub = ps, write_dat = final_pass)
+            phot = img.calibrate(self.cal_IDs, self.cal_arrays[img.color_term].loc[:, img.filter.upper()],
+                                 self.cal_arrays[img.color_term].loc[:, 'E'+img.filter.upper()], sub = ps, write_dat = final_pass)
             phot.rename(columns = {self.calmethod: 'Mag_obs'}, inplace = True)
 
             # add comparison information

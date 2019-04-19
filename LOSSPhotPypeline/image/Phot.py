@@ -106,7 +106,7 @@ class Phot(FitsInfo):
         cal_mag_mean = cal_mags.loc[cal_IDs].mean()
         cal_mag_var = (cal_errs.loc[cal_IDs]**2).sum()
         instrument_mag_mean = self.phot_raw.loc[cal_IDs, aps].mean(axis = 0)
-        instrument_mag_var = (self.phot_raw.loc[cal_IDs, err_aps]**2).sum(axis = 1)
+        instrument_mag_var = (self.phot_raw.loc[cal_IDs, err_aps]**2).sum(axis = 0)
         zp_offset = cal_mag_mean - instrument_mag_mean
         zp_offset_var = cal_mag_var + instrument_mag_var
 
