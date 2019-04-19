@@ -14,21 +14,27 @@ nochanges=0
 case system of
   'kait1' : begin
       color_term={C_B:-0.095, C_V:0.027, C_R:-0.181, C_I:-0.071}
+      color_term_err={C_B:0.011, C_V:0.005, C_R:0.003, C_I:0.014}
   end
   'kait2' : begin
       color_term={C_B:-0.085, C_V:0.032, C_R:0.062, C_I:-0.007}
+      color_term_err={C_B:0.022, C_V:0.010, C_R:0.018, C_I:0.010}
   end
   'kait3' : begin
       color_term={C_B:-0.057, C_V:0.032, C_R:0.064, C_I:-0.001}
+      color_term_err={C_B:0.018, C_V:0.007, C_R:0.017, C_I:0.010}
   end
   'kait4' : begin
       color_term={C_B:-0.134, C_V:0.051, C_R:0.107, C_I:0.014}
+      color_term_err={C_B:0.017, C_V:0.008, C_R:0.014, C_I:0.014}
   end
   'nickel1': begin
       color_term={C_B:-0.092, C_V:0.053, C_R:0.089, C_I:-0.044}
+      color_term_err={C_B:0.014, C_V:0.008, C_R:0.016, C_I:0.010}
   end
   'nickel2': begin
-      color_term={C_B:0.041, C_V:0.082, C_R:0.092, C_I:-0.043}
+      color_term={C_B:0.042, C_V:0.082, C_R:0.092, C_I:-0.044}
+      color_term_err={C_B:0.012, C_V:0.011, C_R:0.016, C_I:0.012}
   end
   'Landolt': begin
       color_term={C_B:0.000, C_V:0.000, C_R:0.000, C_I:0.000}
@@ -96,24 +102,25 @@ endif
 
 if hasB eq 1 and hasV eq 1 then begin
   b_v=(natural_st.B-natural_st.V)/(1.0+color_term.C_B-color_term.C_V)
+  etmp=1.0+color_term.C_B-color_term.C_V
+  E_b_v_square = (1.0/etmp)^2*(natural_st.EB^2+natural_st.EV^2) + ((natural_st.B-natural_st.V)/(etmp^2))^2*(color_term_err.C_B^2+color_term_err.C_V^2)
   stand_st.B=natural_st.B-color_term.C_B*b_v
+  stand_st.EB = sqrt(natural_st.EB^2 + color_term.C_B^2*E_b_v_square + b_v^2*color_term_err.C_B^2 )
   stand_st.V=natural_st.V-color_term.C_V*b_v
+  stand_st.EV = sqrt(natural_st.EV^2 + color_term.C_V^2*E_b_v_square + b_v^2*color_term_err.C_V^2 )
 
   if hasR eq 1 then begin
     stand_st.R=(natural_st.R-color_term.C_R*stand_st.V)/(1.0-color_term.C_R)
+    etmp=1.0-color_term.C_R
+    stand_st.ER = sqrt((1.0/etmp)^2*(natural_st.ER^2+color_term.C_R^2*stand_st.EV^2) + ( (natural_st.R - color_term.C_R*stand_st.V - stand_st.V*etmp) /(etmp^2))^2*color_term_err.C_R^2)
   endif
   
-  if hasR eq 1 and hasI eq 1 then begin
-    stand_st.I=(natural_st.I-color_term.C_I*stand_st.R)/(1.0-color_term.C_I)
+  if hasI eq 1 then begin
+    stand_st.I=(natural_st.I-color_term.C_I*stand_st.V)/(1.0-color_term.C_I)
+    etmp=1.0-color_term.C_I
+    stand_st.ER = sqrt((1.0/etmp)^2*(natural_st.EI^2+color_term.C_I^2*stand_st.EV^2) + ( (natural_st.I - color_term.C_I*stand_st.V - stand_st.V*etmp) /(etmp^2))^2*color_term_err.C_I^2)
   endif
   
-  if hasR eq 0 and hasI eq 1 then begin
-    print,'Delete I data because can not do invert'
-    sttmp1=stand_st
-    remove_tags,sttmp1,'I',sttmp2
-    remove_tags,sttmp2,'EI',stand_st
-  endif
-
   if hasU eq 1 then begin
     print,'U band has no color term in build, just output the same value'
   endif
