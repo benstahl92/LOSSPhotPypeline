@@ -14,18 +14,23 @@ import LOSSPhotPypeline.utils as LPPu
 
 class Phot(FitsInfo):
 
-    def __init__(self, name, radecfile = None, radec = None, wdir = '.'):
+    def __init__(self, name, radecfile = None, radec = None, wdir = '.', calmethod = 'psf'):
 
         FitsInfo.__init__(self, name)
 
         self.radecfile = radecfile
         self.radec = radec
         self.wdir = os.path.abspath(wdir)
+        self.calmethod = calmethod
         self.phot_raw = None # internal dataframe representation of photometry for use during calibration
         self.phot_sub_raw = None
 
         if (self.radec is None) and (self.radecfile is not None):
             self.radec = pd.read_csv(self.radecfile, delim_whitespace=True, skiprows = (0,1,3,4,5), names = ['RA','DEC'])
+
+        self.stat_err = 0
+        self.cal_err = 0
+        self.sim_err = 0
 
         # get and set fwhm
         self.get_fwhm()
@@ -109,6 +114,10 @@ class Phot(FitsInfo):
         instrument_mag_var = (self.phot_raw.loc[cal_IDs, err_aps]**2).sum(axis = 0)
         zp_offset = cal_mag_mean - instrument_mag_mean
         zp_offset_var = cal_mag_var + instrument_mag_var
+
+        # record uncertainty from photometry and calibration
+        self.stat_err = self.phot_raw.loc[-1, self.calmethod]
+        self.cal_err = np.sqrt(zp_offset_var)
 
         # get coords of ref stars in obs
         cs = WCS(header = self.header)

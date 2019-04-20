@@ -485,7 +485,7 @@ class LPP(object):
             return
 
         # instantiate object to manage names
-        ref = Phot(self.refname)
+        ref = Phot(self.refname, calmethod = self.calmethod)
 
         # use sextractor to extract all stars to be used as refstars
         sxcp = os.path.join(os.path.dirname(inspect.getfile(LOSSPhotPypeline)), 'conf', 'sextractor_config')
@@ -1181,7 +1181,7 @@ class LPP(object):
             self.generate_lc(sub = True)
 
     def get_errors(self, method = 'sn6', kpix_rad = 20, skip_photsub = False, photsub = 'auto', ps = 0.7965,
-                   host_ra = None, host_dec = None, rseed = 100):
+                   host_ra = None, host_dec = None, rseed = None):
         '''inject artificial stars of same mag as SN at each epoch and compute mags'''
 
         self.log.info('doing artificial star simulation to determine errors')
@@ -1239,11 +1239,15 @@ class LPP(object):
 
             # get magnitude of sn at this epoch
             if photsub is False:
-                mag = img.phot.loc[-1, 'Mag_obs']
-                emag = img.phot.loc[-1, self.calmethod + '_err']
+                #mag = img.phot.loc[-1, 'Mag_obs']
+                #emag = img.phot.loc[-1, self.calmethod + '_err']
+                mag = img.phot_raw.loc[-1, 'Mag_obs']
+                emag = img.phot_raw.loc[-1, self.calmethod + '_err']
             else:
-                mag = img.phot_sub.loc[-1, self.calmethod]
-                emag = img.phot_sub.loc[-1, self.calmethod + '_err']
+                #mag = img.phot_sub.loc[-1, self.calmethod]
+                #emag = img.phot_sub.loc[-1, self.calmethod + '_err']
+                mag = img.phot_sub_raw.loc[-1, self.calmethod]
+                emag = img.phot_sub_raw.loc[-1, self.calmethod + '_err']
             if (np.isnan(mag)) or (np.isinf(mag)):
                 return False, None
 
@@ -1256,12 +1260,12 @@ class LPP(object):
             assert n_stars == len(x)
 
             # IDL call leads to new images in new directory
-            idl_cmd = '''idl -e "lpp_sim_fake_star, '{}', {}, {}, {}, OUTFILE='{}', PSFFITARRFILE='{}'"'''.format(img.cimg, 
+            idl_cmd = '''idl -e "lpp_sim_fake_star, '{}', {}, {}, {}, OUTFILE='{}', PSFFITARRFILE='{}', /USENATURALMAG"'''.format(img.cimg, 
                       x.tolist(), y.tolist(), inj_mags, os.path.join(self.error_dir, os.path.basename(img.cimg)), img.psffitarr)
             stdout, stderr = LPPu.idl(idl_cmd)
             self._log_idl(idl_cmd, stdout, stderr)
 
-            return True, inj_mags#mag
+            return True, inj_mags
 
         self.log.info('creating images with artificial stars')
         succ = []
@@ -1271,13 +1275,8 @@ class LPP(object):
             succ.append(s)
             if m is not None:
                 mags.append(m)
-
         # drop images with no mag
         self.wIndex = self.wIndex[pd.Series(succ)]
-
-        # put mags into series
-        #mags = pd.DataFrame(mags, index = self.wIndex) #pd.Series(mags, index = self.wIndex)
-        #mags.columns = self.phot_instances.loc[self.wIndex[0]].phot.index[-n_stars:]
 
         # instantiate pipeline instance and inherit many parent attributes
         sn = LPP(self.targetname, interactive = False, parallel = self.parallel, cal_diff_tol = self.cal_diff_tol, force_color_term = self.force_color_term,
@@ -1297,7 +1296,7 @@ class LPP(object):
         sn.phot_instances = sn._im2inst(sn.image_list.loc[sn.wIndex], mode = 'quiet')
 
         # include artificial stars in radec
-        cs, x, y = handle_img(Phot(self.refname), ret_xy = True)
+        cs, x, y = handle_img(Phot(self.refname, calmethod = self.calmethod), ret_xy = True)
         fake_ra, fake_dec = cs.all_pix2world(x, y, 0)
         for img in sn.phot_instances.loc[sn.wIndex]:
             img.radec = self.radec.append(pd.DataFrame({'RA': fake_ra, 'DEC': fake_dec}), ignore_index = True)
@@ -1306,8 +1305,8 @@ class LPP(object):
         if (skip_photsub is False) and (photsub is True):
             sn.do_galaxy_subtraction_all_image()
         sn.do_photometry_all_image()
-        sn.get_sky_all_image()
-        sn.calibrate(final_pass = True) # just use already selected calibration stars
+        #sn.get_sky_all_image()
+        #sn.calibrate(final_pass = True) # just use already selected calibration stars
 
         # gather, organize and write
         sn.lc_dir = self.lc_dir + '_sim'
@@ -1316,29 +1315,28 @@ class LPP(object):
             os.makedirs(sn.lc_dir)
         def get_res(img, ps):
             if ps is False:
-                tmp = img.phot.iloc[-n_stars:].loc[:, 'Mag_obs']
+                #tmp = img.phot.iloc[-n_stars:].loc[:, 'Mag_obs']
+                tmp = img.phot_raw.iloc[-n_stars:].loc[:, 'Mag_obs']
             else:
-                tmp = img.phot_sub.iloc[-n_stars:].loc[:, sn.calmethod]
-            #return pd.Series([img.cimg, tmp.mean(axis = 0), tmp.median(axis = 0), tmp.std(axis = 0)])
+                #tmp = img.phot_sub.iloc[-n_stars:].loc[:, sn.calmethod]
+                tmp = img.phot_sub_raw.iloc[-n_stars:].loc[:, sn.calmethod]
             return tmp
         res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
 
-        # put mags into series
-        mags = pd.DataFrame(mags, index = self.wIndex) #pd.Series(mags, index = self.wIndex)
+        # put mags into DataFrame
+        mags = pd.DataFrame(mags, index = self.wIndex)
         mags.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
 
+        # compute result metrics
         residuals = mags - res
-
-        r = pd.concat([sn.image_list.loc[sn.wIndex], mags.mean(axis = 1), mags.median(axis = 1), mags.std(axis = 1), residuals.mean(axis = 1)], axis = 1)
+        r = pd.concat([sn.image_list.loc[sn.wIndex], res.mean(axis = 1), res.median(axis = 1), res.std(axis = 1), residuals.mean(axis = 1)], axis = 1)
         r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'mean_residual')
-        #r.columns = ('imagename', 'sim_mean_mag', 'sim_std_mag', 'mean_residual', 'RMS_residual', 'std_residual')
-        #r['residual'] = mags - r['sim_mean_mag']
         with open(os.path.join(sn.lc_dir, 'sim_{}_results.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.to_string(index = False))
         with open(os.path.join(sn.lc_dir, 'sim_{}_summary.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.describe().round(3).to_string())
         #r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
-
+        '''
         # do all light curves (replace stat errors with simulation errors)
         all_nat = []
         all_std = []
@@ -1382,7 +1380,7 @@ class LPP(object):
             pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = self.calmethod)
             p.plot_lc(extensions = ['.ps', '.png'])
-
+        '''
         sn.savefile = sn.savefile.replace('.sav', '_sim.sav')
         sn.save()
 
@@ -1657,9 +1655,9 @@ class LPP(object):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', AstropyWarning)
             if mode != 'quiet':
-                return image_list.progress_apply(Phot, radec = self.radec, wdir = self.wdir)
+                return image_list.progress_apply(Phot, radec = self.radec, wdir = self.wdir, calmethod = self.calmethod)
             else:
-                return image_list.apply(Phot, radec = self.radec, wdir = self.wdir)
+                return image_list.apply(Phot, radec = self.radec, wdir = self.wdir, calmethod = self.calmethod)
 
     def _lc_fname(self, cterm, pmethod, lc_type, sub = False):
         '''return light curve filename'''
