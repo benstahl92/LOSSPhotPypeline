@@ -914,10 +914,12 @@ class LPP(object):
                     print('\nChoice >')
                 cid = fig.canvas.mpl_connect('pick_event', lambda event: onpick(event))
                 print('*'*60)
-                print('\nSuccess Rate Per (worst 10)')
-                print('{:<12} {:<12}'.format('cal ID', 'image'))
-                for c, i in itertools.zip_longest(cal_succ.iloc[:10].index, img_succ.iloc[:10].index):
-                    print('{:<4} {:<7} {:<4} {:<7}'.format(c, round(cal_succ.loc[c], 3), i, round(img_succ.loc[i], 3)))
+                nshow = np.min([len(cal_succ), len(img_succ), 10])
+                if nshow > 0:
+                    print('\nSuccess Rate Per (worst {})'.format(nshow))
+                    print('{:<12} {:<12}'.format('cal ID', 'image'))
+                    for c, i in itertools.zip_longest(cal_succ.iloc[:nshow].index, img_succ.iloc[:nshow].index):
+                        print('{:<4} {:<7} {:<4} {:<7}'.format(c, round(cal_succ.loc[c], 3), i, round(img_succ.loc[i], 3)))
                 # warn if any individual images have too few ref stars
                 ref_counts = self.calibrators['Mag_obs'].notnull().sum(level = 0)
                 if (ref_counts < self.min_ref_num).sum() > 0:

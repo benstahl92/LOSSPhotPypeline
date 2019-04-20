@@ -109,15 +109,15 @@ class Phot(FitsInfo):
 
         # ref stars in sub are the same as in un sub so only need to find cal mags once
         cal_mag_mean = cal_mags.loc[cal_IDs].mean()
-        cal_mag_var = (cal_errs.loc[cal_IDs]**2).sum()
+        cal_mag_var = (cal_errs.loc[cal_IDs]**2).sum() / len(cal_IDs)**2 # error propagation of mean
         instrument_mag_mean = self.phot_raw.loc[cal_IDs, aps].mean(axis = 0)
-        instrument_mag_var = (self.phot_raw.loc[cal_IDs, err_aps]**2).sum(axis = 0)
+        instrument_mag_var = (self.phot_raw.loc[cal_IDs, err_aps]**2).sum(axis = 0) / len(cal_IDs)**2
         zp_offset = cal_mag_mean - instrument_mag_mean
         zp_offset_var = cal_mag_var + instrument_mag_var
 
         # record uncertainty from photometry and calibration
-        self.stat_err = self.phot_raw.loc[-1, self.calmethod]
-        self.cal_err = np.sqrt(zp_offset_var)
+        self.stat_err = self.phot_raw.loc[-1, self.calmethod + '_err']
+        self.cal_err = np.sqrt(zp_offset_var.loc[self.calmethod + '_err'])
 
         # get coords of ref stars in obs
         cs = WCS(header = self.header)
