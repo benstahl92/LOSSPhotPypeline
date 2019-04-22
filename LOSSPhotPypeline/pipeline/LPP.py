@@ -884,11 +884,11 @@ class LPP(object):
                     fs = 'full'
                     if 'nickel' in ct:
                         fs = 'none'
-                    for filt in set(['B', 'V', 'R', 'I']).intersection(set(r['filter'])):
+                    for filt in set(r['filter']): #set(['B', 'V', 'R', 'I']).intersection(set(r['filter'])):
                         selector = (r['filter'] == filt) & r['mag'].notnull() & (r['mjd'] - r['mjd'].min() < 120) & (r['system'] == ct)
                         line, = ax[1].plot(r.loc[selector, 'mjd'], r.loc[selector, 'mag'] + p._offset(filt), c = p._color(filt),
                                            marker = ['o', 'D', 's', 'v', '^'][idx], linestyle = 'None', picker = 3,
-                                           label = '{}{}'.format(filt, ct), fillstyle = fs)
+                                           label = '{},{}'.format(filt, ct), fillstyle = fs)
                 ax[1].invert_yaxis()
                 ax[1].set_xticks(())
                 ax[1].set_yticks(())
@@ -898,8 +898,7 @@ class LPP(object):
                 plt.tight_layout()
                 def onpick(event):
                     ind = event.ind[0]
-                    filt = event.artist._label[0]
-                    sys = event.artist._label[1:]
+                    filt, sys = event.artist._label.split(',')
                     row = r.loc[(r['filter'] == filt) & (r['system'] == sys) & (r['mjd'] == event.artist._x[ind]), :]
                     id = row.index[0]
                     cal = self.phot_instances.loc[id].phot.loc[self.cal_IDs, 'Mag_obs']
@@ -957,11 +956,13 @@ class LPP(object):
                 elif response.lower()[0] == 'd':
                     self.compare_image2ref(int(response[1:]))
                     skip_calibrate = True
-                elif response.lower()[0] == 'c':
+                elif (response.lower()[0] == 'c') and (response.lower()[1] != 'l'):
                     self.manual_remove([int(i) for i in response[1:].split(',')])
                 elif response[0] in self.filters:
                     self._display_obs_cal_mags(response[0], int(response[1:]))
                     skip_calibrate = True
+                elif response[:5].lower() == 'clear':
+                    self._display_obs_cal_mags(response[:5], int(response[5:]))
                 else:
                     self.cal_IDs = self.cal_IDs.drop([int(i) for i in response.split(',')])
             elif (len(bad_img_list) > 0):
@@ -1240,16 +1241,20 @@ class LPP(object):
                 return cs, x, y
 
             # get magnitude of sn at this epoch
-            if photsub is False:
+            mag = np.nan
+            try:
+                if photsub is False:
                 #mag = img.phot.loc[-1, 'Mag_obs']
                 #emag = img.phot.loc[-1, self.calmethod + '_err']
-                mag = img.phot_raw.loc[-1, self.calmethod]
-                emag = img.phot_raw.loc[-1, self.calmethod + '_err']
-            else:
+                    mag = img.phot_raw.loc[-1, self.calmethod]
+                    emag = img.phot_raw.loc[-1, self.calmethod + '_err']
+                else:
                 #mag = img.phot_sub.loc[-1, self.calmethod]
                 #emag = img.phot_sub.loc[-1, self.calmethod + '_err']
-                mag = img.phot_sub_raw.loc[-1, self.calmethod]
-                emag = img.phot_sub_raw.loc[-1, self.calmethod + '_err']
+                    mag = img.phot_sub_raw.loc[-1, self.calmethod]
+                    emag = img.phot_sub_raw.loc[-1, self.calmethod + '_err']
+            except AttributeError:
+                pass
             if (np.isnan(mag)) or (np.isinf(mag)):
                 return False, None
 
@@ -1328,7 +1333,7 @@ class LPP(object):
         res = []
         for idx in sn.wIndex:
             res.append(get_res(idx, photsub))
-        res = pd.DataFrame(res, index = self.wIndex)
+        res = pd.DataFrame(res, index = sn.wIndex)
         res.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
         #res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
 
@@ -1337,7 +1342,7 @@ class LPP(object):
         mags.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
 
         # compute result metrics
-        residuals = mags - res
+        residuals = mags.loc[sn.wIndex] - res.loc[sn.wIndex]
         r = pd.concat([sn.image_list.loc[sn.wIndex], res.mean(axis = 1), res.median(axis = 1), res.std(axis = 1), residuals.mean(axis = 1)], axis = 1)
         r.columns = ('imagename', 'sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'mean_residual')
         with open(os.path.join(sn.lc_dir, 'sim_{}_results.dat'.format(sn.calmethod)), 'w') as f:
@@ -1346,7 +1351,7 @@ class LPP(object):
             f.write(r.describe().round(3).to_string())
         r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
 
-        # do all light curves (with full uncertainty as 0quadrature sum of three sources)
+        # do all light curves (with full uncertainty as quadrature sum of three sources)
         all_nat = []
         all_std = []
         columns = (';; MJD', 'etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
@@ -1358,8 +1363,8 @@ class LPP(object):
             tmp = pd.merge(lc, r, on = 'imagename', how = 'left')
             orig_stat_err = (tmp['+emag'] - tmp['-emag'])/2
             new_err = np.sqrt(orig_stat_err**2 + tmp['sim_std_mag']**2)
-            tmp['-emag'] = tmp['mag'] - new_err
-            tmp['+emag'] = tmp['mag'] + new_err #tmp['sim_std_mag']
+            tmp['-emag'] = round(tmp['mag'] - new_err, 5)
+            tmp['+emag'] = round(tmp['mag'] + new_err, 5)
             lc_raw_name = sn._lc_fname(ct, sn.calmethod, 'raw', sub = ps_choice)
             tmp.drop(['sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'mean_residual'], axis = 'columns').to_csv(lc_raw_name, sep = '\t', columns = columns,
                                                                                                           index = False, na_rep = 'NaN')
@@ -1700,6 +1705,21 @@ class LPP(object):
 
         result = LPPu.get_template_candidates(self.targetra, self.targetdec, dt, self.templates_dir)
         self.log.info(result)
+
+    def _reset_cal(self):
+        '''resets calibration to initial state, makes copy to revert'''
+        self.cal_IDs_bak = self.cal_IDs.copy()
+        self.mrIndex_bak = self.mrIndex.copy()
+        self.wIndex_bak = self.wIndex.copy()
+        self.cal_IDs = 'all'
+        self.wIndex = self.wIndex.append(self.mrIndex)
+        self.mrIndex = pd.Index([])
+
+    def _revert_cal(self):
+       '''undoes effects of _reset_cal'''
+       self.cal_IDs = self.cal_IDs_bak.copy()
+       self.wIndex = self.wIndex_bak.copy()
+       self.mrIndex = self.mrIndex_bak.copy()
 
     def _log_idl(self, idl_cmd, stdout, stderr):
         '''log info regarding external idl calls'''

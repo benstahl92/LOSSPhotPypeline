@@ -117,6 +117,8 @@ class Phot(FitsInfo):
 
         # record uncertainty from photometry and calibration
         self.stat_err = self.phot_raw.loc[-1, self.calmethod + '_err']
+        if sub is True:
+            self.stat_err = self.phot_sub_raw.loc[-1, self.calmethod + '_err']
         self.cal_err = np.sqrt(zp_offset_var.loc[self.calmethod + '_err'])
 
         # get coords of ref stars in obs
