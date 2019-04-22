@@ -1243,7 +1243,7 @@ class LPP(object):
             if photsub is False:
                 #mag = img.phot.loc[-1, 'Mag_obs']
                 #emag = img.phot.loc[-1, self.calmethod + '_err']
-                mag = img.phot_raw.loc[-1, 'Mag_obs']
+                mag = img.phot_raw.loc[-1, self.calmethod]
                 emag = img.phot_raw.loc[-1, self.calmethod + '_err']
             else:
                 #mag = img.phot_sub.loc[-1, self.calmethod]
@@ -1307,23 +1307,30 @@ class LPP(object):
         if (skip_photsub is False) and (photsub is True):
             sn.do_galaxy_subtraction_all_image()
         sn.do_photometry_all_image()
-        #sn.get_sky_all_image()
-        #sn.calibrate(final_pass = True) # just use already selected calibration stars
+        sn.get_sky_all_image()
+        sn.calibrate(final_pass = True) # don't really care about calibration, but need to do to read results
 
         # gather, organize and write
         sn.lc_dir = self.lc_dir + '_sim'
         sn.lc_base = os.path.join(sn.lc_dir, 'lightcurve_{}_'.format(self.targetname))
         if not os.path.exists(sn.lc_dir):
             os.makedirs(sn.lc_dir)
-        def get_res(img, ps):
+        def get_res(idx, ps):
+            img = sn.phot_instances.loc[idx]
             if ps is False:
                 #tmp = img.phot.iloc[-n_stars:].loc[:, 'Mag_obs']
-                tmp = img.phot_raw.iloc[-n_stars:].loc[:, 'Mag_obs']
+                tmp = img.phot_raw.iloc[-n_stars:].loc[:, sn.calmethod]
             else:
                 #tmp = img.phot_sub.iloc[-n_stars:].loc[:, sn.calmethod]
                 tmp = img.phot_sub_raw.iloc[-n_stars:].loc[:, sn.calmethod]
+            self.phot_instances.loc[idx].sim_err = tmp.std()
             return tmp
-        res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
+        res = []
+        for idx in sn.wIndex:
+            res.append(get_res(idx, photsub))
+        res = pd.DataFrame(res, index = self.wIndex)
+        res.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
+        #res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
 
         # put mags into DataFrame
         mags = pd.DataFrame(mags, index = self.wIndex)
@@ -1337,9 +1344,9 @@ class LPP(object):
             f.write(r.to_string(index = False))
         with open(os.path.join(sn.lc_dir, 'sim_{}_summary.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.describe().round(3).to_string())
-        #r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
-        '''
-        # do all light curves (replace stat errors with simulation errors)
+        r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
+
+        # do all light curves (with full uncertainty as 0quadrature sum of three sources)
         all_nat = []
         all_std = []
         columns = (';; MJD', 'etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
@@ -1349,8 +1356,10 @@ class LPP(object):
             # generate raw light curves
             lc = pd.read_csv(self._lc_fname(ct, sn.calmethod, 'raw', sub = ps_choice), delim_whitespace = True, comment = ';', names = columns)
             tmp = pd.merge(lc, r, on = 'imagename', how = 'left')
-            tmp['-emag'] = tmp['mag'] - tmp['sim_std_mag']
-            tmp['+emag'] = tmp['mag'] + tmp['sim_std_mag']
+            orig_stat_err = (tmp['+emag'] - tmp['-emag'])/2
+            new_err = np.sqrt(orig_stat_err**2 + tmp['sim_std_mag']**2)
+            tmp['-emag'] = tmp['mag'] - new_err
+            tmp['+emag'] = tmp['mag'] + new_err #tmp['sim_std_mag']
             lc_raw_name = sn._lc_fname(ct, sn.calmethod, 'raw', sub = ps_choice)
             tmp.drop(['sim_mean_mag', 'sim_med_mag', 'sim_std_mag', 'mean_residual'], axis = 'columns').to_csv(lc_raw_name, sep = '\t', columns = columns,
                                                                                                           index = False, na_rep = 'NaN')
@@ -1382,9 +1391,10 @@ class LPP(object):
             pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = self.calmethod)
             p.plot_lc(extensions = ['.ps', '.png'])
-        '''
+
         sn.savefile = sn.savefile.replace('.sav', '_sim.sav')
         sn.save()
+        self.save()
 
     def write_summary(self):
         '''write summary file'''
