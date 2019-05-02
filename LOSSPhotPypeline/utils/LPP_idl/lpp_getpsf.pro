@@ -355,7 +355,12 @@ GETMORE:            ;Loop for additional PSF stars begins here
  xx = psfgen + x
  yy = psfgen + y 
  make_2d,xx,yy
- psf = psf + RINTER(f,xx,yy)    
+
+; only include if not an outlier
+integ = RINTER(f,xx,yy)
+if stdev(integ) lt 10*stdev(psf) then begin
+   psf = psf + integ
+endif
 
 ; Now correct both the height of the analytic Gaussian, and the value
 ; of the aperture-magnitude of the point-spread function for the

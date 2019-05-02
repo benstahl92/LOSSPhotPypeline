@@ -122,6 +122,7 @@ class LPP(object):
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
                             'nickel1': 0, 'nickel2': 0,
                             'Landolt': 0}
+        self.color_terms_used = None
 
         # load configuration file
         loaded = False
@@ -684,7 +685,6 @@ class LPP(object):
         # iterate through image list and execute calibration script on each
         for idx, img in tqdm(self.phot_instances.loc[self.wIndex].iteritems(), total = len(self.wIndex)):
 
-
             # set photsub mode appropriately
             if self.photsub is False:
                 ps = False
@@ -876,8 +876,12 @@ class LPP(object):
                 # show ref stars and calibrated light curves
                 fig, ax = plt.subplots(1, 2, figsize = (12, 6))
                 self._display_refstars(ax = ax[0], display = True)
-                r = self.phot_instances.loc[self.wIndex].apply(lambda img: pd.Series([img.mjd, img.filter, img.phot.loc[-1, 'Mag_obs'],
-                                                               img.phot.loc[-1, self.calmethod + '_err'], img.color_term]))
+                if self.photsub:
+                    r = self.phot_instances.loc[self.wIndex].apply(lambda img: pd.Series([img.mjd, img.filter, img.phot_sub.loc[-1, self.calmethod],
+                                                                   img.phot_sub.loc[-1, self.calmethod + '_err'], img.color_term]))
+                else:
+                    r = self.phot_instances.loc[self.wIndex].apply(lambda img: pd.Series([img.mjd, img.filter, img.phot.loc[-1, 'Mag_obs'],
+                                                                   img.phot.loc[-1, self.calmethod + '_err'], img.color_term]))
                 r.columns = ('mjd', 'filter', 'mag', 'emag', 'system')
                 p = LPPu.plotLC(offset_scale = 2)
                 for idx, ct in enumerate(set(r['system'])):
@@ -1087,6 +1091,10 @@ class LPP(object):
         idl_cmd = '''idl -e "lpp_dat_res_group, '{}', '{}', OUTFILE='{}'"'''.format(infile, outfile, outfile)
         stdout, stderr = LPPu.idl(idl_cmd)
         self._log_idl(idl_cmd, stdout, stderr)
+        if (', not doing group' in stdout) or (os.path.exists(outfile) is False):
+            return False
+        else:
+            return True
 
     def generate_final_lc(self, color_term, infile, outfile):
         '''wraps IDL routine to convert from natural system'''
@@ -1094,6 +1102,10 @@ class LPP(object):
         idl_cmd = '''idl -e "lpp_invert_natural_stand_objonly, '{}', '{}', OUTFILE='{}', /OUTPUT"'''.format(infile, color_term, outfile)
         stdout, stderr = LPPu.idl(idl_cmd)
         self._log_idl(idl_cmd, stdout, stderr)
+        if not os.path.exists(outfile):
+            return False
+        else:
+            return True
 
     def raw2standard_lc(self, infile):
         '''wrap intermediate steps that transform light curves from "raw" to "standard"'''
@@ -1108,12 +1120,12 @@ class LPP(object):
 
         # do intermediate light curve steps
         self.generate_bin_lc(infile, binfile)
-        self.generate_group_lc(binfile, groupfile)
-        if not os.path.exists(groupfile):
+        grp_result = self.generate_group_lc(binfile, groupfile)
+        if grp_result is False:
             self.log.warn('no groupfile generated, skipping')
             return False, False
-        self.generate_final_lc(ct, groupfile, lc)
-        if not os.path.exists(lc):
+        std_result = self.generate_final_lc(ct, groupfile, lc)
+        if std_result is False:
             self.log.warn('no standard lc generated, skipping')
             return True, False
 
@@ -1152,6 +1164,7 @@ class LPP(object):
             all_std = []
             for ct in self.color_terms_used.keys():
                 group_succ, standard_succ = self.raw2standard_lc(self._lc_fname(ct, m, 'raw', sub = sub))
+                # only add group and standard if group has been updated
                 if group_succ is True:
                     all_nat.append((ct, self._lc_fname(ct, m, 'group', sub = sub)))
                 if standard_succ is True:
@@ -1244,13 +1257,9 @@ class LPP(object):
             mag = np.nan
             try:
                 if photsub is False:
-                #mag = img.phot.loc[-1, 'Mag_obs']
-                #emag = img.phot.loc[-1, self.calmethod + '_err']
                     mag = img.phot_raw.loc[-1, self.calmethod]
                     emag = img.phot_raw.loc[-1, self.calmethod + '_err']
                 else:
-                #mag = img.phot_sub.loc[-1, self.calmethod]
-                #emag = img.phot_sub.loc[-1, self.calmethod + '_err']
                     mag = img.phot_sub_raw.loc[-1, self.calmethod]
                     emag = img.phot_sub_raw.loc[-1, self.calmethod + '_err']
             except AttributeError:
@@ -1272,7 +1281,11 @@ class LPP(object):
             stdout, stderr = LPPu.idl(idl_cmd)
             self._log_idl(idl_cmd, stdout, stderr)
 
-            return True, inj_mags
+            # do checks on success then return
+            if os.path.exists(os.path.join(self.error_dir, os.path.basename(img.cimg))):
+                return True, inj_mags
+            else:
+                return False, None
 
         self.log.info('creating images with artificial stars')
         succ = []
@@ -1335,11 +1348,50 @@ class LPP(object):
             res.append(get_res(idx, photsub))
         res = pd.DataFrame(res, index = sn.wIndex)
         res.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
-        #res = sn.phot_instances.loc[sn.wIndex].apply(lambda img: get_res(img, photsub))
 
         # put mags into DataFrame
         mags = pd.DataFrame(mags, index = self.wIndex)
         mags.columns = sn.phot_instances.loc[sn.wIndex[0]].phot.index[-n_stars:]
+
+        # write results
+        with open(os.path.join(sn.lc_dir, 'sim_{}_injmags.dat'.format(sn.calmethod)), 'w') as f:
+            f.write(mags.to_string())
+        with open(os.path.join(sn.lc_dir, 'sim_{}_recmags.dat'.format(sn.calmethod)), 'w') as f:
+            f.write(res.to_string())
+
+        # write updated errors to lc
+        self.write_sim_lc(sn = sn, mags = mags, res = res, photsub = photsub)
+
+        # save image with inj stars labeled
+        sn._display_refstars(x = x, y = y, labels = res.columns, save_fig = os.path.join(sn.lc_dir, 'inj_stars.png'))
+
+        sn.savefile = sn.savefile.replace('.sav', '_sim.sav')
+        sn.save()
+        self.save()
+
+    def write_sim_lc(self, sn = None, mags = None, res = None, photsub = 'auto', drop_inj = []):
+        '''write sim errs to light curves'''
+
+        if (photsub == 'auto') or (type(photsub) != type(True)):
+            photsub = self.photsub
+
+        # instantiate if needed
+        if sn is None:
+            sn = LPP(self.targetname, interactive = False)
+            sn.savefile = sn.savefile.replace('.sav', '_sim.sav')
+            sn.load()
+
+        # read mags and sim results if needed
+        if mags is None:
+            mags = pd.read_csv(os.path.join(sn.lc_dir, 'sim_{}_injmags.dat'.format(sn.calmethod)), delim_whitespace = True, index_col = 0)
+            mags.columns = mags.columns.astype('int')
+        if res is None:
+            res = pd.read_csv(os.path.join(sn.lc_dir, 'sim_{}_recmags.dat'.format(sn.calmethod)), delim_whitespace = True, index_col = 0)
+            res.columns = res.columns.astype('int')
+
+        # drop any specied injected stars
+        mags = mags.drop(drop_inj, axis = 1)
+        res = res.drop(drop_inj, axis = 1)
 
         # compute result metrics
         residuals = mags.loc[sn.wIndex] - res.loc[sn.wIndex]
@@ -1349,6 +1401,8 @@ class LPP(object):
             f.write(r.to_string(index = False))
         with open(os.path.join(sn.lc_dir, 'sim_{}_summary.dat'.format(sn.calmethod)), 'w') as f:
             f.write(r.describe().round(3).to_string())
+        with open(os.path.join(sn.lc_dir, 'sim_{}_rec_mean_mags.dat'.format(sn.calmethod)), 'w') as f:
+            f.write(res.mean(axis = 0).round(3).to_string())
         r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
 
         # do all light curves (with full uncertainty as quadrature sum of three sources)
@@ -1396,10 +1450,6 @@ class LPP(object):
             pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = self.calmethod)
             p.plot_lc(extensions = ['.ps', '.png'])
-
-        sn.savefile = sn.savefile.replace('.sav', '_sim.sav')
-        sn.save()
-        self.save()
 
     def write_summary(self):
         '''write summary file'''
@@ -1605,8 +1655,7 @@ class LPP(object):
         p.plot_lc(extensions = ['.ps', '.png'])
 
         if regenerate is True:
-            #self.raw2standard_lc(lc_file.replace('.dat', '_cut.dat'))
-            self.raw2standard_lc(lc_file)
+            return self.raw2standard_lc(lc_file)
 
     def cut_raw_all_lc_points(self, infile):
         '''given "all" raw filename (need not exist), do cutting on relevant raw files and regenerate "all" files'''
@@ -1622,15 +1671,16 @@ class LPP(object):
         for ct in self.color_terms.keys():
             raw = infile.replace('all', ct)
             if os.path.exists(raw):
-                self.cut_lc_points(raw, regenerate = True)
-                all_nat.append((ct, groupfile.replace('all', ct)))
-                all_std.append(lc.replace('all', ct))
+                group_succ, std_succ = self.cut_lc_points(raw, regenerate = True)
+                if group_succ:
+                    all_nat.append((ct, groupfile.replace('all', ct)))
+                if std_succ:
+                    all_std.append(lc.replace('all', ct))
         concat_list = []
         for row in all_nat:
-            if os.path.exists(row[1]):
-                tmp = pd.read_csv(row[1], delim_whitespace = True)
-                tmp.insert(3, 'SYSTEM', row[0])
-                concat_list.append(tmp)
+            tmp = pd.read_csv(row[1], delim_whitespace = True)
+            tmp.insert(3, 'SYSTEM', row[0])
+            concat_list.append(tmp)
         if len(concat_list) > 0:
             pd.concat(concat_list, sort = False).to_csv(groupfile, sep = '\t', na_rep = 'NaN', index = False)
             p = LPPu.plotLC(lc_file = groupfile, name = self.targetname, photmethod = m)
@@ -1706,12 +1756,13 @@ class LPP(object):
         result = LPPu.get_template_candidates(self.targetra, self.targetdec, dt, self.templates_dir)
         self.log.info(result)
 
-    def _reset_cal(self):
+    def _reset_cal(self, reusecal_IDs = False):
         '''resets calibration to initial state, makes copy to revert'''
         self.cal_IDs_bak = self.cal_IDs.copy()
         self.mrIndex_bak = self.mrIndex.copy()
         self.wIndex_bak = self.wIndex.copy()
-        self.cal_IDs = 'all'
+        if not reusecal_IDs:
+            self.cal_IDs = 'all'
         self.wIndex = self.wIndex.append(self.mrIndex)
         self.mrIndex = pd.Index([])
 
@@ -1728,7 +1779,8 @@ class LPP(object):
         self.log.debug('STDOUT----\n{}'.format(stdout))
         self.log.debug('STDERR----\n{}'.format(stderr))
 
-    def _display_refstars(self, imname = None, imidx = None, icut = False, display = False, ax = None):
+    def _display_refstars(self, imname = None, imidx = None, icut = False, display = False, save_fig = None,
+                          ax = None, x = None, y = None, labels = None):
         '''show (reference) image and plot selected reference stars'''
 
         def onpick(event, cut_list, ref, refp, fig):
@@ -1763,10 +1815,16 @@ class LPP(object):
         zlim = z.get_limits(im.data)
         ax.imshow(-1*im, cmap = 'gray', vmin = -1*zlim[1], vmax = -1*zlim[0])
         ax.plot(sn_x, sn_y, 'mD', markersize = 15, mfc = 'none', mew = 2)
-        ax.plot(rd_x, rd_y, 'bs', markersize = 15, mfc = 'none', mew = 2)
-        refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 15, mfc = 'none', picker = 14, mew = 2)
-        for idx, row in ref.iterrows():
-            ax.annotate(idx, (row['x'] + 20*head['NAXIS1']/1024, row['y']), color = 'r', size = 12)
+        if (x is not None) and (y is not None):
+            ax.plot(x, y, 'bs', markersize = 15, mfc = 'none', mew = 2)
+            if labels is not None:
+                for ii in range(len(x)):
+                    ax.annotate(labels[ii], (x[ii] + 20, y[ii]), color = 'b', size = 12)
+        else:
+            ax.plot(rd_x, rd_y, 'bs', markersize = 15, mfc = 'none', mew = 2)
+            refp, = ax.plot(ref['x'], ref['y'], 'ro', markersize = 15, mfc = 'none', picker = 14, mew = 2)
+            for idx, row in ref.iterrows():
+                ax.annotate(idx, (row['x'] + 20*head['NAXIS1']/1024, row['y']), color = 'r', size = 12)
         ax.set_xticks(())
         ax.set_yticks(())
         if icut == True:
@@ -1781,6 +1839,8 @@ class LPP(object):
         if display is True:
             plt.ion()
             plt.show()
+        elif save_fig is not None:
+            plt.savefig(save_fig)
         else:
             if imidx is None:
                 plt.savefig(os.path.join(self.calibration_dir, 'ref_stars.png'))
