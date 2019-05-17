@@ -118,7 +118,7 @@ if hasB eq 1 and hasV eq 1 then begin
   if hasI eq 1 then begin
     stand_st.I=(natural_st.I-color_term.C_I*stand_st.V)/(1.0-color_term.C_I)
     etmp=1.0-color_term.C_I
-    stand_st.ER = sqrt((1.0/etmp)^2*(natural_st.EI^2+color_term.C_I^2*stand_st.EV^2) + ( (natural_st.I - color_term.C_I*stand_st.V - stand_st.V*etmp) /(etmp^2))^2*color_term_err.C_I^2)
+    stand_st.EI = sqrt((1.0/etmp)^2*(natural_st.EI^2+color_term.C_I^2*stand_st.EV^2) + ( (natural_st.I - color_term.C_I*stand_st.V - stand_st.V*etmp) /(etmp^2))^2*color_term_err.C_I^2)
   endif
   
   if hasU eq 1 then begin
