@@ -1923,7 +1923,7 @@ if __name__ == '__main__':
     parser.add_argument('-cr', '--cut-raw-lc-points-and-regenerate', dest = 'raw_lc_file', type = str,
                         default = None, help = 'light curve file to cut points from')
     parser.add_argument('-cn', '--cron', help = 'use if called by cron job for plotting', action = 'store_const',
-                        const = True, default = False)
+                        dest = 'cron', const = True, default = False)
     args = parser.parse_args()
 
     pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term, cron = args.cron)
