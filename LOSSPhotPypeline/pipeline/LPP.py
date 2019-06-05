@@ -39,7 +39,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False, cron = False,
                  wdir = '.', cal_use_common_ref_stars = False, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
         '''Instantiation instructions'''
 
@@ -61,6 +61,11 @@ class LPP(object):
         self.phase_limits = (-60, 2*365) # phase bounds in days relative to disc. date to keep if "date" check performed
         self.cal_use_common_ref_stars = cal_use_common_ref_stars # override requirement that each image have all ref stars
         self.sep_tol = sep_tol # radius around target in arcseconds to exclude candidate reference stars from
+
+        # do imports needed if being run in cron job
+        if cron:
+            import matplotlib as mpl
+            mpl.use('Agg')
 
         # log file
         self.logfile = self.targetname.replace(' ', '') + '.log'
@@ -1921,10 +1926,7 @@ if __name__ == '__main__':
                         const = True, default = False)
     args = parser.parse_args()
 
-    if args.cron:
-        import matplotlib as mpl
-        mpl.use('Agg')
-    pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
+    pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term, cron = args.cron)
     pipeline.disc_date_mjd = args.disc_date_mjd
     if (args.new is False) and (args.lc_file is None) and (args.raw_lc_file is None):
         pipeline.run()
