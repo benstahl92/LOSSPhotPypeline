@@ -733,7 +733,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def do_calibration(self, use_filts = 'all', sig = 3, min_cut_diff = 0.5, quality_cuts = True):
+    def do_calibration(self, use_filts = 'all', sig = 3, min_cut_diff = 0.5, quality_cuts = True, max_display_phase = 120):
         '''check calibration and make cuts as needed'''
 
         self.log.info('performing calibration')
@@ -889,7 +889,7 @@ class LPP(object):
                     if 'nickel' in ct:
                         fs = 'none'
                     for filt in set(r['filter']): #set(['B', 'V', 'R', 'I']).intersection(set(r['filter'])):
-                        selector = (r['filter'] == filt) & r['mag'].notnull() & (r['mjd'] - r['mjd'].min() < 120) & (r['system'] == ct)
+                        selector = (r['filter'] == filt) & r['mag'].notnull() & (r['mjd'] - r['mjd'].min() < max_display_phase) & (r['system'] == ct)
                         line, = ax[1].plot(r.loc[selector, 'mjd'], r.loc[selector, 'mag'] + p._offset(filt), c = p._color(filt),
                                            marker = ['o', 'D', 's', 'v', '^'][idx], linestyle = 'None', picker = 3,
                                            label = '{},{}'.format(filt, ct), fillstyle = fs)
@@ -1177,7 +1177,7 @@ class LPP(object):
                 tmp.insert(3, 'SYSTEM', row[0])
                 concat_list.append(tmp)
             if len(concat_list) > 0:
-                pd.concat(concat_list, sort = False).to_csv(lc_nat, sep = '\t', na_rep = 'NaN', index = False)
+                pd.concat(concat_list, sort = False).to_csv(lc_nat, sep = '\t', na_rep = 'NaN', index = False, float_format = '%6.3f')
                 p = LPPu.plotLC(lc_file = lc_nat, name = self.targetname, photmethod = m)
                 p.plot_lc(extensions = ['.ps', '.png'])
             lc = self._lc_fname('all', m, 'standard', sub = sub)
@@ -1185,7 +1185,7 @@ class LPP(object):
             for fl in all_std:
                 concat_list.append(pd.read_csv(fl, delim_whitespace = True))
             if len(concat_list) > 0:
-                pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
+                pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False, float_format = '%6.3f')
                 p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
                 p.plot_lc(extensions = ['.ps', '.png'])
 
@@ -1439,7 +1439,7 @@ class LPP(object):
             tmp.insert(3, 'SYSTEM', row[0])
             concat_list.append(tmp)
         if len(concat_list) > 0:
-            pd.concat(concat_list, sort = False).to_csv(lc_nat, sep = '\t', na_rep = 'NaN', index = False)
+            pd.concat(concat_list, sort = False).to_csv(lc_nat, sep = '\t', na_rep = 'NaN', index = False, float_format = '%6.3f')
             p = LPPu.plotLC(lc_file = lc_nat, name = self.targetname, photmethod = self.calmethod)
             p.plot_lc(extensions = ['.ps', '.png'])
         lc = sn._lc_fname('all', self.calmethod, 'standard', sub = ps_choice)
@@ -1447,7 +1447,7 @@ class LPP(object):
         for fl in all_std:
             concat_list.append(pd.read_csv(fl, delim_whitespace = True))
         if len(concat_list) > 0:
-            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
+            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False, float_format = '%6.3f')
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = self.calmethod)
             p.plot_lc(extensions = ['.ps', '.png'])
 
@@ -1682,7 +1682,7 @@ class LPP(object):
             tmp.insert(3, 'SYSTEM', row[0])
             concat_list.append(tmp)
         if len(concat_list) > 0:
-            pd.concat(concat_list, sort = False).to_csv(groupfile, sep = '\t', na_rep = 'NaN', index = False)
+            pd.concat(concat_list, sort = False).to_csv(groupfile, sep = '\t', na_rep = 'NaN', index = False, float_format = '%6.3f')
             p = LPPu.plotLC(lc_file = groupfile, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
         concat_list = []
@@ -1690,7 +1690,7 @@ class LPP(object):
             if os.path.exists(fl):
                 concat_list.append(pd.read_csv(fl, delim_whitespace = True))
         if len(concat_list) > 0:
-            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False)
+            pd.concat(concat_list, sort = False).to_csv(lc, sep = '\t', na_rep = 'NaN', index = False, float_format = '%6.3f')
             p = LPPu.plotLC(lc_file = lc, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
 
@@ -1917,8 +1917,13 @@ if __name__ == '__main__':
                         default = None, help = 'light curve file to cut points from')
     parser.add_argument('-cr', '--cut-raw-lc-points-and-regenerate', dest = 'raw_lc_file', type = str,
                         default = None, help = 'light curve file to cut points from')
+    parser.add_argument('-cn', '--cron', help = 'use if called by cron job for plotting', action = 'store_const',
+                        const = True, default = False)
     args = parser.parse_args()
 
+    if args.cron:
+        import matplotlib as mpl
+        mpl.use('Agg')
     pipeline = LPP(args.name, interactive = args.interactive, force_color_term = args.force_color_term)
     pipeline.disc_date_mjd = args.disc_date_mjd
     if (args.new is False) and (args.lc_file is None) and (args.raw_lc_file is None):
