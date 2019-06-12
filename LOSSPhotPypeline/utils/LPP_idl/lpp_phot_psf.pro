@@ -1,4 +1,4 @@
-pro lpp_phot_psf,image,fwhm=fwhm,exposures=exposures,savesky=savesky,ccdronoise=ccdronoise,ccdgain=ccdgain,photsub=photsub,output=output
+pro lpp_phot_psf,image,fwhm=fwhm,exposures=exposures,savesky=savesky,ccdronoise=ccdronoise,ccdgain=ccdgain,photsub=photsub,output=output,forcesky=forcesky
 
 !quiet = 1
 !except = 0
@@ -92,10 +92,15 @@ magall=fltarr(nobj,nphot)
 magerrall=fltarr(nobj,nphot)
 magall[*]=!values.d_nan
 magerrall[*]=!values.d_nan
+
+if keyword_set(forcesky) then begin
+  forcesky=[median(imagedata),stddev(imagedata),n_elements(imagedata)]
+endif
+
 ;;for i=0,nphot-1 do begin
 ;;should use nphot-2, because the last one is PSF phot, not apr phot
 for i=0,nphot-2 do begin
-  LPP_get_aper_counts,imagedata,fwhm,objx,objy,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp
+  lpp_get_aper_counts,imagedata,fwhm,objx,objy,flux,eflux,radius=apt_radius[i],skynoise=skynoisetmp,skys=skytmp,forcesky=forcesky
   ;print,flux,eflux
   fluxall[*,i]=flux
   print,'measured apt flux in ori image is (i, flux[i])',i,fluxall[0,i]
