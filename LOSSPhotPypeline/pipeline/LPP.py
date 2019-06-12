@@ -892,13 +892,13 @@ class LPP(object):
                         fs = 'none'
                     for filt in set(r['filter']):
                         selector = (r['filter'] == filt) & r['mag'].notnull() & (r['system'] == ct)
-                        if self.max_display_phase != 0:
+                        if (self.max_display_phase != 0) and (self.max_display_phase != 'all'):
                             selector = selector & (r['mjd'] - r['mjd'].min() < self.max_display_phase)
                         line, = ax[1].plot(r.loc[selector, 'mjd'], r.loc[selector, 'mag'] + p._offset(filt), c = p._color(filt),
                                            marker = ['o', 'D', 's', 'v', '^'][idx], linestyle = 'None', picker = 3,
                                            label = '{},{}'.format(filt, ct), fillstyle = fs)
                 ax[1].invert_yaxis()
-                #ax[1].set_xticks(())
+                ax[1].set_xticks(())
                 ax[1].set_yticks(())
                 x0, x1 = ax[1].get_xlim()
                 y0, y1 = ax[1].get_ylim()
