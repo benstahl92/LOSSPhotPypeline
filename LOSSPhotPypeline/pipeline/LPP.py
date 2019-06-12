@@ -890,7 +890,7 @@ class LPP(object):
                     fs = 'full'
                     if 'nickel' in ct:
                         fs = 'none'
-                    for filt in set(r['filter']): #set(['B', 'V', 'R', 'I']).intersection(set(r['filter'])):
+                    for filt in set(r['filter']):
                         selector = (r['filter'] == filt) & r['mag'].notnull() & (r['system'] == ct)
                         if self.max_display_phase == 0:
                             selector = selector & (r['mjd'] - r['mjd'].min() < self.max_display_phase)
@@ -898,7 +898,7 @@ class LPP(object):
                                            marker = ['o', 'D', 's', 'v', '^'][idx], linestyle = 'None', picker = 3,
                                            label = '{},{}'.format(filt, ct), fillstyle = fs)
                 ax[1].invert_yaxis()
-                ax[1].set_xticks(())
+                #ax[1].set_xticks(())
                 ax[1].set_yticks(())
                 x0, x1 = ax[1].get_xlim()
                 y0, y1 = ax[1].get_ylim()
@@ -912,6 +912,7 @@ class LPP(object):
                     cal = self.phot_instances.loc[id].phot.loc[self.cal_IDs, 'Mag_obs']
                     print('\nClicked Point Information:')
                     print('\tImage ID: {}'.format(id))
+                    print('\tImage Name: {}'.format(t.image_list.loc[id]))
                     print('\tMJD: {:.1f}'.format(row['mjd'].item()))
                     print('\tMag: {:.1f} pm {:.1f}'.format(row['mag'].item(), row['emag'].item()))
                     print('\tFilter: {}'.format(filt))
@@ -1867,7 +1868,6 @@ class LPP(object):
             ids = event.artist._x
             mags = event.artist._y
             print('\nIndex of clicked image mag: {}'.format(int(ids[ind])))
-            print('image name: {}'.format(self.image_list.loc[int(ids[ind])]))
             sub = mags[ids != ids[ind]]
             print('Without this image: {:.2f} pm {:.2f}'.format(np.median(sub), np.std(sub)))
 
