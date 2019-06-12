@@ -1551,6 +1551,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.generate_lc)
 
         # run program after calibration has been completed (on all images)
+        self.aIndex = self.aIndex.append(self.wIndex)
         self.wIndex = tmp.append(self.wIndex)
         self.run()
 

@@ -1,6 +1,6 @@
 ;; got it from rphot_get_aper_counts in rphot, did not use any mask
 ;; ********************************************************************************
-pro lpp_get_aper_counts,image,fwhm,x,y,flux,eflux,lsky=lsky,std=std,skynoise=skynoise,skys=skys,radius=radius,skyrad1=skyrad1,skyrad2=skyrad2,ccdgain=ccdgain
+pro lpp_get_aper_counts,image,fwhm,x,y,flux,eflux,lsky=lsky,std=std,skynoise=skynoise,skys=skys,radius=radius,skyrad1=skyrad1,skyrad2=skyrad2,ccdgain=ccdgain,forcesky=forcesky
 
 ;; preforms aperature photometry on the current image. X and Y can be
 ;; arrays. If no mask exists for the current image and we are getting
@@ -22,24 +22,33 @@ for i=0,n-1 do begin
     skyrad1=skyrad1ratio*radius > fwhm + 1.0
     skyrad2=skyrad2ratio*radius > fwhm
     ;print,'radius,skyrad1,skyrad2:',radius,skyrad1,skyrad2
+    if keyword_set(forcesky) then begin
+        print,'setsky'
+        print,forcesky
+        setsky=forcesky
+        std=forcesky[1]
+        nsky=forcesky[2]
+    endif else begin 
+        print,'not setsky'
 
-    ;; do local sky subtraction
-    niter=0
-    naper=!pi*(radius > fwhm)^2.0
-    repeat begin
-        lsky=(get_local_sky(image,x[i],y[i],skyrad1,skyrad2 $
-                            ,annulus=annulus,std=std,rej=rej,noreject=noreject))[0]
-        nsky=n_elements(annulus)
-        w=where(rej ne -1,nrej)
-        nsky=nsky-nrej
-        ;;w=where(noreject ne -1,nrej)
-        ;;if noreject eq 0 then nsky=nsky-nrej
-        niter=niter+1
-        skyrad2=skyrad2+0.5*skyrad1
-    endrep until nsky gt 2*naper or niter gt 8
-    setsky=[lsky,std,nsky]
-    skys[i]=lsky
+      ;; do local sky subtraction
+      niter=0
+      naper=!pi*(radius > fwhm)^2.0
+      repeat begin
+          lsky=(get_local_sky(image,x[i],y[i],skyrad1,skyrad2 $
+                              ,annulus=annulus,std=std,rej=rej,noreject=noreject))[0]
+          nsky=n_elements(annulus)
+          w=where(rej ne -1,nrej)
+          nsky=nsky-nrej
+          ;;w=where(noreject ne -1,nrej)
+          ;;if noreject eq 0 then nsky=nsky-nrej
+          niter=niter+1
+          skyrad2=skyrad2+0.5*skyrad1
+      endrep until nsky gt 2*naper or niter gt 8
+      setsky=[lsky,std,nsky]
+      skys[i]=lsky
 
+    endelse
     ;; get the counts
     lpp_aper,image,x[i],y[i],f,ef,sky,esky,ccdgain,radius,[skyrad1,skyrad2],[0,0] $
         ,/flux,/exact,setskyval=setsky,/silent
