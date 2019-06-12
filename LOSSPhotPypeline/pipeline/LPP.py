@@ -39,7 +39,7 @@ tqdm.pandas()
 class LPP(object):
     '''Lick Observatory Supernova Search Photometry Reduction Pipeline'''
 
-    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False,
+    def __init__(self, targetname, interactive = True, parallel = True, cal_diff_tol = 0.05, force_color_term = False, max_display_phase = 120,
                  wdir = '.', cal_use_common_ref_stars = False, sep_tol = 8, pct_increment = 0.05, in_pct_floor = 0.8, autoloadsave = False):
         '''Instantiation instructions'''
 
@@ -117,6 +117,7 @@ class LPP(object):
         self.cal_IDs = 'all'
         self.cal_arrays = None
         self.cal_force_clear = False
+        self.max_display_phase = max_display_phase # num days to show rel to disc for interactive calibration
 
         # keep track of counts of color terms
         self.color_terms = {'kait1': 0, 'kait2': 0, 'kait3': 0, 'kait4': 0,
@@ -151,8 +152,9 @@ class LPP(object):
         self.template_images = None
         self.templates_dir = 'templates'
 
-        # error data directory
-        self.error_dir = 'data_sim'
+        # data directories
+        self.data_dir = os.path.dirname(self.refname)
+        self.error_dir = self.data_dir + '_sim'
 
         # steps in standard reduction procedure
         self.current_step = 0
@@ -733,7 +735,7 @@ class LPP(object):
             self.current_step = self.steps.index(self.write_summary) - 1
             return
 
-    def do_calibration(self, use_filts = 'all', sig = 3, min_cut_diff = 0.5, quality_cuts = True, max_display_phase = 120):
+    def do_calibration(self, use_filts = 'all', sig = 3, min_cut_diff = 0.5, quality_cuts = True):
         '''check calibration and make cuts as needed'''
 
         self.log.info('performing calibration')
@@ -889,7 +891,9 @@ class LPP(object):
                     if 'nickel' in ct:
                         fs = 'none'
                     for filt in set(r['filter']): #set(['B', 'V', 'R', 'I']).intersection(set(r['filter'])):
-                        selector = (r['filter'] == filt) & r['mag'].notnull() & (r['mjd'] - r['mjd'].min() < max_display_phase) & (r['system'] == ct)
+                        selector = (r['filter'] == filt) & r['mag'].notnull() & (r['system'] == ct)
+                        if self.max_display_phase == 0:
+                            selector = selector & (r['mjd'] - r['mjd'].min() < self.max_display_phase)
                         line, = ax[1].plot(r.loc[selector, 'mjd'], r.loc[selector, 'mag'] + p._offset(filt), c = p._color(filt),
                                            marker = ['o', 'D', 's', 'v', '^'][idx], linestyle = 'None', picker = 3,
                                            label = '{},{}'.format(filt, ct), fillstyle = fs)
@@ -1403,7 +1407,7 @@ class LPP(object):
             f.write(r.describe().round(3).to_string())
         with open(os.path.join(sn.lc_dir, 'sim_{}_rec_mean_mags.dat'.format(sn.calmethod)), 'w') as f:
             f.write(res.mean(axis = 0).round(3).to_string())
-        r['imagename'] = r['imagename'].str.replace(self.error_dir, 'data')
+        r['imagename'] = r['imagename'].str.replace(self.error_dir, self.data_dir)
 
         # do all light curves (with full uncertainty as quadrature sum of three sources)
         all_nat = []
@@ -1863,6 +1867,7 @@ class LPP(object):
             ids = event.artist._x
             mags = event.artist._y
             print('\nIndex of clicked image mag: {}'.format(int(ids[ind])))
+            print('image name: {}'.format(self.image_list.loc[int(ids[ind])]))
             sub = mags[ids != ids[ind]]
             print('Without this image: {:.2f} pm {:.2f}'.format(np.median(sub), np.std(sub)))
 
