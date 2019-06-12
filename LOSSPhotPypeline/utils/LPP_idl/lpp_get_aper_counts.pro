@@ -23,14 +23,10 @@ for i=0,n-1 do begin
     skyrad2=skyrad2ratio*radius > fwhm
     ;print,'radius,skyrad1,skyrad2:',radius,skyrad1,skyrad2
     if keyword_set(forcesky) then begin
-        print,'setsky'
-        print,forcesky
         setsky=forcesky
         std=forcesky[1]
         nsky=forcesky[2]
     endif else begin 
-        print,'not setsky'
-
       ;; do local sky subtraction
       niter=0
       naper=!pi*(radius > fwhm)^2.0
