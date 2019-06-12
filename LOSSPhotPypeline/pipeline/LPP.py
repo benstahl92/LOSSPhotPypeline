@@ -912,7 +912,7 @@ class LPP(object):
                     cal = self.phot_instances.loc[id].phot.loc[self.cal_IDs, 'Mag_obs']
                     print('\nClicked Point Information:')
                     print('\tImage ID: {}'.format(id))
-                    print('\tImage Name: {}'.format(t.image_list.loc[id]))
+                    print('\tImage Name: {}'.format(self.image_list.loc[id]))
                     print('\tMJD: {:.1f}'.format(row['mjd'].item()))
                     print('\tMag: {:.1f} pm {:.1f}'.format(row['mag'].item(), row['emag'].item()))
                     print('\tFilter: {}'.format(filt))
