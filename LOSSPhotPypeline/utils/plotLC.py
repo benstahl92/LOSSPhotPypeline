@@ -329,8 +329,6 @@ class plotLC:
 
             # get non-null points in current passband
             tmp = lc[lc[filt].notnull()]
-            if self.lm is not None:
-                tmplm = self.lm[self.lm[filt].notnull()]
 
             if (magerr_cut is None) or (magerr_cut is False):
                 ob = tmp['E' + filt] > np.inf
@@ -354,9 +352,11 @@ class plotLC:
                                      fmt = '.', elinewidth = 1, c = self._color(filt), label = '{} {} {}'.format(filt, sgn, abs(offset)))
 
             # add limiting mags
-            ax.plot(tmplm['t_rel'], tmplm[filt] + self._offset(filt), marker = self._marker(filt), c = self._color(filt), label='_nolegend_')
-            for xx, yy in zip(tmplm['t_rel'], tmplm[filt] + self._offset(filt)):
-                ax.text(xx, yy, u'$\u2193$', size = 20, va='top', ha='center', color = self._color(filt))
+            if self.lm is not None:
+                tmplm = self.lm[self.lm[filt].notnull()]
+                ax.plot(tmplm['t_rel'], tmplm[filt] + self._offset(filt), marker = self._marker(filt), c = self._color(filt), label='_nolegend_')
+                for xx, yy in zip(tmplm['t_rel'], tmplm[filt] + self._offset(filt)):
+                    ax.text(xx, yy, u'$\u2193$', size = 20, va='top', ha='center', color = self._color(filt))
 
             # handle selection of bad points
             if icut is True:
