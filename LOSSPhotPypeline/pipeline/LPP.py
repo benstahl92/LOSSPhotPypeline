@@ -146,7 +146,8 @@ class LPP(object):
         self.lc_ext = {'raw': '_natural_raw.dat',
                        'bin': '_natural_bin.dat',
                        'group': '_natural_group.dat',
-                       'standard': '_standard.dat'}
+                       'standard': '_standard.dat',
+                       'lm': '_natural_lm.dat'}
 
         # galaxy subtraction variables
         self.template_images = None
@@ -1024,9 +1025,14 @@ class LPP(object):
     def generate_raw_lcs(self, color_term, photsub_mode = False):
         '''builds raw light curve files from calibrated results'''
 
+        # light curve containers
         columns = (';; MJD','etburst', 'mag', '-emag', '+emag', 'limmag', 'filter', 'imagename')
         lc = {name: [] for name in columns}
         lcs = {m: copy.deepcopy(lc) for m in self.photmethod}
+
+        # limiting mag containers
+        lm = {name: [] for name in columns}
+        lms = {m: copy.deepcopy(lm) for m in self.photmethod}
 
         # iterate through files and extract LC information
         for idx, img in self.phot_instances.loc[self.wIndex].iteritems():
@@ -1060,26 +1066,31 @@ class LPP(object):
 
             # setup columns for each raw file
             for m in self.photmethod:
-                lcs[m][';; MJD'].append(round(img.mjd, 6))
-                lcs[m]['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
-                lcs[m]['filter'].append(img.filter.upper())
-                lcs[m]['imagename'].append(img.cimg)
-                lcs[m]['limmag'].append(round(img.limmag, 5))
                 if 1 not in d['ID'].values:
-                    mag = np.nan
-                    err = np.nan
+                    continue # skip these ones
+                mag = d[d['ID'] == 1][m + '_mag'].item()
+                err = d[d['ID'] == 1][m + '_err'].item()
+                if np.isnan(mag):
+                    record = lms[m]
                 else:
-                    mag = d[d['ID'] == 1][m + '_mag'].item()
-                    err = d[d['ID'] == 1][m + '_err'].item()
-                lcs[m]['mag'].append(round(mag,5))
-                lcs[m]['-emag'].append(round(mag - err,5))
-                lcs[m]['+emag'].append(round(mag + err,5))
+                    record = lcs[m]
+                record['mag'].append(round(mag,5))
+                record['-emag'].append(round(mag - err,5))
+                record['+emag'].append(round(mag + err,5))
+                record[';; MJD'].append(round(img.mjd, 6))
+                record['etburst'].append(round(img.exptime / (60 * 24), 5)) # exposure time in days
+                record['filter'].append(img.filter.upper())
+                record['imagename'].append(img.cimg)
+                record['limmag'].append(round(img.limmag, 5))
 
         # write raw lc files
         for m in self.photmethod:
             lc_raw_name = self._lc_fname(color_term, m, 'raw', sub = photsub_mode)
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
+            lm_raw_name = self._lc_fname(color_term, m, 'lm', sub = photsub_mode)
+            lm_raw = pd.DataFrame(lms[m])
+            lm_raw.to_csv(lm_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
 
@@ -1572,6 +1583,16 @@ class LPP(object):
                 os.system('rm {}'.format(new_image_file))
 
         self.log.info('new images processed')
+
+    def get_limmag_phot_failed(self):
+        '''get limiting mag for images with failed SN photometry'''
+        # sky should already be done for all, but need to get zero from failed photometry images
+        for img in self.phot_instances.loc[self.pfIndex]:
+            _ = img.calibrate(self.cal_IDs, self.cal_arrays[img.color_term].loc[:, img.filter.upper()],
+                              self.cal_arrays[img.color_term].loc[:, 'E'+img.filter.upper()])
+            img.get_zeromag()
+            img.calc_limmag()
+        print(self.phot_instances.loc[self.pfIndex].apply(lambda img: pd.Series([img.mjd, img.limmag, img.filter, img.cimg])))
 
     def load_templates(self):
         '''search templates dir, setup, and convert formats as needed'''
