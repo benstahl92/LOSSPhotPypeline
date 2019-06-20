@@ -1091,7 +1091,7 @@ class LPP(object):
             lm_raw_name = self._lc_fname(color_term, m, 'lm', sub = photsub_mode)
             lm_raw = pd.DataFrame(lms[m])
             lm_raw.to_csv(lm_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
-            p = LPPu.plotLC(lc_file = lc_raw_name, name = self.targetname, photmethod = m)
+            p = LPPu.plotLC(lc_file = lc_raw_name, lm_file = lm_raw_name, name = self.targetname, photmethod = m)
             p.plot_lc(extensions = ['.ps', '.png'])
 
     def generate_bin_lc(self, infile, outfile):
