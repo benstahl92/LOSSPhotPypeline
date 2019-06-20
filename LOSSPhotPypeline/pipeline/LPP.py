@@ -147,7 +147,7 @@ class LPP(object):
                        'bin': '_natural_bin.dat',
                        'group': '_natural_group.dat',
                        'standard': '_standard.dat',
-                       'lm': '_natural_lm.dat'}
+                       'ul': '_natural_ul.dat'}
 
         # galaxy subtraction variables
         self.template_images = None
@@ -1088,7 +1088,7 @@ class LPP(object):
             lc_raw_name = self._lc_fname(color_term, m, 'raw', sub = photsub_mode)
             lc_raw = pd.DataFrame(lcs[m])
             lc_raw.to_csv(lc_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
-            lm_raw_name = self._lc_fname(color_term, m, 'lm', sub = photsub_mode)
+            lm_raw_name = self._lc_fname(color_term, m, 'ul', sub = photsub_mode)
             lm_raw = pd.DataFrame(lms[m])
             lm_raw.to_csv(lm_raw_name, sep = '\t', columns = columns, index = False, na_rep = 'NaN')
             p = LPPu.plotLC(lc_file = lc_raw_name, lm_file = lm_raw_name, name = self.targetname, photmethod = m)
