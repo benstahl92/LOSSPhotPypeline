@@ -1584,16 +1584,6 @@ class LPP(object):
 
         self.log.info('new images processed')
 
-    def get_limmag_phot_failed(self):
-        '''get limiting mag for images with failed SN photometry'''
-        # sky should already be done for all, but need to get zero from failed photometry images
-        for img in self.phot_instances.loc[self.pfIndex]:
-            _ = img.calibrate(self.cal_IDs, self.cal_arrays[img.color_term].loc[:, img.filter.upper()],
-                              self.cal_arrays[img.color_term].loc[:, 'E'+img.filter.upper()])
-            img.get_zeromag()
-            img.calc_limmag()
-        print(self.phot_instances.loc[self.pfIndex].apply(lambda img: pd.Series([img.mjd, img.limmag, img.filter, img.cimg])))
-
     def load_templates(self):
         '''search templates dir, setup, and convert formats as needed'''
 
