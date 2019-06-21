@@ -1503,39 +1503,36 @@ class LPP(object):
         self.log.info('pipeline complete, summary file written')
         self.save()
 
-    def get_host_photometry(self, aperture = 'psf', tel = 'nickel'):
+    def get_host_photometry(self, tel = 'nickel'):
         '''do photometry of the host galaxy'''
 
         # instantiate pipeline instance and inherit many parent attributes
-        sn = LPP(self.targetname, interactive = False, cal_diff_tol = self.cal_diff_tol, force_color_term = self.force_color_term,
+        sn = LPP(self.targetname, interactive = False, parallel = False, cal_diff_tol = self.cal_diff_tol, force_color_term = self.force_color_term,
                  wdir = self.wdir, cal_use_common_ref_stars = self.cal_use_common_ref_stars, autoloadsave = False, sep_tol = self.sep_tol)
 
-        # get image list as template images
-        sn.image_list = pd.Series([self.template_images['{}_{}'.format(filt, tel)] for filt in 'B V R I'.split(' ')])
-        sn.load_images()
-
-        # setup calibration stars
+        # setup
         sn.radec = self.radec
-        for img in sn.phot_instances.loc[sn.wIndex]:
-            img.radec = sn.radec
-        sn.calfile = self.calfile
-        sn.cal_source = self.cal_source
-        sn.cal_use = self.cal_use
+        sn.image_list = pd.Series([self.template_images['{}_{}'.format(filt, tel)] for filt in 'B V R I'.split(' ')])
+        sn.phot_instances = sn._im2inst(sn.image_list, mode = 'quiet')
+        sn.wIndex = sn.image_list.index
         sn.cal_arrays = self.cal_arrays
+        sn.cal_IDs = self.cal_IDs
 
         # do photometry
+        sn.photsub = False
         sn.do_photometry_all_image(forcesky = True)
         sn.get_sky_all_image()
         sn.calibrate(final_pass = True)
         sn.get_zeromag_all_image()
         sn.get_limmag_all_image()
 
-        # manual write group lc then invert
-        #cterms = sn.phot_instances.loc[sn.wIndex].apply(lambda img: img.color_term).value_counts().index
-        #assert len(cterms) == 1
-        #cterm = cterms[0]
-
         sn.lc_dir = 'host_photometry'
+        sn.lc_base = os.path.join(sn.lc_dir, 'lightcurve_{}_host_'.format(sn.targetname))
+        sn.lc_ext = {'raw': '_natural_raw.dat',
+                       'bin': '_natural_bin.dat',
+                       'group': '_natural_group.dat',
+                       'standard': '_standard.dat',
+                       'ul': '_natural_ul.dat'}
         sn.generate_lc()
 
     ###################################################################################################
