@@ -627,14 +627,14 @@ class LPP(object):
 
         self.log.info('galaxy subtraction done')
 
-    def do_photometry_all_image(self):
+    def do_photometry_all_image(self, forcesky = False):
         '''performs photometry on all selected image files'''
 
         self.log.info('starting photometry (galsub: {})'.format(self.photsub))
 
         # set up for parallelization
         ps = self.photsub
-        fn = lambda img: img.do_photometry(photsub = ps)
+        fn = lambda img: img.do_photometry(photsub = ps, forcesky = forcesky)
 
         # do photometry in the appropriate mode
         if self.parallel is True:
@@ -1502,6 +1502,41 @@ class LPP(object):
 
         self.log.info('pipeline complete, summary file written')
         self.save()
+
+    def get_host_photometry(self, aperture = 'psf', tel = 'nickel'):
+        '''do photometry of the host galaxy'''
+
+        # instantiate pipeline instance and inherit many parent attributes
+        sn = LPP(self.targetname, interactive = False, cal_diff_tol = self.cal_diff_tol, force_color_term = self.force_color_term,
+                 wdir = self.wdir, cal_use_common_ref_stars = self.cal_use_common_ref_stars, autoloadsave = False, sep_tol = self.sep_tol)
+
+        # get image list as template images
+        sn.image_list = pd.Series([self.template_images['{}_{}'.format(filt, tel)] for filt in 'B V R I'.split(' ')])
+        sn.load_images()
+
+        # setup calibration stars
+        sn.radec = self.radec
+        for img in sn.phot_instances.loc[sn.wIndex]:
+            img.radec = sn.radec
+        sn.calfile = self.calfile
+        sn.cal_source = self.cal_source
+        sn.cal_use = self.cal_use
+        sn.cal_arrays = self.cal_arrays
+
+        # do photometry
+        sn.do_photometry_all_image(forcesky = True)
+        sn.get_sky_all_image()
+        sn.calibrate(final_pass = True)
+        sn.get_zeromag_all_image()
+        sn.get_limmag_all_image()
+
+        # manual write group lc then invert
+        #cterms = sn.phot_instances.loc[sn.wIndex].apply(lambda img: img.color_term).value_counts().index
+        #assert len(cterms) == 1
+        #cterm = cterms[0]
+
+        sn.lc_dir = 'host_photometry'
+        sn.generate_lc()
 
     ###################################################################################################
     #          Utility Methods
