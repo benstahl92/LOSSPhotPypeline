@@ -354,9 +354,9 @@ class plotLC:
             # add limiting mags
             if self.lm is not None:
                 tmplm = self.lm[self.lm[filt].notnull()]
-                ax.plot(tmplm['t_rel'], tmplm[filt] + self._offset(filt), marker = self._marker(filt), c = self._color(filt), label='_nolegend_')
+                ax.plot(tmplm['t_rel'], tmplm[filt] + self._offset(filt), ls = '.', marker = self._marker(filt), c = self._color(filt), label='_nolegend_')
                 for xx, yy in zip(tmplm['t_rel'], tmplm[filt] + self._offset(filt)):
-                    ax.text(xx, yy, u'$\u2193$', size = 20, va='top', ha='center', color = self._color(filt))
+                    ax.text(xx, yy, u'$\u2193$', size = 10, va='top', ha='center', color = self._color(filt))
 
             # handle selection of bad points
             if icut is True:
