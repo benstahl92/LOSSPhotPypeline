@@ -1526,6 +1526,10 @@ class LPP(object):
         sn.get_zeromag_all_image()
         sn.get_limmag_all_image()
 
+        # set all images to have the same epoch
+        for img in sn.phot_instances.loc[sn.wIndex]:
+            img.mjd = 0
+
         sn.lc_dir = 'host_photometry'
         sn.lc_base = os.path.join(sn.lc_dir, 'lightcurve_{}_host_'.format(sn.targetname))
         sn.lc_ext = {'raw': '_natural_raw.dat',
