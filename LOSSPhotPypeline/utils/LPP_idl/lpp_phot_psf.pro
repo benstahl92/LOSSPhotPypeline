@@ -94,7 +94,9 @@ magall[*]=!values.d_nan
 magerrall[*]=!values.d_nan
 
 if keyword_set(forcesky) then begin
-  forcesky=[median(imagedata),stddev(imagedata),n_elements(imagedata)]
+  mediantmp=median(imagedata)
+  indtmp=where(imagedata le 2.5*mediantmp)
+  forcesky=[mediantmp,stddev(imagedata[indtmp]),n_elements(imagedata)]
 endif
 
 ;;for i=0,nphot-1 do begin
