@@ -73,7 +73,7 @@ class astroCatalog:
             f.write(r.text)
 
         # define structures for column name conversion and rounding
-        in_cols = ['raMean', 'decMean', 'gMeanPSFMag', 'gMeanPSFMagErr', 'rMeanPSFMag','rMeanPSFMagErr',
+        in_cols = ['RaMean', 'DecMean', 'gMeanPSFMag', 'gMeanPSFMagErr', 'rMeanPSFMag','rMeanPSFMagErr',
                    'iMeanPSFMag', 'iMeanPSFMagErr', 'zMeanPSFMag', 'zMeanPSFMagErr',
                    'yMeanPSFMag', 'yMeanPSFMagErr']
         out_cols = ['ra', 'dec', 'g', 'gErr', 'r', 'rErr', 'i', 'iErr', 'z', 'zErr', 'y', 'yErr']
