@@ -1,5 +1,9 @@
 # Dir
-/__pycache__
+.venv/
+__pycache__/
 
 # Formats
 *.pyc
+
+# Files
+poetry.lock
