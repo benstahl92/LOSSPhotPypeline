@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "LossPhotPypeline"
+name = "LOSSPhotPypeline"
 version = "0.0.1"
 description = ""
 authors = ["Benjamin Stahl <benstahl92@gmail.com>"]
