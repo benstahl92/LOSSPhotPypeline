@@ -252,4 +252,4 @@ At the very least, it is important to do a visual inspection of the final refere
 
    - Windows
 
-     There exist one, but Windows is not supported. Please use a Linux soultion (WSL, CygWin, SSH to a Linux machine, etc)
+     There exist one, but Windows is not supported. Please use a Linux solution (WSL, CygWin, SSH to a Linux machine, etc)
