@@ -418,7 +418,7 @@ endif
 ;;write the out put to the text file, if photsub, write out both
 outfile=imagest.psf
 openw,lun,outfile,/get_lun
-printf,lun,';;id   ximage   yimage    3.5p   err    5.0p   err    7.0p   err    9.0p   err   1.0fh   err   1.5fh   err   2.0fh   err     psf   err'
+printf,lun,';;id   ximage   yimage    3.5p   err    5p   err    7p   err    9p   err   1fh   err   1.5fh   err   2fh   err     psf   err'
 ;;note x,y need plus 1.0
 for i=0,nobj-1 do begin
   printf,lun,i+1,objx[i]+1.0,objy[i]+1.0,magall[i,0],magerrall[i,0],magall[i,1],magerrall[i,1],magall[i,2],magerrall[i,2],magall[i,3],magerrall[i,3],magall[i,4],magerrall[i,4],magall[i,5],magerrall[i,5],magall[i,6],magerrall[i,6],magall[i,7],magerrall[i,7],format='(i4,f9.2,f9.2,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3)'
@@ -430,7 +430,7 @@ if keyword_set(photsub) and subphotdid ne 0 then begin
   magall[0,*]=submagall[*]
   magerrall[0,*]=submagerrall[*]
   openw,lun,outfile,/get_lun
-  printf,lun,';;id   ximage   yimage    3.5p   err    5.0p   err    7.0p   err    9.0p   err   1.0fh   err   1.5fh   err   2.0fh   err     psf   err'
+  printf,lun,';;id   ximage   yimage    3.5p   err    5p   err    7p   err    9p   err   1fh   err   1.5fh   err   2fh   err     psf   err'
   ;;note x,y need plus 1.0
   for i=0,nobj-1 do begin
     printf,lun,i+1,objx[i]+1.0,objy[i]+1.0,magall[i,0],magerrall[i,0],magall[i,1],magerrall[i,1],magall[i,2],magerrall[i,2],magall[i,3],magerrall[i,3],magall[i,4],magerrall[i,4],magall[i,5],magerrall[i,5],magall[i,6],magerrall[i,6],magall[i,7],magerrall[i,7],format='(i4,f9.2,f9.2,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3,f8.3,f6.3)'
