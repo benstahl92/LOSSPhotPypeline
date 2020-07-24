@@ -95,7 +95,7 @@ class Phot(FitsInfo):
     def calibrate(self, cal_IDs, cal_mags, cal_errs, sub = False, write_dat = False):
 
         # aperture names
-        aps = ['3.5p', '5.0p', '7.0p', '9.0p', '1.0fh', '1.5fh', '2.0fh', 'psf']
+        aps = ['3.5p', '5p', '7p', '9p', '1fh', '1.5fh', '2fh', 'psf']
         err_aps = [ap + '_err' for ap in aps]
         col_names = ('id','ximage','yimage') + tuple(('{}{}'.format(m, e) for m in aps for e in ('', '_err')))
 
@@ -156,13 +156,13 @@ class Phot(FitsInfo):
         if write_dat is True:
             self.phot.index = self.phot.index + 2
             with open(self.psfdat, 'w') as outfile:
-                outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5.0p', 'err', '7.0p', 'err', '9.0p', 'err', '1.0fh', 'err', '1.5fh', 'err', '2.0fh', 'err', 'psf', 'err']]) + '\n')
+                outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5p', 'err', '7p', 'err', '9p', 'err', '1fh', 'err', '1.5fh', 'err', '2fh', 'err', 'psf', 'err']]) + '\n')
                 outfile.write(self.phot.loc[:,list(col_names)[1:]].to_string(header = False, index_names = False, float_format = '%.3f', col_space = 7))
             self.phot.index = self.phot.index - 2
             if sub is True:
                 self.phot_sub.index = self.phot_sub.index + 2
                 with open(self.psfsubdat, 'w') as outfile:
-                    outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5.0p', 'err', '7.0p', 'err', '9.0p', 'err', '1.0fh', 'err', '1.5fh', 'err', '2.0fh', 'err', 'psf', 'err']]) + '\n')
+                    outfile.write(''.join(['{:<8}'.format(ii) for ii in [';;id', 'ximage', 'yimage', '3.5p', 'err', '5p', 'err', '7p', 'err', '9p', 'err', '1fh', 'err', '1.5fh', 'err', '2fh', 'err', 'psf', 'err']]) + '\n')
                     outfile.write(self.phot_sub.loc[:,list(col_names)[1:]].to_string(header = False, index_names = False, float_format = '%.3f', col_space = 7))
                 self.phot_sub.index = self.phot_sub.index - 2
 
