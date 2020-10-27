@@ -183,6 +183,21 @@ class FitsImage(object):
             else :
                 self.idname=idnametmp[1]
 
+        elif telescope == 'UKIRT':
+            self.telescope = 'UKIRT'
+            self.pixscale = 0.091
+            print('Check UKIRT params!!')
+            date = header['DATE-OBS']
+            self.day=date[8:10]
+            self.month=date[5:7]
+            self.year=date[0:4]
+            self.hour=date[11:13]
+            self.minute=date[14:16]
+            self.second=date[17:19]
+            self.exptime=header['EXP_TIME']
+            self.filter = header['FILTER']
+            self.idname='Unk'
+
         # will add the other telescope when needed
         elif telescope == "P48" :
             self.telescope="P48"
